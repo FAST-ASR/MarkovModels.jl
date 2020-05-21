@@ -1,0 +1,7 @@
+name = "HiddenMarkovModel"
+uuid = "7212e43c-49b6-4278-a2e6-573e0ac5bb2d"
+authors = ["Lucas Ondel <iondel@fit.vutbr.cz>"]
+version = "0.1.0"
+
+[deps]
+StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"
