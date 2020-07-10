@@ -4,4 +4,5 @@ authors = ["Lucas Ondel <iondel@fit.vutbr.cz>"]
 version = "0.1.0"
 
 [deps]
+Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 StatsFuns = "4c63d2b9-4356-54db-8cca-17b64c39e42c"

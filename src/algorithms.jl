@@ -24,7 +24,7 @@ end
 
 function (pruning::ThresholdPruning)(candidates::Dict{State, T}) where T <: AbstractFloat
     maxval = maximum(p -> p.second, candidates)
-    return filter(p -> maxval - p.second ≤ pruning.Δ, candidates)
+    filter!(p -> maxval - p.second ≤ pruning.Δ, candidates)
 end
 
 
@@ -43,30 +43,27 @@ Forward step of the Baum-Welch algorithm in the log-domain.
 """
 function αrecursion(g::AbstractGraph, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
-    pruning = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-    α = Matrix{T}(undef, size(llh))
-    fill!(α, T(-Inf))
+    pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
+#     α = Matrix{T}(undef, size(llh))
+#     fill!(α, T(-Inf))
 
     activestates = Dict{State, T}(initstate(g) => T(0.0))
-    newstates = Dict{State, T}()
+    α = Vector{Dict{State, T}}()
     for n in 1:size(llh, 2)
-        for state_weightpath in activestates
-            state, weightpath = state_weightpath
-            for nstate_linkweight in emittingstates(forward, state)
-                nstate, linkweight = nstate_linkweight
+        push!(α, Dict{State,T}())
+        for (state, weightpath) in activestates
+            for (nstate, linkweight) in emittingstates(forward, state)
                 nweightpath = weightpath + linkweight
-                newstates[nstate] = llh[nstate.pdfindex, n] + logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
+                α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
         end
 
-        for nstate_nweightpath in newstates
-            nstate, nweightpath = nstate_nweightpath
-            α[nstate.pdfindex, n] = logaddexp(α[nstate.pdfindex, n], nweightpath)
-        end
+#         for (nstate, nweightpath) in newstates
+#             α[nstate.pdfindex, n] = logaddexp(α[nstate.pdfindex, n], nweightpath)
+#         end
 
         empty!(activestates)
-        merge!(activestates, pruning(newstates))
-        empty!(newstates)
+        merge!(activestates, pruning!(α[n]))
     end
     α
 end
@@ -78,33 +75,30 @@ Backward step of the Baum-Welch algorithm in the log domain.
 """
 function βrecursion(g::AbstractGraph, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
-    pruning = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-    β = Matrix{eltype(llh)}(undef, size(llh))
-    fill!(β, T(-Inf))
+    pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
+#     β = Matrix{eltype(llh)}(undef, size(llh))
+#     fill!(β, T(-Inf))
 
     activestates = Dict{State, T}(finalstate(g) => T(0.0))
-    newstates = Dict{State, T}()
+    β = Vector{Dict{State, T}}()
 
     for n in size(llh, 2):-1:1
-        for state_weightpath in activestates
-            state, weightpath = state_weightpath
+        pushfirst!(β, Dict{State,T}())
+        for (state, weightpath) in activestates
             emitting = isemitting(state)
             prev_llh = emitting ? llh[state.pdfindex, n+1] : T(0.0)
-            for nstate_linkweight in emittingstates(backward, state)
-                nstate, linkweight = nstate_linkweight
+            for (nstate, linkweight) in emittingstates(backward, state)
                 nweightpath = weightpath + linkweight + prev_llh
-                newstates[nstate] = logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
+                β[begin][nstate] = logaddexp(get(β[begin], nstate, T(-Inf)), nweightpath)
             end
         end
 
-        for nstate_nweightpath in newstates
-            nstate, nweightpath = nstate_nweightpath
-            β[nstate.pdfindex, n] = logaddexp(β[nstate.pdfindex, n], nweightpath)
-        end
+#         for (nstate, nweightpath) in newstates
+#             β[nstate.pdfindex, n] = logaddexp(β[nstate.pdfindex, n], nweightpath)
+#         end
 
         empty!(activestates)
-        merge!(activestates, pruning(newstates))
-        empty!(newstates)
+        merge!(activestates, pruning!(β[begin]))
     end
     β
 end
