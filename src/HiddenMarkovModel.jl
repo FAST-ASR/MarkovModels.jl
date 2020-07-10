@@ -11,6 +11,7 @@ export initstateid
 export isemitting
 export finalstateid
 export Link
+export name
 export pdfindex
 export StateID
 
@@ -53,7 +54,7 @@ Base.show(io::IO, id::FinalStateID) = print(io, "finalstateid")
 
 Type of the state identifier.
 """
-const StateID = Union{Int64, InitStateID, FinalStateID}
+const StateID = Union{Int64, InitStateID, FinalStateID, Missing}
 
 """
     AbstractState
@@ -64,7 +65,7 @@ abstract type AbstractState end
 
 Base.:(==)(s1::AbstractState, s2::AbstractState) = id(s1) == id(s2)
 
-Base.show(io::IO, s::AbstractState) = print(io, "State(id = $(id(s)), pdfindex = $(pdfindex(s)))")
+Base.show(io::IO, s::AbstractState) = print(io, "State(id = $(id(s)), pdfindex = $(pdfindex(s)), $(name(s)))")
 
 """
     id(state)
@@ -74,10 +75,17 @@ Returns the identifier of the state.
 id
 
 """
+    name(state)
+
+Returns the name of the state.
+"""
+pdfindex
+
+"""
     pdfindex(state)
 
 Returns the index of the pdf the state is connected with. Returns
-`missing` is the state is non-emitting.
+`nothing` is the state is non-emitting.
 """
 pdfindex
 
@@ -86,7 +94,7 @@ pdfindex
 
 Returns `true` is `state` is associated with a pdf.
 """
-isemitting(s::AbstractState) = pdfindex(s) ≢ missing
+isemitting(s::AbstractState) = pdfindex(s) ≢ nothing
 
 """
     struct Link{T} where T <: AbstractFloat
@@ -224,7 +232,7 @@ function Base.show(io, ::MIME"image/svg+xml", g::AbstractGraph)
 
     for state in states(g)
         shape = isemitting(state) ? "circle" : "point"
-        write(dotfile, "$(id(state)) [ shape=\"$(shape)\" ];\n")
+        write(dotfile, "$(id(state)) [ shape=\"$(shape)\", label=\"$(name(state))\" ];\n")
     end
     for arc in arcs(g)
         src, dest, weight = id(arc[1]), id(arc[2]), round(arc[3], digits = 3)

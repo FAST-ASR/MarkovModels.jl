@@ -54,8 +54,8 @@ function αrecursion(g::AbstractGraph, llh::Matrix{T};
             state, weightpath = state_weightpath
             for nstate_linkweight in emittingstates(forward, state)
                 nstate, linkweight = nstate_linkweight
-                nweightpath = weightpath + linkweight + llh[nstate.pdfindex, n]
-                newstates[nstate] = logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
+                nweightpath = weightpath + linkweight
+                newstates[nstate] = llh[nstate.pdfindex, n] + logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
             end
         end
 
@@ -122,6 +122,72 @@ function αβrecursion(g::AbstractGraph, llh::Matrix{T};
 end
 
 #######################################################################
+# Viterbi algorithm (find the best path)
+
+export viterbi
+
+function maxβrecursion(g::AbstractGraph, llh::Matrix{T}, α::Matrix{T}) where T <: AbstractFloat
+    bestseq = Vector{State}()
+    activestates = Dict{State, T}(finalstate(g) => T(0.0))
+    newstates = Dict{State, T}()
+
+    for n in size(llh, 2):-1:1
+        for state_weightpath in activestates
+            state, weightpath = state_weightpath
+            emitting = isemitting(state)
+            prev_llh = emitting ? llh[state.pdfindex, n+1] : T(0.0)
+            for nstate_linkweight in emittingstates(backward, state)
+                nstate, linkweight = nstate_linkweight
+                nweightpath = weightpath + linkweight + prev_llh
+                newstates[nstate] = logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
+            end
+        end
+
+
+        hypscores = Vector{T}(undef, length(newstates))
+        hypstates = Vector{State}(undef, length(newstates))
+        for (i, nstate_nweightpath) in enumerate(newstates)
+            nstate, nweightpath = nstate_nweightpath
+            hypscores[i] = α[nstate.pdfindex, n] + nweightpath
+            hypstates[i] = nstate
+        end
+        println(hypstates)
+        println(hypscores)
+        println("-----")
+        maxval, maxidx = findmax(hypscores)
+        best = hypstates[maxidx]
+        pushfirst!(bestseq, best)
+
+        empty!(activestates)
+        activestates[best] = newstates[best]
+        empty!(newstates)
+    end
+    bestseq
+end
+
+"""
+    viterbi(graph, llh[, pruning = ...])
+
+Viterbi algorithm.
+"""
+function viterbi(g::AbstractGraph, llh::Matrix{T};
+                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+    α = αrecursion(g, llh, pruning = pruning)
+    path = maxβrecursion(g, llh, α)
+
+    # Return the best seq as a new graph
+    ng = Graph()
+    prevstate = initstate(ng)
+    for (i, state) in enumerate(path)
+        s = addstate!(ng, State(i, pdfindex(state), name(state)))
+        link!(prevstate, s, 0.)
+        prevstate = s
+    end
+    link!(prevstate, finalstate(ng), 0.)
+    ng
+end
+
+#######################################################################
 # Determinization algorithm
 
 export determinize
@@ -137,7 +203,7 @@ function determinize(g::Graph)
 
     newstates = Dict{StateID, State}()
     for state in states(g)
-        newstates[id(state)] = State(id(state), pdfindex(state))
+        newstates[id(state)] = State(id(state), pdfindex(state), name(state))
     end
 
     newarcs = Dict{Tuple{State, State}, Real}()
@@ -173,7 +239,7 @@ function weightnormalize(g::Graph)
 
     newstates = Dict{StateID, State}()
     for state in states(g)
-        newstates[id(state)] = State(id(state), pdfindex(state))
+        newstates[id(state)] = State(id(state), pdfindex(state), name(state))
     end
 
     newarcs = Vector{Tuple{State, State, Real}}()
@@ -190,5 +256,34 @@ function weightnormalize(g::Graph)
     for arc in newarcs link!(arc[1], arc[2], arc[3]) end
 
     newg
+end
+
+
+#######################################################################
+# Add a self-loop
+
+export addselfloop
+
+"""
+    addselfloop(graph[, loopprob = 0.5]))
+
+Add a self-loop to all emitting states of the graph.
+"""
+function addselfloop(graph::Graph; loopprob = 0.5)
+    g = deepcopy(graph)
+    for state in states(g)
+        if isemitting(state)
+            #link!(state, state, log(loopprob))
+            newlinks = [(state, log(loopprob))]
+            for link in children(state)
+                push!(newlinks, (link.dest, link.weight + log(1 - loopprob)))
+            end
+            empty!(state.outgoing)
+            for (dest, weight) in newlinks
+                link!(state, dest, weight)
+            end
+        end
+    end
+    g
 end
 

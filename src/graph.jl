@@ -5,18 +5,24 @@ export addstate!
 export link!
 export State
 export Graph
+export LinearGraph
 
 struct State <: AbstractState
     id::StateID
-    pdfindex::Union{Int64, Missing}
+    pdfindex::Union{Int64, Nothing}
     outgoing::Vector{Link}
     incoming::Vector{Link}
+    name::String
 end
-State(id, pdfindex = missing) = State(id, pdfindex, Vector{Link}(), Vector{Link}())
+State(id, pdfindex = nothing) = State(id, pdfindex, Vector{Link}(), Vector{Link}(),
+                                      string(id))
+State(id, pdfindex, name) = State(id, pdfindex, Vector{Link}(), Vector{Link}(),
+                                  name)
 id(s::State) = s.id
 pdfindex(s::State) = s.pdfindex
 children(s::State) = s.outgoing
 parents(s::State) = s.incoming
+name(s::State) = s.name
 
 
 struct GraphState <: AbstractState
@@ -37,7 +43,7 @@ function GraphState(id, subgraph::AbstractGraph)
 end
 
 id(s::GraphState) = s.id
-pdfindex(s::GraphState) = missing
+pdfindex(s::GraphState) = nothing
 children(s::GraphState) = s.outgoing
 parents(s::GraphState) = s.incoming
 subchildren(s::GraphState) = initstate(s.subgraph).outgoing
@@ -116,4 +122,20 @@ function Base.iterate(iter::ArcIterator, iterstate = nothing)
 end
 
 arcs(g::Graph) = ArcIterator(states(g))
+
+#######################################################################
+# Create a linear graph from a sequence of symbol
+
+function LinearGraph(sequence::AbstractArray{String},
+                     emissionsmap::Dict{String, <:Integer})
+    g = Graph()
+    prevstate = initstate(g)
+    for (i, token) in enumerate(sequence)
+        s = addstate!(g, State(i, emissionsmap[token], token))
+        link!(prevstate, s, 0.)
+        prevstate = s
+    end
+    link!(prevstate, finalstate(g), 0.)
+    g
+end
 
