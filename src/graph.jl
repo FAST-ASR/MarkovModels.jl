@@ -138,4 +138,3 @@ function LinearGraph(sequence::AbstractArray{String},
     link!(prevstate, finalstate(g), 0.)
     g
 end
-

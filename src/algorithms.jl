@@ -44,8 +44,6 @@ Forward step of the Baum-Welch algorithm in the log-domain.
 function αrecursion(g::AbstractGraph, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-#     α = Matrix{T}(undef, size(llh))
-#     fill!(α, T(-Inf))
 
     activestates = Dict{State, T}(initstate(g) => T(0.0))
     α = Vector{Dict{State, T}}()
@@ -57,10 +55,6 @@ function αrecursion(g::AbstractGraph, llh::Matrix{T};
                 α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
         end
-
-#         for (nstate, nweightpath) in newstates
-#             α[nstate.pdfindex, n] = logaddexp(α[nstate.pdfindex, n], nweightpath)
-#         end
 
         empty!(activestates)
         merge!(activestates, pruning!(α[n]))
@@ -76,9 +70,7 @@ Backward step of the Baum-Welch algorithm in the log domain.
 function βrecursion(g::AbstractGraph, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-#     β = Matrix{eltype(llh)}(undef, size(llh))
-#     fill!(β, T(-Inf))
-
+    
     activestates = Dict{State, T}(finalstate(g) => T(0.0))
     β = Vector{Dict{State, T}}()
 
@@ -89,16 +81,12 @@ function βrecursion(g::AbstractGraph, llh::Matrix{T};
             prev_llh = emitting ? llh[state.pdfindex, n+1] : T(0.0)
             for (nstate, linkweight) in emittingstates(backward, state)
                 nweightpath = weightpath + linkweight + prev_llh
-                β[begin][nstate] = logaddexp(get(β[begin], nstate, T(-Inf)), nweightpath)
+                β[1][nstate] = logaddexp(get(β[1], nstate, T(-Inf)), nweightpath)
             end
         end
 
-#         for (nstate, nweightpath) in newstates
-#             β[nstate.pdfindex, n] = logaddexp(β[nstate.pdfindex, n], nweightpath)
-#         end
-
         empty!(activestates)
-        merge!(activestates, pruning!(β[begin]))
+        merge!(activestates, pruning!(β[1]))
     end
     β
 end
@@ -112,7 +100,33 @@ function αβrecursion(g::AbstractGraph, llh::Matrix{T};
                      pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     α = αrecursion(g, llh, pruning = pruning)
     β = βrecursion(g, llh, pruning = pruning)
-    α + β .- logsumexp(α + β, dims = 1)
+    
+    γ = Matrix{T}(undef, size(llh))
+    fill!(γ, T(-Inf))
+
+    gam = Dict{State,T}() # tmp variable
+
+    for n in 1:size(llh, 2)
+        for s in states(g)
+            if ! isemitting(s)
+                continue
+            end
+            a = get(α[n], s, T(-Inf))
+            b = get(β[n], s, T(-Inf))
+            gam[s] = a + b
+        end
+        sum = logsumexp(values(gam))
+
+        for s in states(g)
+            if ! isemitting(s)
+                continue
+            end
+            gam[s] -= sum
+            γ[pdfindex(s), n] = logaddexp(γ[pdfindex(s), n], gam[s])
+        end
+        empty!(gam)
+    end
+γ
 end
 
 #######################################################################
@@ -120,29 +134,25 @@ end
 
 export viterbi
 
-function maxβrecursion(g::AbstractGraph, llh::Matrix{T}, α::Matrix{T}) where T <: AbstractFloat
+function maxβrecursion(g::AbstractGraph, llh::Matrix{T}, α::Vector{Dict{State,T}}) where T <: AbstractFloat
     bestseq = Vector{State}()
     activestates = Dict{State, T}(finalstate(g) => T(0.0))
     newstates = Dict{State, T}()
 
     for n in size(llh, 2):-1:1
-        for state_weightpath in activestates
-            state, weightpath = state_weightpath
+        for (state, weightpath) in activestates
             emitting = isemitting(state)
             prev_llh = emitting ? llh[state.pdfindex, n+1] : T(0.0)
-            for nstate_linkweight in emittingstates(backward, state)
-                nstate, linkweight = nstate_linkweight
+            for (nstate, linkweight) in emittingstates(backward, state)
                 nweightpath = weightpath + linkweight + prev_llh
                 newstates[nstate] = logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
             end
         end
 
-
         hypscores = Vector{T}(undef, length(newstates))
         hypstates = Vector{State}(undef, length(newstates))
-        for (i, nstate_nweightpath) in enumerate(newstates)
-            nstate, nweightpath = nstate_nweightpath
-            hypscores[i] = α[nstate.pdfindex, n] + nweightpath
+        for (i, (nstate, nweightpath)) in enumerate(newstates)
+            hypscores[i] = get(α[n], nstate, T(-Inf)) + nweightpath
             hypstates[i] = nstate
         end
         println(hypstates)
@@ -223,7 +233,7 @@ end
 export weightnormalize
 
 """
-    normalize(graph)
+    weightnormalize(graph)
 
 Update the weights of the graph such that the exponentiation of the
 weight of all the outoing arc from a state sum up to one.
@@ -279,5 +289,140 @@ function addselfloop(graph::Graph; loopprob = 0.5)
         end
     end
     g
+end
+
+#######################################################################
+# Union two graphs into one
+
+export union
+
+"""
+    union(g1::AbstractGraph, g2::AbstractGraph)
+"""
+function union(g1::AbstractGraph, g2::AbstractGraph)
+    g = Graph()
+    statecount = 0
+    old2new = Dict{AbstractState, AbstractState}(
+        initstate(g1) => initstate(g),
+        finalstate(g1) => finalstate(g),
+    )
+    for (i, state) in enumerate(states(g1))
+        if id(state) ≠ finalstateid && id(state) ≠ initstateid
+            statecount += 1
+            old2new[state] = addstate!(g, State(statecount, pdfindex(state), name(state)))
+        end
+    end
+    
+    for state in states(g1)
+        src = old2new[state]
+        for link in children(state)
+            link!(src, old2new[link.dest], link.weight)
+        end
+    end
+    
+    old2new = Dict{AbstractState, AbstractState}(
+        initstate(g2) => initstate(g),
+        finalstate(g2) => finalstate(g),
+    )
+    for (i, state) in enumerate(states(g2))
+        if id(state) ≠ finalstateid && id(state) ≠ initstateid
+            statecount += 1
+            old2new[state] = addstate!(g, State(statecount, pdfindex(state), name(state)))
+        end
+    end
+    
+    for state in states(g2)
+        src = old2new[state]
+        for link in children(state)
+            link!(src, old2new[link.dest], link.weight)
+        end
+    end
+    
+    g |> determinize |> weightnormalize
+end
+
+#######################################################################
+# FSM minimization
+
+export minimize
+
+function leftminimize!(g::Graph, state::AbstractState)
+    leaves = Dict() 
+    for link in children(state)
+        leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
+        push!(leaf, link.dest)
+        leaves[pdfindex(link.dest)] = (leaf, logaddexp(weight, link.weight))
+    end
+    
+    empty!(state.outgoing)
+    for (nextstates, weight) in values(leaves)
+        mergedstate = nextstates[1]
+        filter!(l -> l.dest ≠ state, mergedstate.incoming)
+
+        # Now we removed all the extra states of the graph.
+        links = vcat([next.outgoing for next in nextstates[2:end]]...)
+        for link in links
+            link!(mergedstate, link.dest, link.weight)
+        end
+        
+        for old in nextstates[2:end]
+            for link in children(old)
+                filter!(l -> l.dest ≠ old, link.dest.incoming)
+            end
+            delete!(g.states, id(old))
+        end
+        
+        # Reconnect the previous state with the merged state
+        link!(state, mergedstate, weight)
+        
+        # Minimize the subgraph.
+        leftminimize!(g, mergedstate)
+    end
+    g 
+end
+
+function rightminimize!(g::Graph, state::AbstractState)
+    leaves = Dict() 
+    for link in parents(state)
+        leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
+        push!(leaf, link.dest)
+        leaves[pdfindex(link.dest)] = (leaf, logaddexp(weight, link.weight))
+    end
+    
+    empty!(state.incoming)
+    for (nextstates, weight) in values(leaves)
+        mergedstate = nextstates[1]
+        filter!(l -> l.dest ≠ state, mergedstate.outgoing)
+
+        # Now we removed all the extra states of the graph.
+        links = vcat([next.incoming for next in nextstates[2:end]]...)
+        for link in links
+            #link!(mergedstate, link.dest, link.weight)
+            link!(link.dest, mergedstate, link.weight)
+        end
+        
+        for old in nextstates[2:end]
+            for link in parents(old)
+                filter!(l -> l.dest ≠ old, link.dest.outgoing)
+            end
+            delete!(g.states, id(old))
+        end
+        
+        # Reconnect the previous state with the merged state
+        link!(mergedstate, state, weight)
+        
+        # Minimize the subgraph.
+        rightminimize!(g, mergedstate)
+    end
+    g 
+end
+
+"""
+    minimize(g::Graph)
+"""
+minimize(g::Graph) = begin
+    newg = deepcopy(g)
+    newg = leftminimize!(newg, initstate(newg)) 
+    rightminimize!(newg, finalstate(newg)) 
 end
 
