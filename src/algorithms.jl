@@ -101,30 +101,21 @@ function αβrecursion(g::AbstractGraph, llh::Matrix{T};
     α = αrecursion(g, llh, pruning = pruning)
     β = βrecursion(g, llh, pruning = pruning)
     
-    γ = Matrix{T}(undef, size(llh))
-    fill!(γ, T(-Inf))
-
-    gam = Dict{State,T}() # tmp variable
+    γ = Vector{Dict{State,T}}()
 
     for n in 1:size(llh, 2)
-        for s in states(g)
-            if ! isemitting(s)
-                continue
-            end
+        push!(γ, Dict{State, T}())
+        for s in union(keys(α[n]), keys(β[n]))
             a = get(α[n], s, T(-Inf))
             b = get(β[n], s, T(-Inf))
-            gam[s] = a + b
+            γ[n][s] = a + b
         end
-        sum = logsumexp(values(gam))
+        filter!(p -> isfinite(p.second), γ[n])
+        sum = logsumexp(values(γ[n]))
 
-        for s in states(g)
-            if ! isemitting(s)
-                continue
-            end
-            gam[s] -= sum
-            γ[pdfindex(s), n] = logaddexp(γ[pdfindex(s), n], gam[s])
+        for s in keys(γ[n])
+            γ[n][s] -= sum
         end
-        empty!(gam)
     end
 γ
 end
@@ -294,12 +285,12 @@ end
 #######################################################################
 # Union two graphs into one
 
-export union
+import Base: union
 
 """
     union(g1::AbstractGraph, g2::AbstractGraph)
 """
-function union(g1::AbstractGraph, g2::AbstractGraph)
+function Base.union(g1::AbstractGraph, g2::AbstractGraph)
     g = Graph()
     statecount = 0
     old2new = Dict{AbstractState, AbstractState}(
