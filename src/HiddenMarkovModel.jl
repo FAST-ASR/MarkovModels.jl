@@ -252,6 +252,20 @@ function Base.show(io, ::MIME"image/svg+xml", g::AbstractGraph)
 end
 
 #######################################################################
+# Pretty display of the sparse matrix (i.e. from αβrecursion).
+
+import Printf:@sprintf
+function Base.show(io::IO, ::MIME"text/plain", a::Array{Dict{State, T},1}) where T <: AbstractFloat
+    for n in 1:length(a)
+        write(io, "[n = $n]\t")
+        for (s, w) in a[n]
+            write(io, "$(name(s)) = $(@sprintf("%.3f", w))  ")
+        end
+        write(io, "\n")
+    end
+end
+
+#######################################################################
 # Concrete graph implementation
 
 export PruningStrategy
@@ -265,5 +279,15 @@ include("graph.jl")
 
 include("algorithms.jl")
 
+
+#######################################################################
+# Gaussian Mixture Model
+
+include("gmm.jl")
+
+#######################################################################
+# Other
+
+include("../src/misc.jl")
 
 end
