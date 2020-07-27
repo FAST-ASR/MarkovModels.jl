@@ -56,20 +56,18 @@ end
 ########################################################################
 # GMM Statistics
 
-export GmmStats
-export add!
-export stats
+export GmmStats, add!, stats
 
 import Base:+
 
-struct GmmStats{D<:Distribution}
+struct GmmStats{D <: GMM}
     model::D
     zero::AbstractArray
     first::AbstractArray
     second::AbstractArray
 end
 
-GmmStats(model::Distribution) = begin
+GmmStats(model::GMM) = begin
     D = length(model)
     C = isa(model, AbstractMixtureModel) ? ncomponents(model) : 1
     GmmStats(model, zeros(C), zeros(D,C), zeros(D,C))
@@ -82,7 +80,7 @@ function +(a::GmmStats{D}, b::GmmStats{D}) where D <: Distribution
     zero = a.zero + b.zero
     first = a.first + b.first
     second = a.second + b.second
-    return Statistics{D}(a.model, zero, first, second)
+    return GmmStats{D}(a.model, zero, first, second)
 end
 
 function add!(a::GmmStats{D}, b::GmmStats{D}) where D <: Distribution
@@ -110,6 +108,8 @@ function stats(gmm::GMM, γ::AbstractVector, X::AbstractMatrix)
     second = X.^2 * tmp'
     return GmmStats(gmm, zero, first, second)
 end
+
+stats(model::GMM) = GmmStats(model)
 
 
 ########################################################################
@@ -190,6 +190,8 @@ avlh(gmm::GMM, X::AbstractMatrix) = exp(avllh(gmm, X))
 ##################################################################################
 # Distribution fitting
 
+export fit, update!
+
 """fit(gmm::GMM, x::AbstractMatrix)
 
 Single iteration of EM algorithm for training GMM.
@@ -230,4 +232,56 @@ update!(gmm::GMM, stats::GmmStats) = begin
         g = MvNormal(μ[:, c], Σ[:, c])
         gmm[c] = Pair(g, W[c])
     end
+end
+
+##################################################
+# HMM-GMM training
+
+export train!, graph
+
+graph(sequence::Array{String}, emissionsmap::Dict) = begin
+    LinearGraph(sequence, emissionsmap) |> 
+        determinize |> 
+        addselfloop |> 
+        weightnormalize
+end
+
+function train!(pdfs::Vector{D}, data::Vector{Pair}, emissionsmap::Dict) where D <: GMM
+    # E-step
+    pstats = Dict()
+    tll_acc = 0.
+    for (sequence, X) in data
+        # log-likelihood
+        N = size(X,2)
+        llh = zeros(length(pdfs), N)
+        for (i, pdf) in enumerate(pdfs)
+            llh[i, :] = llhpf(pdf, X)
+        end
+        
+        g = graph(sequence, emissionsmap)
+        lnαβ, tll = αβrecursion(g, llh; pruning=nopruning)
+        tll_acc += tll
+        
+        # compute responsibilities per p.d.f
+        γ = Dict{Int, Vector}()
+        for n in 1:N
+            for (s, w) in lnαβ[n]
+                γ_pdf = get(γ, pdfindex(s), zeros(N))
+                γ_pdf[n] += exp(w)
+                γ[pdfindex(s)] = γ_pdf
+            end
+        end
+        
+        # accumulate sufficient statistics
+        for pdf in keys(γ)
+            pstats[pdf] = get(pstats, pdf, stats(pdfs[pdf])) + stats(pdfs[pdf], γ[pdf], X)
+        end
+    end
+    
+    # M-step
+    for (pdf, pdf_stats) in pstats
+        update!(pdfs[pdf], pdf_stats)
+    end
+    # TODO: update Tr
+    return tll_acc
 end

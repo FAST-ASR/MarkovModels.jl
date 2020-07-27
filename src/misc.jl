@@ -1,3 +1,5 @@
+import StatsFuns: logsumexp
+
 function logsumexp(X::AbstractArray{T}; dims=:) where {T<:Real}
     u = reduce(max, X, dims=dims, init=oftype(log(zero(T)), -Inf))
     u isa AbstractArray || isfinite(u) || return float(u)

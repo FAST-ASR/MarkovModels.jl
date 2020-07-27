@@ -47,12 +47,13 @@ function αrecursion(g::AbstractGraph, llh::Matrix{T};
 
     activestates = Dict{State, T}(initstate(g) => T(0.0))
     α = Vector{Dict{State, T}}()
+    
     for n in 1:size(llh, 2)
         push!(α, Dict{State,T}())
         for (state, weightpath) in activestates
             for (nstate, linkweight) in emittingstates(forward, state)
                 nweightpath = weightpath + linkweight
-                α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
+                α[n][nstate] = llh[pdfindex(nstate), n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
         end
 
@@ -71,22 +72,23 @@ function βrecursion(g::AbstractGraph, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
     
-    activestates = Dict{State, T}(finalstate(g) => T(0.0))
+    activestates = Dict{State, T}()
     β = Vector{Dict{State, T}}()
+    push!(β, Dict(s => T(0.0) for (s, w) in emittingstates(backward, finalstate(g))))
 
-    for n in size(llh, 2):-1:1
+    for n in size(llh, 2)-1:-1:1
+        # Update the active tokens
+        empty!(activestates)
+        merge!(activestates, pruning!(β[1]))
+        
         pushfirst!(β, Dict{State,T}())
         for (state, weightpath) in activestates
-            emitting = isemitting(state)
-            prev_llh = emitting ? llh[state.pdfindex, n+1] : T(0.0)
+            prev_llh = llh[pdfindex(state), n+1]
             for (nstate, linkweight) in emittingstates(backward, state)
                 nweightpath = weightpath + linkweight + prev_llh
                 β[1][nstate] = logaddexp(get(β[1], nstate, T(-Inf)), nweightpath)
             end
         end
-
-        empty!(activestates)
-        merge!(activestates, pruning!(β[1]))
     end
     β
 end
@@ -117,8 +119,15 @@ function αβrecursion(g::AbstractGraph, llh::Matrix{T};
             γ[n][s] -= sum
         end
     end
-γ
+    
+    # Total Log Likelihood
+    fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(backward, finalstate(g)); init=[])
+    ttl = filter(s -> s[1] in fs, α[end]) |> values |> sum
+    
+    γ, ttl
 end
+
+# function total_llh()
 
 #######################################################################
 # Viterbi algorithm (find the best path)
