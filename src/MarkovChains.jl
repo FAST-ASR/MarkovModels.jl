@@ -1,5 +1,5 @@
 
-module HiddenMarkovModel
+module MarkovChains
 
 
 #######################################################################
