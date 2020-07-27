@@ -232,7 +232,8 @@ function Base.show(io, ::MIME"image/svg+xml", g::AbstractGraph)
 
     for state in states(g)
         shape = isemitting(state) ? "circle" : "point"
-        write(dotfile, "$(id(state)) [ shape=\"$(shape)\", label=\"$(name(state))\" ];\n")
+        label = "$(id(state)):$(name(state))"
+        write(dotfile, "$(id(state)) [ shape=\"$(shape)\", label=\"$(label)\" ];\n")
     end
     for arc in arcs(g)
         src, dest, weight = id(arc[1]), id(arc[2]), round(arc[3], digits = 3)
@@ -261,9 +262,30 @@ export nopruning
 include("graph.jl")
 
 #######################################################################
+# Pretty display the sparse matrix (i.e. from αβrecursion).
+
+import Printf:@sprintf
+function Base.show(io::IO, ::MIME"text/plain", a::Array{Dict{State, T},1}) where T <: AbstractFloat
+    for n in 1:length(a)
+        write(io, "[n = $n]  \t")
+        max = foldl(((sa,wa), (s,w)) -> wa < w ? (s,w) : (sa,wa), a[n]; init=first(a[n]))
+        write(io, first(max) |> name)
+        for (s, w) in sort(a[n]; by=x->name(x))
+            write(io, "\t$(id(s)):$(name(s)) = $(@sprintf("%.3f", w))  ")
+        end
+        write(io, "\n")
+    end
+end
+
+#######################################################################
 # Major algorithms
 
 include("algorithms.jl")
 
+
+#######################################################################
+# Other
+
+include("../src/misc.jl")
 
 end
