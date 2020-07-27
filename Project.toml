@@ -1,4 +1,4 @@
-name = "HiddenMarkovModel"
+name = "MarkovChains"
 uuid = "7212e43c-49b6-4278-a2e6-573e0ac5bb2d"
 authors = ["Lucas Ondel <iondel@fit.vutbr.cz>"]
 version = "0.1.0"
