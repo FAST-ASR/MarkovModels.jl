@@ -1,5 +1,5 @@
 
-module MarkovChains
+module ProbabilisticFSMs
 
 
 #######################################################################

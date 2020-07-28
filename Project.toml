@@ -1,5 +1,5 @@
-name = "MarkovChains"
-uuid = "7212e43c-49b6-4278-a2e6-573e0ac5bb2d"
+name = "ProbabilisticFSMs"
+uuid = "c2ae6250-d0a1-11ea-0991-234599ce5244"
 authors = ["Lucas Ondel <iondel@fit.vutbr.cz>"]
 version = "0.1.0"
 
