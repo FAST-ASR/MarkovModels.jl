@@ -238,7 +238,7 @@ sum of the exponentiated weights of the outgoing links from one state
 will sum up to one.
 """
 function weightnormalize(fsm::FSM)
-    newfsm = FSM()
+    newfsm = FSM(fsm.emissions_names)
 
     totweight = Dict{StateID, Real}()
     for state in states(fsm)
