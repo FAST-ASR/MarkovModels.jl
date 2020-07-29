@@ -47,7 +47,7 @@ function αrecursion(g::AbstractGraph, llh::Matrix{T};
 
     activestates = Dict{State, T}(initstate(g) => T(0.0))
     α = Vector{Dict{State, T}}()
-    
+
     for n in 1:size(llh, 2)
         push!(α, Dict{State,T}())
         for (state, weightpath) in activestates
@@ -71,7 +71,7 @@ Backward step of the Baum-Welch algorithm in the log domain.
 function βrecursion(g::AbstractGraph, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-    
+
     activestates = Dict{State, T}()
     β = Vector{Dict{State, T}}()
     push!(β, Dict(s => T(0.0) for (s, w) in emittingstates(backward, finalstate(g))))
@@ -80,7 +80,7 @@ function βrecursion(g::AbstractGraph, llh::Matrix{T};
         # Update the active tokens
         empty!(activestates)
         merge!(activestates, pruning!(β[1]))
-        
+
         pushfirst!(β, Dict{State,T}())
         for (state, weightpath) in activestates
             prev_llh = llh[pdfindex(state), n+1]
@@ -102,7 +102,7 @@ function αβrecursion(g::AbstractGraph, llh::Matrix{T};
                      pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     α = αrecursion(g, llh, pruning = pruning)
     β = βrecursion(g, llh, pruning = pruning)
-    
+
     γ = Vector{Dict{State,T}}()
 
     for n in 1:size(llh, 2)
@@ -119,11 +119,11 @@ function αβrecursion(g::AbstractGraph, llh::Matrix{T};
             γ[n][s] -= sum
         end
     end
-    
+
     # Total Log Likelihood
     fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(backward, finalstate(g)); init=[])
     ttl = filter(s -> s[1] in fs, α[end]) |> values |> sum
-    
+
     γ, ttl
 end
 
@@ -312,14 +312,14 @@ function Base.union(g1::AbstractGraph, g2::AbstractGraph)
             old2new[state] = addstate!(g, State(statecount, pdfindex(state), name(state)))
         end
     end
-    
+
     for state in states(g1)
         src = old2new[state]
         for link in children(state)
             link!(src, old2new[link.dest], link.weight)
         end
     end
-    
+
     old2new = Dict{AbstractState, AbstractState}(
         initstate(g2) => initstate(g),
         finalstate(g2) => finalstate(g),
@@ -330,14 +330,14 @@ function Base.union(g1::AbstractGraph, g2::AbstractGraph)
             old2new[state] = addstate!(g, State(statecount, pdfindex(state), name(state)))
         end
     end
-    
+
     for state in states(g2)
         src = old2new[state]
         for link in children(state)
             link!(src, old2new[link.dest], link.weight)
         end
     end
-    
+
     g |> determinize |> weightnormalize
 end
 
@@ -347,13 +347,13 @@ end
 export minimize
 
 function leftminimize!(g::Graph, state::AbstractState)
-    leaves = Dict() 
+    leaves = Dict()
     for link in children(state)
         leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
         push!(leaf, link.dest)
         leaves[pdfindex(link.dest)] = (leaf, logaddexp(weight, link.weight))
     end
-    
+
     empty!(state.outgoing)
     for (nextstates, weight) in values(leaves)
         mergedstate = nextstates[1]
@@ -364,31 +364,31 @@ function leftminimize!(g::Graph, state::AbstractState)
         for link in links
             link!(mergedstate, link.dest, link.weight)
         end
-        
+
         for old in nextstates[2:end]
             for link in children(old)
                 filter!(l -> l.dest ≠ old, link.dest.incoming)
             end
             delete!(g.states, id(old))
         end
-        
+
         # Reconnect the previous state with the merged state
         link!(state, mergedstate, weight)
-        
+
         # Minimize the subgraph.
         leftminimize!(g, mergedstate)
     end
-    g 
+    g
 end
 
 function rightminimize!(g::Graph, state::AbstractState)
-    leaves = Dict() 
+    leaves = Dict()
     for link in parents(state)
         leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
         push!(leaf, link.dest)
         leaves[pdfindex(link.dest)] = (leaf, logaddexp(weight, link.weight))
     end
-    
+
     empty!(state.incoming)
     for (nextstates, weight) in values(leaves)
         mergedstate = nextstates[1]
@@ -400,21 +400,21 @@ function rightminimize!(g::Graph, state::AbstractState)
             #link!(mergedstate, link.dest, link.weight)
             link!(link.dest, mergedstate, link.weight)
         end
-        
+
         for old in nextstates[2:end]
             for link in parents(old)
                 filter!(l -> l.dest ≠ old, link.dest.outgoing)
             end
             delete!(g.states, id(old))
         end
-        
+
         # Reconnect the previous state with the merged state
         link!(mergedstate, state, weight)
-        
+
         # Minimize the subgraph.
         rightminimize!(g, mergedstate)
     end
-    g 
+    g
 end
 
 """
@@ -422,7 +422,7 @@ end
 """
 minimize(g::Graph) = begin
     newg = deepcopy(g)
-    newg = leftminimize!(newg, initstate(newg)) 
-    rightminimize!(newg, finalstate(newg)) 
+    newg = leftminimize!(newg, initstate(newg))
+    rightminimize!(newg, finalstate(newg))
 end
 
