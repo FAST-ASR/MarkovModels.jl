@@ -190,9 +190,10 @@ end
 
 Remove all the connections betwee `src` and `dest` in `fsm`.
 """
-function unlink!(fsm, src::State, dest::State)
+function unlink!(fsm::FSM, src::State, dest::State)
     filter!(l -> l.dest.id ≠ dest.id, fsm.links[src.id])
     filter!(l -> l.dest.id ≠ src.id, fsm.backwardlinks[dest.id])
+    nothing
 end
 
 """
@@ -299,14 +300,14 @@ links(fsm::FSM) = LinkIterator(fsm, states(fsm))
 """
     children(fsm, state)
 
-Iterator over the children (i.e. next states) of `state`.
+Iterator over the link to the children (i.e. next states) of `state`.
 """
 children(fsm::FSM, state::State) = get(fsm.links, state.id, Vector{Link}())
 
 """
     parents(fsm, state)
 
-Iterator over the parents (i.e. previous states) of `state`.
+Iterator over the link to the parents (i.e. previous states) of `state`.
 """
 parents(fsm::FSM, state::State) = get(fsm.backwardlinks, state.id, Vector{Link}())
 

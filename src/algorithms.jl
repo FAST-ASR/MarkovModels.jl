@@ -200,29 +200,29 @@ export determinize
 
 Create a new graph where each states are connected by at most one link.
 """
-function determinize(g::FSM)
-    newg = FSM()
+function determinize(fsm::FSM)
+    newfsm = FSM(fsm.emissions_names)
 
     newstates = Dict{StateID, State}()
-    for state in states(g)
-        newstates[id(state)] = State(id(state), pdfindex(state), name(state))
+    for state in states(fsm)
+        newstates[state.id] = State(state.id, state.pdfindex)
     end
 
     newarcs = Dict{Tuple{State, State}, Real}()
-    for state in states(g)
-        for link in children(state)
-            src = newstates[id(state)]
-            dest = newstates[id(link.dest)]
+    for state in states(fsm)
+        for link in children(fsm, state)
+            src = newstates[state.id]
+            dest = newstates[link.dest.id]
             destweight = get(newarcs, (src, dest), oftype(link.weight, -Inf))
             newweight = logaddexp(destweight, link.weight)
             newarcs[(src, dest)] = newweight
         end
     end
 
-    for state in values(newstates) addstate!(newg, state) end
-    for arc in newarcs link!(arc[1][1], arc[1][2], arc[2]) end
+    for state in values(newstates) addstate!(newfsm, state) end
+    for arc in newarcs link!(newfsm, arc[1][1], arc[1][2], arc[2]) end
 
-    newg
+    newfsm
 end
 
 #######################################################################
@@ -350,91 +350,148 @@ function Base.union(fsm1::FSM, fsm2::FSM)
         link!(fsm, old2new2[link.src], old2new2[link.dest], link.weight)
     end
 
-    fsm
+    fsm |> weightnormalize
 end
 
 #######################################################################
 # FSM minimization
 
+export unreachablestates
+
+# Returns the list of the unreachable states
+function unreachablestates(fsm::FSM, start::State, nextlinks::Function)
+    reachable = Set{StateID}()
+    tovisit = StateID[start.id]
+    while length(tovisit) > 0
+        stateid = pop!(tovisit)
+        push!(reachable, stateid)
+
+        for link in nextlinks(fsm, fsm.states[stateid])
+            if link.dest.id ∉ tovisit
+                push!(tovisit, link.dest.id)
+            end
+        end
+    end
+
+    [fsm.states[id] for id in filter(s -> s ∉ reachable, keys(fsm.states))]
+end
+unreachablestates(fsm::FSM, ::Forward) = unreachablestates(fsm, initstate(fsm), children)
+unreachablestates(fsm::FSM, ::Backward) = unreachablestates(fsm, finalstate(fsm), parents)
+
+export prefixes
+
+# Compute the set of all possible pdfindex sequences "prefixing" each
+# state
+function prefixes(fsm::FSM, start::State, nextlinks::Function)
+    retval = Dict{StateID, Set{Tuple}}(start.id => Set([()]))
+
+    tovisit = State[start]
+    while length(tovisit) > 0
+        state = pop!(tovisit)
+
+        for link in nextlinks(fsm, state)
+            next = link.dest
+            set = get(retval, next.id, Set{Tuple}())
+            retval[next.id] = union(
+                set,
+                Set([(p..., state.pdfindex) for p in retval[state.id]])
+            )
+            push!(tovisit, next)
+        end
+    end
+
+    retval
+end
+prefixes(fsm, ::Forward) = prefixes(fsm, initstate(fsm), children)
+prefixes(fsm, ::Backward) = prefixes(fsm, finalstate(fsm), parents)
+
+# True if two states can be merged together
+function mergeable(s1, s2, prefixmap, suffixmap)
+    tmp = issetequal(prefixmap[s1.id], prefixmap[s2.id])
+    tmp = tmp || issetequal(suffixmap[s1.id], suffixmap[s2.id])
+    tmp && (s1.pdfindex == s2.pdfindex)
+end
+
 export minimize
+export distribute
 
-function leftminimize!(g::FSM, state::AbstractState)
-    leaves = Dict()
-    for link in children(state)
-        leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
-        push!(leaf, link.dest)
-        leaves[pdfindex(link.dest)] = (leaf, logaddexp(weight, link.weight))
+# propagate the weight of each link through the graph
+function distribute(fsm::FSM)
+    newfsm = FSM(fsm.emissions_names)
+    for state in states(fsm)
+        addstate!(newfsm, State(state.id, state.pdfindex))
     end
 
-    empty!(state.outgoing)
-    for (nextstates, weight) in values(leaves)
-        mergedstate = nextstates[1]
-        filter!(l -> l.dest ≠ state, mergedstate.incoming)
-
-        # Now we removed all the extra states of the graph.
-        links = vcat([next.outgoing for next in nextstates[2:end]]...)
-        for link in links
-            link!(mergedstate, link.dest, link.weight)
+    queue = Tuple{State, Float64}[(initstate(newfsm), 0.0)]
+    while ! isempty(queue)
+        state, weightpath = pop!(queue)
+        for link in children(fsm, state)
+            link!(newfsm, state, newfsm.states[link.dest.id], link.weight + weightpath)
+            push!(queue, (link.dest, link.weight + weightpath))
         end
-
-        for old in nextstates[2:end]
-            for link in children(old)
-                filter!(l -> l.dest ≠ old, link.dest.incoming)
-            end
-            delete!(g.states, id(old))
-        end
-
-        # Reconnect the previous state with the merged state
-        link!(state, mergedstate, weight)
-
-        # Minimize the subgraph.
-        leftminimize!(g, mergedstate)
     end
-    g
-end
-
-function rightminimize!(g::FSM, state::AbstractState)
-    leaves = Dict()
-    for link in parents(state)
-        leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
-        push!(leaf, link.dest)
-        leaves[pdfindex(link.dest)] = (leaf, logaddexp(weight, link.weight))
-    end
-
-    empty!(state.incoming)
-    for (nextstates, weight) in values(leaves)
-        mergedstate = nextstates[1]
-        filter!(l -> l.dest ≠ state, mergedstate.outgoing)
-
-        # Now we removed all the extra states of the graph.
-        links = vcat([next.incoming for next in nextstates[2:end]]...)
-        for link in links
-            #link!(mergedstate, link.dest, link.weight)
-            link!(link.dest, mergedstate, link.weight)
-        end
-
-        for old in nextstates[2:end]
-            for link in parents(old)
-                filter!(l -> l.dest ≠ old, link.dest.outgoing)
-            end
-            delete!(g.states, id(old))
-        end
-
-        # Reconnect the previous state with the merged state
-        link!(mergedstate, state, weight)
-
-        # Minimize the subgraph.
-        rightminimize!(g, mergedstate)
-    end
-    g
+    newfsm
 end
 
 """
-    minimize(g::FSM)
+    minimize(fsm)
+
+Return an equivalent FSM which has the minimum number of states. Only
+the states that have the same `pdfindex` can be potentially merged.
+
+Warning: `fsm` should not contain cycle !!
 """
-minimize(fsm::FSM) = begin
-    newfsm = deepcopy(g)
-    newg = leftminimize!(newg, initstate(newg))
-    rightminimize!(newg, finalstate(newg))
+function minimize(fsm::FSM)
+    # Make sure we won't change the user's object
+    fsm = deepcopy(fsm)
+
+    # Before the "actual" minimization algorithm, we remove the
+    # unreachable states to avoid some erratic behavior.
+    for state in unreachablestates(fsm, forward)
+        removestate!(fsm, state)
+    end
+    for state in unreachablestates(fsm, backward)
+        removestate!(fsm, state)
+    end
+
+
+    # Distribute the weights of each link through the graph to preserve
+    # the proper weighting of the graph
+    # I haven't thoroughly check this method so this may not be very
+    # reliable
+    fsm = distribute(fsm)
+
+    prefixmap = prefixes(fsm, forward)
+    suffixmap = prefixes(fsm, backward)
+
+    sids = filter(sid -> sid ≠ initstateid &&  sid ≠ finalstateid,
+                  keys(prefixmap))
+
+    newfsm = FSM(fsm.emissions_names)
+    count = 0
+    smap = Dict{StateID, State}(
+        initstateid => initstate(newfsm),
+        finalstateid => finalstate(newfsm)
+    )
+    while length(sids) > 0
+        sid1 = pop!(sids)
+        count += 1
+        smap[sid1] = addstate!(newfsm, State(count, fsm.states[sid1].pdfindex))
+
+        toremove = Vector{StateID}()
+        for sid2 in sids
+            if mergeable(fsm.states[sid1], fsm.states[sid2], prefixmap, suffixmap)
+                smap[sid2] = smap[sid1]
+                push!(toremove, sid2)
+            end
+        end
+        filter!(s -> s ∉ toremove, sids)
+    end
+
+    for link in links(fsm)
+        link!(newfsm, smap[link.src.id], smap[link.dest.id], link.weight)
+    end
+
+    newfsm |> weightnormalize |> determinize
 end
 
