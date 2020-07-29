@@ -233,13 +233,13 @@ end
 export weightnormalize
 
 """
-    weightnormalize(graph)
+    weightnormalize(fsm)
 
-Update the weights of the graph such that the exponentiation of the
+Update the weights of the graph such that the (exponentiation) of the
 weight of all the outoing arc from a state sum up to one.
 """
-function weightnormalize(g::FSM)
-    newg = FSM()
+function weightnormalize(fsm::FSM)
+    newfsm = FSM()
 
     newstates = Dict{StateID, State}()
     for state in states(g)

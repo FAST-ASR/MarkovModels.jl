@@ -15,6 +15,8 @@ export FSM
 export LinearFSM
 export addstate!
 export link!
+export removestate!
+export unlink!
 
 export initstate
 export finalstate

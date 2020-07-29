@@ -147,6 +147,29 @@ Add `state` to `fsm`.
 addstate!(fsm::FSM, s::State) = fsm.states[s.id] = s
 
 """
+    removestate!(fsm, state)
+
+Remove `state` from `fsm`.
+"""
+function removestate!(fsm::FSM, s::State)
+    delete!(fsm.states, s.id)
+    delete!(fsm.links, s.id)
+    delete!(fsm.backwardlinks, s.id)
+    for state in states(fsm)
+        toremove = Vector{Link}()
+        for link in children(fsm, state)
+            if link.dest.id == s.id
+                push!(toremove, link)
+            end
+        end
+        if length(toremove) > 0
+            filter!(v -> v ∉ toremove, fsm.links[state.id])
+        end
+    end
+    s
+end
+
+"""
     link!(state1, state2[, weight])
 
 Add a weighted connection between `state1` and `state2`. By default,
@@ -160,6 +183,16 @@ function link!(fsm, s1::State, s2::State, weight::Real = 0.)
     array = get(fsm.backwardlinks, s2.id, Vector{Link}())
     push!(array, Link(s2, s1, weight))
     fsm.backwardlinks[s2.id] = array
+end
+
+"""
+    unlink!(fsm, src, dest)
+
+Remove all the connections betwee `src` and `dest` in `fsm`.
+"""
+function unlink!(fsm, src::State, dest::State)
+    filter!(l -> l.dest.id ≠ dest.id, fsm.links[src.id])
+    filter!(l -> l.dest.id ≠ src.id, fsm.backwardlinks[dest.id])
 end
 
 """
