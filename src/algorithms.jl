@@ -27,8 +27,6 @@ function (pruning::ThresholdPruning)(candidates::Dict{State, T}) where T <: Abst
     filter!(p -> maxval - p.second ≤ pruning.Δ, candidates)
 end
 
-
-
 #######################################################################
 # Baum-Welch (forward-backward) algorithm
 
@@ -235,11 +233,32 @@ export weightnormalize
 """
     weightnormalize(fsm)
 
-Update the weights of the graph such that the (exponentiation) of the
-weight of all the outoing arc from a state sum up to one.
+Create a new FSM with the same topology as `fsm` such that the
+sum of the exponentiated weights of the outgoing links from one state
+will sum up to one.
 """
 function weightnormalize(fsm::FSM)
     newfsm = FSM()
+
+    totweight = Dict{StateID, Real}()
+    for state in states(fsm)
+        addstate!(newfsm, State(state.id, state.pdfindex))
+
+        if state.id ∉ keys(fsm.links) continue end
+
+        totweight[state.id] = -Inf
+        for link in fsm.links[state.id]
+            totweight[state.id] = logaddexp(totweight[state.id], link.weight)
+        end
+    end
+
+    for link in links(fsm)
+        src = newfsm.states[link.src.id]
+        dest = newfsm.states[link.dest.id]
+        link!(newfsm, src, dest, link.weight - totweight[link.src.id])
+    end
+
+    return newfsm
 
     newstates = Dict{StateID, State}()
     for state in states(g)
