@@ -41,7 +41,7 @@ export αβrecursion
 
 Forward step of the Baum-Welch algorithm in the log-domain.
 """
-function αrecursion(g::AbstractGraph, llh::Matrix{T};
+function αrecursion(g::FSM, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
 
@@ -68,7 +68,7 @@ end
 
 Backward step of the Baum-Welch algorithm in the log domain.
 """
-function βrecursion(g::AbstractGraph, llh::Matrix{T};
+function βrecursion(g::FSM, llh::Matrix{T};
                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
 
@@ -98,7 +98,7 @@ end
 
 Baum-Welch algorithm in  the log domain.
 """
-function αβrecursion(g::AbstractGraph, llh::Matrix{T};
+function αβrecursion(g::FSM, llh::Matrix{T};
                      pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     α = αrecursion(g, llh, pruning = pruning)
     β = βrecursion(g, llh, pruning = pruning)
@@ -134,7 +134,7 @@ end
 
 export viterbi
 
-function maxβrecursion(g::AbstractGraph, llh::Matrix{T}, α::Vector{Dict{State,T}}) where T <: AbstractFloat
+function maxβrecursion(g::FSM, llh::Matrix{T}, α::Vector{Dict{State,T}}) where T <: AbstractFloat
     bestseq = Vector{State}()
     activestates = Dict{State, T}(finalstate(g) => T(0.0))
     newstates = Dict{State, T}()
@@ -174,13 +174,13 @@ end
 
 Viterbi algorithm.
 """
-function viterbi(g::AbstractGraph, llh::Matrix{T};
+function viterbi(g::FSM, llh::Matrix{T};
                      pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     α = αrecursion(g, llh, pruning = pruning)
     path = maxβrecursion(g, llh, α)
 
     # Return the best seq as a new graph
-    ng = Graph()
+    ng = FSM()
     prevstate = initstate(ng)
     for (i, state) in enumerate(path)
         s = addstate!(ng, State(i, pdfindex(state), name(state)))
@@ -202,8 +202,8 @@ export determinize
 
 Create a new graph where each states are connected by at most one link.
 """
-function determinize(g::Graph)
-    newg = Graph()
+function determinize(g::FSM)
+    newg = FSM()
 
     newstates = Dict{StateID, State}()
     for state in states(g)
@@ -238,8 +238,8 @@ export weightnormalize
 Update the weights of the graph such that the exponentiation of the
 weight of all the outoing arc from a state sum up to one.
 """
-function weightnormalize(g::Graph)
-    newg = Graph()
+function weightnormalize(g::FSM)
+    newg = FSM()
 
     newstates = Dict{StateID, State}()
     for state in states(g)
@@ -273,7 +273,7 @@ export addselfloop
 
 Add a self-loop to all emitting states of the graph.
 """
-function addselfloop(graph::Graph; loopprob = 0.5)
+function addselfloop(graph::FSM; loopprob = 0.5)
     g = deepcopy(graph)
     for state in states(g)
         if isemitting(state)
@@ -297,48 +297,41 @@ end
 import Base: union
 
 """
-    union(g1::AbstractGraph, g2::AbstractGraph)
+    union(fsm1::FSM, fsm2::FSM)
 """
-function Base.union(g1::AbstractGraph, g2::AbstractGraph)
-    g = Graph()
+function Base.union(fsm1::FSM, fsm2::FSM)
+    fsm = FSM(merge(fsm1.emissions_names, fsm2.emissions_names))
+
     statecount = 0
-    old2new = Dict{AbstractState, AbstractState}(
-        initstate(g1) => initstate(g),
-        finalstate(g1) => finalstate(g),
+    old2new1 = Dict{State, State}(
+        initstate(fsm1) => initstate(fsm),
+        finalstate(fsm1) => finalstate(fsm),
     )
-    for (i, state) in enumerate(states(g1))
-        if id(state) ≠ finalstateid && id(state) ≠ initstateid
-            statecount += 1
-            old2new[state] = addstate!(g, State(statecount, pdfindex(state), name(state)))
-        end
+    for (i, state) in enumerate(states(fsm1))
+        if state.id == finalstateid || state.id == initstateid continue end
+        statecount += 1
+        old2new1[state] = addstate!(fsm, State(statecount, state.pdfindex))
     end
 
-    for state in states(g1)
-        src = old2new[state]
-        for link in children(state)
-            link!(src, old2new[link.dest], link.weight)
-        end
-    end
-
-    old2new = Dict{AbstractState, AbstractState}(
-        initstate(g2) => initstate(g),
-        finalstate(g2) => finalstate(g),
+    old2new2 = Dict{State, State}(
+        initstate(fsm2) => initstate(fsm),
+        finalstate(fsm2) => finalstate(fsm),
     )
-    for (i, state) in enumerate(states(g2))
-        if id(state) ≠ finalstateid && id(state) ≠ initstateid
-            statecount += 1
-            old2new[state] = addstate!(g, State(statecount, pdfindex(state), name(state)))
-        end
+    for (i, state) in enumerate(states(fsm2))
+        if state.id == finalstateid || state.id == initstateid continue end
+        statecount += 1
+        old2new2[state] = addstate!(fsm, State(statecount, state.pdfindex))
     end
 
-    for state in states(g2)
-        src = old2new[state]
-        for link in children(state)
-            link!(src, old2new[link.dest], link.weight)
-        end
+    for link in links(fsm1)
+        link!(fsm, old2new1[link.src], old2new1[link.dest], link.weight)
     end
 
-    g |> determinize |> weightnormalize
+    for link in links(fsm2)
+        link!(fsm, old2new2[link.src], old2new2[link.dest], link.weight)
+    end
+
+    fsm
 end
 
 #######################################################################
@@ -346,7 +339,7 @@ end
 
 export minimize
 
-function leftminimize!(g::Graph, state::AbstractState)
+function leftminimize!(g::FSM, state::AbstractState)
     leaves = Dict()
     for link in children(state)
         leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
@@ -381,7 +374,7 @@ function leftminimize!(g::Graph, state::AbstractState)
     g
 end
 
-function rightminimize!(g::Graph, state::AbstractState)
+function rightminimize!(g::FSM, state::AbstractState)
     leaves = Dict()
     for link in parents(state)
         leaf, weight = get(leaves, pdfindex(link.dest), ([], -Inf))
@@ -418,10 +411,10 @@ function rightminimize!(g::Graph, state::AbstractState)
 end
 
 """
-    minimize(g::Graph)
+    minimize(g::FSM)
 """
-minimize(g::Graph) = begin
-    newg = deepcopy(g)
+minimize(fsm::FSM) = begin
+    newfsm = deepcopy(g)
     newg = leftminimize!(newg, initstate(newg))
     rightminimize!(newg, finalstate(newg))
 end
