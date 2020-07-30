@@ -96,17 +96,20 @@ State(1, pdfindex = 2)
 struct State <: AbstractState
     id::StateID
     pdfindex::Union{Int64, Nothing}
+    label::Union{AbstractString, Nothing}
 end
 
-function Base.show(io::IO, s::State)
-    if ! isnothing(s.pdfindex)
-        print(io, "State($(s.id), pdfindex = $(s.pdfindex))")
-    else
-        print(io, "State($(s.id))")
-    end
+function Base.show(
+    io::IO,
+    s::State
+)
+    str = "State($(s.id)"
+    if ! isnothing(s.pdfindex) str = "$str, pdfindex = $(s.pdfindex)" end
+    if ! isnothing(s.label) str = "$str, label = $(s.label)" end
+    print(io, "$str)")
 end
 
-State(id; pdfindex = nothing) = State(id, pdfindex)
+State(id; pdfindex = nothing, label = nothing) = State(id, pdfindex, label)
 
 """
     isemitting(state)
@@ -115,43 +118,65 @@ Returns `true` if the `state` is associated with a probability density.
 """
 isemitting(s::State) = ! isnothing(s.pdfindex)
 
+"""
+    islabeled(state)
+
+Returns `true` if the `state` has a label.
+"""
+islabeled(s::State) = ! isnothing(s.label)
+
 #######################################################################
 # FSM
 
+mutable struct StateIDCounter
+    count::Int64
+end
+
 struct FSM
+    idcounter::StateIDCounter
     states::Dict{StateID, State}
     links::Dict{StateID, Vector{Link}}
     backwardlinks::Dict{StateID, Vector{Link}}
-    emissions_names::Dict{StateID, AbstractString}
 
-    FSM(emissions_names::Dict{StateID, AbstractString}) = new(
+    FSM() = new(
+        StateIDCounter(0),
         Dict{StateID, State}(
             initstateid => State(initstateid),
             finalstateid => State(finalstateid)
         ),
         Dict{StateID, Vector{Link}}(),
         Dict{StateID, Vector{Link}}(),
-        emissions_names
     )
 end
-FSM() = FSM(Dict{StateID, AbstractString}())
 
 #######################################################################
 # Methods to construct the FSM
 
 """
-    addstate!(fsm, state)
+    addstate!(fsm[, pdfindex = ..., label = "..."])
 
-Add `state` to `fsm`.
+Add `state` to `fsm` and return it.
 """
-addstate!(fsm::FSM, s::State) = fsm.states[s.id] = s
+function addstate!(
+    fsm::FSM;
+    id = nothing,
+    pdfindex = nothing,
+    label = nothing
+)
+    fsm.idcounter.count += 1
+    s = State(fsm.idcounter.count, pdfindex, label)
+    fsm.states[s.id] = s
+end
 
 """
     removestate!(fsm, state)
 
 Remove `state` from `fsm`.
 """
-function removestate!(fsm::FSM, s::State)
+function removestate!(
+    fsm::FSM,
+    s::State
+)
     delete!(fsm.states, s.id)
     delete!(fsm.links, s.id)
     delete!(fsm.backwardlinks, s.id)
@@ -185,7 +210,12 @@ end
 Add a weighted connection between `state1` and `state2`. By default,
 `weight = 0`.
 """
-function link!(fsm, s1::State, s2::State, weight::Real = 0.)
+function link!(
+    fsm::FSM,
+    s1::State,
+    s2::State,
+    weight::Real = 0.
+)
     array = get(fsm.links, s1.id, Vector{Link}())
     push!(array, Link(s1, s2, weight))
     fsm.links[s1.id] = array
@@ -200,7 +230,11 @@ end
 
 Remove all the connections betwee `src` and `dest` in `fsm`.
 """
-function unlink!(fsm::FSM, src::State, dest::State)
+function unlink!(
+    fsm::FSM,
+    src::State,
+    dest::State
+)
     filter!(l -> l.dest.id ≠ dest.id, fsm.links[src.id])
     filter!(l -> l.dest.id ≠ src.id, fsm.backwardlinks[dest.id])
     nothing
@@ -212,16 +246,14 @@ end
 Create a linear FSM from a sequence of label `seq`. `emissions_names`
 should be a one-to-one mapping pdfindex -> label.
 """
-function LinearFSM(sequence::AbstractArray{String},
-                   emissions_names::Dict{StateID, AbstractString})
-
-    # Reverse the mapping to get the pdfindex from the labels
-    rmap = Dict(v => k for (k, v) in emissions_names)
-
-    fsm = FSM(emissions_names)
+function LinearFSM(
+    sequence::AbstractArray{String},
+    emissionsmap::Dict
+)
+    fsm = FSM()
     prevstate = initstate(fsm)
-    for (i, token) in enumerate(sequence)
-        s = addstate!(fsm, State(i, rmap[token]))
+    for token in sequence
+        s = addstate!(fsm, pdfindex = emissionsmap[token], label = token)
         link!(fsm, prevstate, s)
         prevstate = s
     end
@@ -232,14 +264,6 @@ end
 #######################################################################
 # Convenience function to access particular property/attribute of the
 # FSM
-
-"""
-    name(fsm, state)
-
-Return the name of `state`. If the state has no name, it returns
-`state.id` as a string.
-"""
-name(fsm, state) = get(fsm.emissions_names, state.pdfindex, "$(state.id)")
 
 """
     initstate(fsm)
@@ -270,8 +294,10 @@ struct LinkIterator
     siter
 end
 
-function Base.iterate(iter::LinkIterator, iterstate = nothing)
-
+function Base.iterate(
+    iter::LinkIterator,
+    iterstate = nothing
+)
     # Initialize the state of the iterator.
     if iterstate == nothing
         state, siterstate = iterate(iter.siter)
@@ -332,7 +358,10 @@ struct EmittingStatesIterator
     getlinks::Function
 end
 
-function Base.iterate(iter::EmittingStatesIterator, queue = nothing)
+function Base.iterate(
+    iter::EmittingStatesIterator,
+    queue = nothing
+)
     if queue == nothing
         queue = Vector([(link, oftype(link.weight, 0.0))
                         for link in iter.getlinks(iter.state)])
@@ -351,12 +380,17 @@ function Base.iterate(iter::EmittingStatesIterator, queue = nothing)
     (nextstate, weight), queue
 end
 
-function nextemittingstates!(queue::Vector{Tuple{Link{T}, T}}, getlinks::Function) where T <: AbstractFloat
+function nextemittingstates!(
+    queue::Vector{Tuple{Link{T}, T}},
+    getlinks::Function
+) where T <: AbstractFloat
+
     link, pathweight = pop!(queue)
     if isemitting(link.dest)
         return link.dest, pathweight + link.weight
     end
-    append!(queue, [(newlink, pathweight + link.weight) for newlink in getlinks(link.dest)])
+    append!(queue, [(newlink, pathweight + link.weight)
+                    for newlink in getlinks(link.dest)])
     return nothing
 end
 
@@ -368,11 +402,19 @@ states. For each value, the iterator return a tuple
 `(nextstate, weightpath)`. The weight path is the sum of the weights
 for all the link to reach `nextstate`.
 """
-function emittingstates(fsm::FSM, s::State, ::Forward)
+function emittingstates(
+    fsm::FSM,
+    s::State,
+    ::Forward
+)
     EmittingStatesIterator(s, st -> children(fsm, st))
 end
 
-function emittingstates(fsm::FSM, s::State, ::Backward)
+function emittingstates(
+    fsm::FSM,
+    s::State,
+    ::Backward
+)
     EmittingStatesIterator(s, st -> parents(fsm, st))
 end
 

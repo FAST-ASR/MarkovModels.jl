@@ -5,10 +5,6 @@ using StatsFuns
 #######################################################################
 # Different strategy to prune the graph during inference.
 
-export PruningStrategy
-export ThresholdPruning
-
-
 abstract type PruningStrategy end
 
 # No pruning strategy for the αβ recursion
@@ -29,10 +25,6 @@ end
 
 #######################################################################
 # Baum-Welch (forward-backward) algorithm
-
-export αrecursion
-export βrecursion
-export αβrecursion
 
 """
     αrecursion(graph, llh[, pruning = ...])
@@ -204,20 +196,24 @@ end
 #######################################################################
 # Determinization algorithm
 
-export determinize
-
 """
     determinize(graph)
-
 
 Create a new graph where each states are connected by at most one link.
 """
 function determinize(fsm::FSM)
-    newfsm = FSM(fsm.emissions_names)
+    newfsm = FSM()
 
     newstates = Dict{StateID, State}()
     for state in states(fsm)
-        newstates[state.id] = State(state.id, state.pdfindex)
+        if state.id == initstateid
+            newstates[state.id] = initstate(newfsm)
+        elseif state.id == finalstateid
+            newstates[state.id] = finalstate(newfsm)
+        else
+            newstates[state.id] = addstate!(newfsm, pdfindex = state.pdfindex,
+                                            label = state.label)
+        end
     end
 
     newarcs = Dict{Tuple{State, State}, Real}()
@@ -231,7 +227,6 @@ function determinize(fsm::FSM)
         end
     end
 
-    for state in values(newstates) addstate!(newfsm, state) end
     for arc in newarcs link!(newfsm, arc[1][1], arc[1][2], arc[2]) end
 
     newfsm
@@ -248,24 +243,32 @@ sum of the exponentiated weights of the outgoing links from one state
 will sum up to one.
 """
 function weightnormalize(fsm::FSM)
-    newfsm = FSM(fsm.emissions_names)
+    newfsm = FSM()
 
     totweight = Dict{StateID, Real}()
+    idmap = Dict{StateID, StateID}()
     for state in states(fsm)
-        addstate!(newfsm, State(state.id, state.pdfindex))
+        if state.id == initstateid
+            ns = initstate(newfsm)
+        elseif state.id == finalstateid
+            ns = finalstate(newfsm)
+        else
+            ns = addstate!(newfsm, pdfindex = state.pdfindex, label = state.label)
+        end
+        idmap[state.id] = ns.id
 
         if state.id ∉ keys(fsm.links) continue end
 
-        totweight[state.id] = -Inf
+        totweight[ns.id] = -Inf
         for link in fsm.links[state.id]
-            totweight[state.id] = logaddexp(totweight[state.id], link.weight)
+            totweight[ns.id] = logaddexp(totweight[ns.id], link.weight)
         end
     end
 
     for link in links(fsm)
-        src = newfsm.states[link.src.id]
-        dest = newfsm.states[link.dest.id]
-        link!(newfsm, src, dest, link.weight - totweight[link.src.id])
+        src = newfsm.states[idmap[link.src.id]]
+        dest = newfsm.states[idmap[link.dest.id]]
+        link!(newfsm, src, dest, link.weight - totweight[src.id])
     end
 
     return newfsm
@@ -312,27 +315,26 @@ import Base: union
     union(fsm1::FSM, fsm2::FSM)
 """
 function Base.union(fsm1::FSM, fsm2::FSM)
-    fsm = FSM(merge(fsm1.emissions_names, fsm2.emissions_names))
+    fsm = FSM()
 
-    statecount = 0
     old2new1 = Dict{State, State}(
         initstate(fsm1) => initstate(fsm),
         finalstate(fsm1) => finalstate(fsm),
     )
-    for (i, state) in enumerate(states(fsm1))
+    for state in states(fsm1)
         if state.id == finalstateid || state.id == initstateid continue end
-        statecount += 1
-        old2new1[state] = addstate!(fsm, State(statecount, state.pdfindex))
+        old2new1[state] = addstate!(fsm, pdfindex = state.pdfindex,
+                                    label =state.label)
     end
 
     old2new2 = Dict{State, State}(
         initstate(fsm2) => initstate(fsm),
         finalstate(fsm2) => finalstate(fsm),
     )
-    for (i, state) in enumerate(states(fsm2))
+    for state in states(fsm2)
         if state.id == finalstateid || state.id == initstateid continue end
-        statecount += 1
-        old2new2[state] = addstate!(fsm, State(statecount, state.pdfindex))
+        old2new2[state] = addstate!(fsm, pdfindex = state.pdfindex,
+                                    label = state.label)
     end
 
     for link in links(fsm1)
@@ -345,6 +347,8 @@ function Base.union(fsm1::FSM, fsm2::FSM)
 
     fsm |> weightnormalize
 end
+Base.union(fsm1::FSM, fsm2::FSM, x::Vararg{FSM}) = union(union(fsm1, fsm2), x...)
+Base.union(fsm::FSM) = fsm
 
 #######################################################################
 # FSM minimization
@@ -400,22 +404,32 @@ prefixes(fsm, ::Backward) = prefixes(fsm, finalstate(fsm), parents)
 function mergeable(s1, s2, prefixmap, suffixmap)
     tmp = issetequal(prefixmap[s1.id], prefixmap[s2.id])
     tmp = tmp || issetequal(suffixmap[s1.id], suffixmap[s2.id])
-    tmp && (s1.pdfindex == s2.pdfindex)
+    tmp && (s1.pdfindex == s2.pdfindex) && (s1.label == s2.label)
 end
 
 
 # propagate the weight of each link through the graph
 function distribute(fsm::FSM)
-    newfsm = FSM(fsm.emissions_names)
+    newfsm = FSM()
+    idmap = Dict{StateID, StateID}()
     for state in states(fsm)
-        addstate!(newfsm, State(state.id, state.pdfindex))
+        if state.id == initstateid
+            ns = initstate(newfsm)
+        elseif state.id == finalstateid
+            ns = finalstate(newfsm)
+        else
+            ns = addstate!(newfsm, pdfindex = state.pdfindex, label = state.label)
+        end
+        idmap[state.id] = ns.id
     end
 
     queue = Tuple{State, Float64}[(initstate(newfsm), 0.0)]
     while ! isempty(queue)
         state, weightpath = pop!(queue)
         for link in children(fsm, state)
-            link!(newfsm, state, newfsm.states[link.dest.id], link.weight + weightpath)
+            link!(newfsm, newfsm.states[idmap[state.id]],
+                  newfsm.states[idmap[link.dest.id]],
+                  link.weight + weightpath)
             push!(queue, (link.dest, link.weight + weightpath))
         end
     end
@@ -447,7 +461,7 @@ function minimize(fsm::FSM)
     toremove = State[]
     for state in states(fsm)
         if (state.id == initstateid || state.id == finalstateid) continue end
-        if ! isemitting(state)
+        if ! isemitting(state) && ! islabeled(state)
             push!(toremove, state)
             display(state)
             for l1 in parents(fsm, state)
@@ -472,16 +486,16 @@ function minimize(fsm::FSM)
     sids = filter(sid -> sid ≠ initstateid &&  sid ≠ finalstateid,
                   keys(prefixmap))
 
-    newfsm = FSM(fsm.emissions_names)
-    count = 0
+    newfsm = FSM()
     smap = Dict{StateID, State}(
         initstateid => initstate(newfsm),
         finalstateid => finalstate(newfsm)
     )
     while length(sids) > 0
         sid1 = pop!(sids)
-        count += 1
-        smap[sid1] = addstate!(newfsm, State(count, fsm.states[sid1].pdfindex))
+        ns = addstate!(newfsm, pdfindex = fsm.states[sid1].pdfindex,
+                       label = fsm.states[sid1].label)
+        smap[sid1] = ns
 
         toremove = Vector{StateID}()
         for sid2 in sids
