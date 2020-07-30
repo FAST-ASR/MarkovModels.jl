@@ -39,19 +39,23 @@ export αβrecursion
 
 Forward step of the Baum-Welch algorithm in the log-domain.
 """
-function αrecursion(g::FSM, llh::Matrix{T};
-                    pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+function αrecursion(
+    fsm::FSM,
+    llh::Matrix{T};
+    pruning::Union{Real, NoPruning} = nopruning
+) where T <: AbstractFloat
+
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
 
-    activestates = Dict{State, T}(initstate(g) => T(0.0))
+    activestates = Dict{State, T}(initstate(fsm) => T(0.0))
     α = Vector{Dict{State, T}}()
 
     for n in 1:size(llh, 2)
         push!(α, Dict{State,T}())
         for (state, weightpath) in activestates
-            for (nstate, linkweight) in emittingstates(forward, state)
+            for (nstate, linkweight) in emittingstates(fsm, state, forward)
                 nweightpath = weightpath + linkweight
-                α[n][nstate] = llh[pdfindex(nstate), n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
+                α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
         end
 
@@ -66,13 +70,18 @@ end
 
 Backward step of the Baum-Welch algorithm in the log domain.
 """
-function βrecursion(g::FSM, llh::Matrix{T};
-                    pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+function βrecursion(
+    fsm::FSM,
+    llh::Matrix{T};
+    pruning::Union{Real, NoPruning} = nopruning
+) where T <: AbstractFloat
+
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
 
     activestates = Dict{State, T}()
     β = Vector{Dict{State, T}}()
-    push!(β, Dict(s => T(0.0) for (s, w) in emittingstates(backward, finalstate(g))))
+    push!(β, Dict(s => T(0.0)
+         for (s, w) in emittingstates(fsm, finalstate(fsm), backward)))
 
     for n in size(llh, 2)-1:-1:1
         # Update the active tokens
@@ -81,8 +90,8 @@ function βrecursion(g::FSM, llh::Matrix{T};
 
         pushfirst!(β, Dict{State,T}())
         for (state, weightpath) in activestates
-            prev_llh = llh[pdfindex(state), n+1]
-            for (nstate, linkweight) in emittingstates(backward, state)
+            prev_llh = llh[state.pdfindex, n+1]
+            for (nstate, linkweight) in emittingstates(fsm, state, backward)
                 nweightpath = weightpath + linkweight + prev_llh
                 β[1][nstate] = logaddexp(get(β[1], nstate, T(-Inf)), nweightpath)
             end
@@ -96,10 +105,13 @@ end
 
 Baum-Welch algorithm in  the log domain.
 """
-function αβrecursion(g::FSM, llh::Matrix{T};
-                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
-    α = αrecursion(g, llh, pruning = pruning)
-    β = βrecursion(g, llh, pruning = pruning)
+function αβrecursion(
+    fsm::FSM, llh::Matrix{T};
+    pruning::Union{Real, NoPruning} = nopruning
+) where T <: AbstractFloat
+
+    α = αrecursion(fsm, llh, pruning = pruning)
+    β = βrecursion(fsm, llh, pruning = pruning)
 
     γ = Vector{Dict{State,T}}()
 
@@ -119,7 +131,7 @@ function αβrecursion(g::FSM, llh::Matrix{T};
     end
 
     # Total Log Likelihood
-    fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(backward, finalstate(g)); init=[])
+    fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(fsm, finalstate(fsm), backward); init=[])
     ttl = filter(s -> s[1] in fs, α[end]) |> values |> sum
 
     γ, ttl
@@ -257,26 +269,6 @@ function weightnormalize(fsm::FSM)
     end
 
     return newfsm
-
-    newstates = Dict{StateID, State}()
-    for state in states(g)
-        newstates[id(state)] = State(id(state), pdfindex(state), name(state))
-    end
-
-    newarcs = Vector{Tuple{State, State, Real}}()
-    for state in states(g)
-        lognorm = reduce(logaddexp, [link.weight for link in children(state)], init=-Inf)
-        for link in children(state)
-            src = newstates[id(state)]
-            dest = newstates[id(link.dest)]
-            push!(newarcs, (src, dest, link.weight - lognorm))
-        end
-    end
-
-    for state in values(newstates) addstate!(newg, state) end
-    for arc in newarcs link!(arc[1], arc[2], arc[3]) end
-
-    newg
 end
 
 
