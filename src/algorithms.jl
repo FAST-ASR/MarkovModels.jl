@@ -228,8 +228,6 @@ end
 #######################################################################
 # Normalization algorithm
 
-export weightnormalize
-
 """
     weightnormalize(fsm)
 
@@ -285,29 +283,32 @@ end
 #######################################################################
 # Add a self-loop
 
-export addselfloop
-
 """
     addselfloop(graph[, loopprob = 0.5]))
 
 Add a self-loop to all emitting states of the graph.
 """
-function addselfloop(graph::FSM; loopprob = 0.5)
-    g = deepcopy(graph)
-    for state in states(g)
+function addselfloop(fsm::FSM; loopprob = 0.5)
+    fsm = deepcopy(fsm)
+    for state in states(fsm)
         if isemitting(state)
-            #link!(state, state, log(loopprob))
             newlinks = [(state, log(loopprob))]
-            for link in children(state)
+            toremove = State[]
+            for link in children(fsm, state)
                 push!(newlinks, (link.dest, link.weight + log(1 - loopprob)))
+                push!(toremove, link.dest)
             end
-            empty!(state.outgoing)
+
+            # Remove the existing links
+            for dest in toremove unlink!(fsm, state, dest) end
+
+            # Add the reweight links and the self-loop
             for (dest, weight) in newlinks
-                link!(state, dest, weight)
+                link!(fsm, state, dest, weight)
             end
         end
     end
-    g
+    fsm
 end
 
 #######################################################################
@@ -355,8 +356,6 @@ end
 
 #######################################################################
 # FSM minimization
-
-export unreachablestates
 
 # Returns the list of the unreachable states
 function unreachablestates(fsm::FSM, start::State, nextlinks::Function)
@@ -412,8 +411,6 @@ function mergeable(s1, s2, prefixmap, suffixmap)
     tmp && (s1.pdfindex == s2.pdfindex)
 end
 
-export minimize
-export distribute
 
 # propagate the weight of each link through the graph
 function distribute(fsm::FSM)

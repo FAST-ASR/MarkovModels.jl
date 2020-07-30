@@ -1,6 +1,9 @@
 
 module ProbabilisticFSMs
 
+#######################################################################
+# FSM definition
+
 export StateID
 export initstateid
 export finalstateid
@@ -9,7 +12,6 @@ export Link
 
 export State
 export isemitting
-
 
 export FSM
 export LinearFSM
@@ -32,7 +34,30 @@ export states
 
 include("fsm.jl")
 
-# Pretty display of the graph in IJulia.
+
+#######################################################################
+# Major algorithms
+
+# Baum-Welch algorithm
+export αrecursion
+export αβrecursion
+export βrecursion
+export nopruning
+export PruningStrategy
+export ThresholdPruning
+
+# FSM operations
+export addselfloop
+export determinize
+export weightnormalize
+export minimize
+
+include("algorithms.jl")
+
+#######################################################################
+# Pretty display functions
+
+# Pretty display of the FSM in IJulia as a graph.
 function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     dotpath, dotfile = mktemp()
     svgpath, svgfile = mktemp()
@@ -63,16 +88,7 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     rm(svgpath)
 end
 
-#######################################################################
-# Concrete graph implementation
-
-export PruningStrategy
-export ThresholdPruning
-export nopruning
-
-#######################################################################
 # Pretty display the sparse matrix (i.e. from αβrecursion).
-
 import Printf:@sprintf
 function Base.show(io::IO, ::MIME"text/plain", a::Array{Dict{State, T},1}) where T <: AbstractFloat
     for n in 1:length(a)
@@ -85,11 +101,6 @@ function Base.show(io::IO, ::MIME"text/plain", a::Array{Dict{State, T},1}) where
         write(io, "\n")
     end
 end
-
-#######################################################################
-# Major algorithms
-
-include("algorithms.jl")
 
 #######################################################################
 # Other
