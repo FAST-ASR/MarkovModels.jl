@@ -165,6 +165,16 @@ function removestate!(fsm::FSM, s::State)
         if length(toremove) > 0
             filter!(v -> v ∉ toremove, fsm.links[state.id])
         end
+
+        toremove = Vector{Link}()
+        for link in parents(fsm, state)
+            if link.dest.id == s.id
+                push!(toremove, link)
+            end
+        end
+        if length(toremove) > 0
+            filter!(v -> v ∉ toremove, fsm.backwardlinks[state.id])
+        end
     end
     s
 end

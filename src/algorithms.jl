@@ -454,6 +454,22 @@ function minimize(fsm::FSM)
         removestate!(fsm, state)
     end
 
+    # Remove the non-emitting states
+    toremove = State[]
+    for state in states(fsm)
+        if (state.id == initstateid || state.id == finalstateid) continue end
+        if ! isemitting(state)
+            push!(toremove, state)
+            display(state)
+            for l1 in parents(fsm, state)
+                for l2 in children(fsm, state)
+                    link!(fsm, l1.dest, l2.dest, l1.weight + l2.weight)
+                end
+            end
+        end
+    end
+    for state in toremove removestate!(fsm, state) end
+
 
     # Distribute the weights of each link through the graph to preserve
     # the proper weighting of the graph
