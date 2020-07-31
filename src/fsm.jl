@@ -18,7 +18,7 @@ Weighted link pointing to a state `dest` with label `label`. `T` is
 the type of the weight. The weight represents the log-probability of
 going through this link.
 """
-struct Link{T<:AbstractFloat}
+mutable struct Link{T<:AbstractFloat}
     src::AbstractState
     dest::AbstractState
     weight::T
@@ -67,6 +67,20 @@ Base.show(io::IO, id::FinalStateID) = print(io, "finalstateid")
 Type of the state identifier.
 """
 const StateID = Union{Int64, InitStateID, FinalStateID}
+
+"""
+    const Label = Union{AbstractString, Nothing}
+
+Type of the state label.
+"""
+const Label = Union{AbstractString, Nothing}
+
+"""
+    const Pdfindex = Union{Int64, Nothing}
+
+Type of the state pdf index.
+"""
+const Pdfindex = Union{Int64, Nothing}
 
 """
     stuct State
@@ -177,30 +191,16 @@ function removestate!(
     fsm::FSM,
     s::State
 )
+    # Remove all the connections of `s` before to remove it
+    toremove = State[]
+    for link in children(fsm, s) push!(toremove, link.dest) end
+    for link in parents(fsm, s) push!(toremove, link.dest) end
+    for s2 in toremove unlink!(fsm, s, s2) end
+
     delete!(fsm.states, s.id)
     delete!(fsm.links, s.id)
     delete!(fsm.backwardlinks, s.id)
-    for state in states(fsm)
-        toremove = Vector{Link}()
-        for link in children(fsm, state)
-            if link.dest.id == s.id
-                push!(toremove, link)
-            end
-        end
-        if length(toremove) > 0
-            filter!(v -> v ∉ toremove, fsm.links[state.id])
-        end
 
-        toremove = Vector{Link}()
-        for link in parents(fsm, state)
-            if link.dest.id == s.id
-                push!(toremove, link)
-            end
-        end
-        if length(toremove) > 0
-            filter!(v -> v ∉ toremove, fsm.backwardlinks[state.id])
-        end
-    end
     s
 end
 
@@ -228,15 +228,18 @@ end
 """
     unlink!(fsm, src, dest)
 
-Remove all the connections betwee `src` and `dest` in `fsm`.
+Remove all the connections between `src` and `dest` in `fsm`.
 """
 function unlink!(
     fsm::FSM,
-    src::State,
-    dest::State
+    s1::State,
+    s2::State
 )
-    filter!(l -> l.dest.id ≠ dest.id, fsm.links[src.id])
-    filter!(l -> l.dest.id ≠ src.id, fsm.backwardlinks[dest.id])
+    if s1.id ∈ keys(fsm.links) filter!(l -> l.dest.id ≠ s2.id, fsm.links[s1.id]) end
+    if s2.id ∈ keys(fsm.links) filter!(l -> l.dest.id ≠ s1.id, fsm.links[s2.id]) end
+    if s1.id ∈ keys(fsm.backwardlinks) filter!(l -> l.dest.id ≠ s2.id, fsm.backwardlinks[s1.id]) end
+    if s2.id ∈ keys(fsm.backwardlinks) filter!(l -> l.dest.id ≠ s1.id, fsm.backwardlinks[s2.id]) end
+
     nothing
 end
 

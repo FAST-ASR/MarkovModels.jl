@@ -1,6 +1,7 @@
 # Implementation of generic graph algorithms.
 
-using StatsFuns
+using StatsFuns: logaddexp, logsumexp
+import Base: union
 
 #######################################################################
 # Different strategy to prune the graph during inference.
@@ -18,7 +19,9 @@ struct ThresholdPruning <: PruningStrategy
     Δ::Real
 end
 
-function (pruning::ThresholdPruning)(candidates::Dict{State, T}) where T <: AbstractFloat
+function (pruning::ThresholdPruning)(
+    candidates::Dict{State, T}
+) where T <: AbstractFloat
     maxval = maximum(p -> p.second, candidates)
     filter!(p -> maxval - p.second ≤ pruning.Δ, candidates)
 end
@@ -129,12 +132,12 @@ function αβrecursion(
     γ, ttl
 end
 
-#######################################################################
-# Viterbi algorithm (find the best path)
+function maxβrecursion(
+    g::FSM,
+    llh::Matrix{T},
+    α::Vector{Dict{State,T}}
+) where T <: AbstractFloat
 
-export viterbi
-
-function maxβrecursion(g::FSM, llh::Matrix{T}, α::Vector{Dict{State,T}}) where T <: AbstractFloat
     bestseq = Vector{State}()
     activestates = Dict{State, T}(finalstate(g) => T(0.0))
     newstates = Dict{State, T}()
@@ -174,8 +177,12 @@ end
 
 Viterbi algorithm.
 """
-function viterbi(g::FSM, llh::Matrix{T};
-                     pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+function viterbi(
+    fsm::FSM,
+    llh::Matrix{T};
+    pruning::Union{Real, NoPruning} = nopruning
+) where T <: AbstractFloat
+
     α = αrecursion(g, llh, pruning = pruning)
     path = maxβrecursion(g, llh, α)
 
@@ -190,9 +197,6 @@ function viterbi(g::FSM, llh::Matrix{T};
     link!(prevstate, finalstate(ng), 0.)
     ng
 end
-
-#######################################################################
-# Determinization algorithm
 
 """
     determinize(graph)
@@ -230,9 +234,6 @@ function determinize(fsm::FSM)
     newfsm
 end
 
-#######################################################################
-# Normalization algorithm
-
 """
     weightnormalize(fsm)
 
@@ -240,79 +241,42 @@ Create a new FSM with the same topology as `fsm` such that the
 sum of the exponentiated weights of the outgoing links from one state
 will sum up to one.
 """
-function weightnormalize(fsm::FSM)
-    newfsm = FSM()
-
-    totweight = Dict{StateID, Real}()
-    idmap = Dict{StateID, StateID}()
-    for state in states(fsm)
-        if state.id == initstateid
-            ns = initstate(newfsm)
-        elseif state.id == finalstateid
-            ns = finalstate(newfsm)
-        else
-            ns = addstate!(newfsm, pdfindex = state.pdfindex, label = state.label)
-        end
-        idmap[state.id] = ns.id
-
-        if state.id ∉ keys(fsm.links) continue end
-
-        totweight[ns.id] = -Inf
-        for link in fsm.links[state.id]
-            totweight[ns.id] = logaddexp(totweight[ns.id], link.weight)
-        end
+function weightnormalize!(fsm::FSM)
+    for s in states(fsm)
+        total = -Inf
+        for l in children(fsm, s) total = logaddexp(total, l.weight) end
+        for l in children(fsm, s) l.weight -= total end
     end
-
-    for link in links(fsm)
-        src = newfsm.states[idmap[link.src.id]]
-        dest = newfsm.states[idmap[link.dest.id]]
-        link!(newfsm, src, dest, link.weight - totweight[src.id])
-    end
-
-    return newfsm
+    fsm
 end
 
-
-#######################################################################
-# Add a self-loop
-
 """
-    addselfloop(graph[, loopprob = 0.5]))
+    addselfloop!(graph[, loopprob = 0.5]))
 
 Add a self-loop to all emitting states of the graph.
 """
-function addselfloop(fsm::FSM; loopprob = 0.5)
-    fsm = deepcopy(fsm)
+function addselfloop!(
+    fsm::FSM;
+    loopprob::Real = 0.5
+)
     for state in states(fsm)
         if isemitting(state)
-            newlinks = [(state, log(loopprob))]
-            toremove = State[]
-            for link in children(fsm, state)
-                push!(newlinks, (link.dest, link.weight + log(1 - loopprob)))
-                push!(toremove, link.dest)
-            end
-
-            # Remove the existing links
-            for dest in toremove unlink!(fsm, state, dest) end
-
-            # Add the reweight links and the self-loop
-            for (dest, weight) in newlinks
-                link!(fsm, state, dest, weight)
-            end
+            for l in children(fsm, state) l.weight += log(1 - loopprob) end
+            link!(fsm, state, state, weight)
         end
     end
     fsm
 end
 
-#######################################################################
-# Union two graphs into one
-
-import Base: union
-
 """
-    union(fsm1::FSM, fsm2::FSM)
+    union(fsm1, fsm2, ...)
+
+Merge several FSMs into a single one.
 """
-function Base.union(fsm1::FSM, fsm2::FSM)
+function Base.union(
+    fsm1::FSM,
+    fsm2::FSM
+)
     fsm = FSM()
 
     old2new1 = Dict{State, State}(
@@ -343,13 +307,38 @@ function Base.union(fsm1::FSM, fsm2::FSM)
         link!(fsm, old2new2[link.src], old2new2[link.dest], link.weight)
     end
 
-    fsm |> weightnormalize
+    fsm
 end
 Base.union(fsm1::FSM, fsm2::FSM, x::Vararg{FSM}) = union(union(fsm1, fsm2), x...)
 Base.union(fsm::FSM) = fsm
 
-#######################################################################
-# FSM minimization
+"""
+    removenilstates!(fsm)
+
+Remove all states that are non-emitting and have no labels (except the
+the initial and final states)
+"""
+function removenilstates!(fsm::FSM)
+    toremove = State[]
+    for state in states(fsm)
+        if (state.id == initstateid || state.id == finalstateid) continue end
+
+        # As "nil state" is a non-emitting state with no label
+        if ! isemitting(state) && ! islabeled(state)
+            push!(toremove, state)
+
+            # Reconnect the states
+            for l1 in parents(fsm, state)
+                for l2 in children(fsm, state)
+                    link!(fsm, l1.dest, l2.dest, l1.weight + l2.weight)
+                end
+            end
+        end
+    end
+
+    for state in toremove removestate!(fsm, state) end
+    fsm
+end
 
 # Returns the list of the unreachable states
 function unreachablestates(fsm::FSM, start::State, nextlinks::Function)
@@ -358,7 +347,6 @@ function unreachablestates(fsm::FSM, start::State, nextlinks::Function)
     while length(tovisit) > 0
         stateid = pop!(tovisit)
         push!(reachable, stateid)
-
         for link in nextlinks(fsm, fsm.states[stateid])
             if link.dest.id ∉ tovisit
                 push!(tovisit, link.dest.id)
@@ -371,142 +359,86 @@ end
 unreachablestates(fsm::FSM, ::Forward) = unreachablestates(fsm, initstate(fsm), children)
 unreachablestates(fsm::FSM, ::Backward) = unreachablestates(fsm, finalstate(fsm), parents)
 
-# Compute the set of all possible pdfindex sequences "prefixing" each
-# state
-function prefixes(fsm::FSM, start::State, nextlinks::Function)
-    retval = Dict{StateID, Set{Tuple}}(start.id => Set([()]))
-
-    tovisit = State[start]
-    while length(tovisit) > 0
-        state = pop!(tovisit)
-
-        for link in nextlinks(fsm, state)
-            next = link.dest
-            set = get(retval, next.id, Set{Tuple}())
-            retval[next.id] = union(
-                set,
-                Set([(p..., (state.pdfindex, state.label))
-                      for p in retval[state.id]])
-            )
-            push!(tovisit, next)
-        end
-    end
-
-    retval
-end
-prefixes(fsm, ::Forward) = prefixes(fsm, initstate(fsm), children)
-prefixes(fsm, ::Backward) = prefixes(fsm, finalstate(fsm), parents)
-
-# True if two states can be merged together
-function mergeable(s1, s2, prefixmap, suffixmap)
-    tmp = issetequal(prefixmap[s1.id], prefixmap[s2.id])
-    tmp = tmp || issetequal(suffixmap[s1.id], suffixmap[s2.id])
-    tmp && (s1.pdfindex == s2.pdfindex) && (s1.label == s2.label)
-end
-
-
 # propagate the weight of each link through the graph
-function distribute(fsm::FSM)
-    newfsm = FSM()
-    idmap = Dict{StateID, StateID}()
-    for state in states(fsm)
-        if state.id == initstateid
-            ns = initstate(newfsm)
-        elseif state.id == finalstateid
-            ns = finalstate(newfsm)
-        else
-            ns = addstate!(newfsm, pdfindex = state.pdfindex, label = state.label)
-        end
-        idmap[state.id] = ns.id
-    end
-
-    queue = Tuple{State, Float64}[(initstate(newfsm), 0.0)]
+function distribute!(fsm::FSM)
+    queue = Tuple{State, Float64}[(initstate(fsm), 0.0)]
     while ! isempty(queue)
         state, weightpath = pop!(queue)
         for link in children(fsm, state)
-            link!(newfsm, newfsm.states[idmap[state.id]],
-                  newfsm.states[idmap[link.dest.id]],
-                  link.weight + weightpath)
-            push!(queue, (link.dest, link.weight + weightpath))
+            link.weight += weightpath
+            push!(queue, (link.dest, link.weight))
         end
     end
-    newfsm
+    fsm
 end
 
+function minimizestep!(fsm::FSM, state::State, nextlinks::Function)
+    leaves = Dict()
+    for link in nextlinks(fsm, state)
+        if (link.dest.id == initstateid || link.dest.id == finalstateid) continue end
+
+        leaf, weight = get(leaves, (link.dest.pdfindex, link.dest.label),
+                           (Set(), -Inf))
+        push!(leaf, link.dest)
+        key = (link.dest.pdfindex, link.dest.label)
+        leaves[key] = (leaf, logaddexp(weight, link.weight))
+    end
+
+    # OPTIMIZATION: we recreate all the states generating
+    # lot of memory operations. We ould simply remove states...
+    newstates = State[]
+    for (key, value) in leaves
+        s = addstate!(fsm, pdfindex = key[1], label = key[2])
+        for oldstate in value[1]
+            for link in children(fsm, oldstate)
+                link!(fsm, s, link.dest, link.weight)
+            end
+
+            for link in parents(fsm, oldstate)
+                link!(fsm, link.dest, s, link.weight)
+            end
+        end
+        push!(newstates, s)
+    end
+
+    for (oldstates, _) in values(leaves)
+        for s in oldstates
+            removestate!(fsm, s)
+        end
+    end
+
+    for s in newstates
+        minimizestep!(fsm, s, nextlinks)
+    end
+end
+minimizestep!(f::FSM, s::State, ::Forward) = minimizestep!(f, s, children)
+minimizestep!(f::FSM, s::State, ::Backward) = minimizestep!(f, s, parents)
+
 """
-    minimize(fsm)
+    minimize!(fsm)
 
 Return an equivalent FSM which has the minimum number of states. Only
 the states that have the same `pdfindex` can be potentially merged.
 
 Warning: `fsm` should not contain cycle !!
 """
-function minimize(fsm::FSM)
-    # Make sure we won't change the user's object
-    fsm = deepcopy(fsm)
+function minimize!(fsm::FSM)
+    # Remove states that are not reachabe from the initial/final state
+    for state in unreachablestates(fsm, forward) removestate!(fsm, state) end
+    for state in unreachablestates(fsm, backward) removestate!(fsm, state) end
 
-    # Before the "actual" minimization algorithm, we remove the
-    # unreachable states to avoid some erratic behavior.
-    for state in unreachablestates(fsm, forward)
-        removestate!(fsm, state)
-    end
-    for state in unreachablestates(fsm, backward)
-        removestate!(fsm, state)
-    end
-
-    # Remove the non-emitting states
-    toremove = State[]
-    for state in states(fsm)
-        if (state.id == initstateid || state.id == finalstateid) continue end
-        if ! isemitting(state) && ! islabeled(state)
-            push!(toremove, state)
-            for l1 in parents(fsm, state)
-                for l2 in children(fsm, state)
-                    link!(fsm, l1.dest, l2.dest, l1.weight + l2.weight)
-                end
-            end
-        end
-    end
-    for state in toremove removestate!(fsm, state) end
-
+    removenilstates!(fsm)
 
     # Distribute the weights of each link through the graph to preserve
     # the proper weighting of the graph
     # I haven't thoroughly check this method so this may not be very
     # reliable
-    fsm = distribute(fsm)
+    fsm = distribute!(fsm)
 
-    prefixmap = prefixes(fsm, forward)
-    suffixmap = prefixes(fsm, backward)
+    # Merge states that are "equivalent"
+    minimizestep!(fsm, initstate(fsm), forward)
+    minimizestep!(fsm, finalstate(fsm), backward)
 
-    sids = filter(sid -> sid ≠ initstateid &&  sid ≠ finalstateid,
-                  keys(prefixmap))
-
-    newfsm = FSM()
-    smap = Dict{StateID, State}(
-        initstateid => initstate(newfsm),
-        finalstateid => finalstate(newfsm)
-    )
-    while length(sids) > 0
-        sid1 = pop!(sids)
-        ns = addstate!(newfsm, pdfindex = fsm.states[sid1].pdfindex,
-                       label = fsm.states[sid1].label)
-        smap[sid1] = ns
-
-        toremove = Vector{StateID}()
-        for sid2 in sids
-            if mergeable(fsm.states[sid1], fsm.states[sid2], prefixmap, suffixmap)
-                smap[sid2] = smap[sid1]
-                push!(toremove, sid2)
-            end
-        end
-        filter!(s -> s ∉ toremove, sids)
-    end
-
-    for link in links(fsm)
-        link!(newfsm, smap[link.src.id], smap[link.dest.id], link.weight)
-    end
-
-    newfsm |> weightnormalize |> determinize
+    fsm |> weightnormalize |> determinize
 end
 

@@ -9,6 +9,9 @@ export StateID
 export initstateid
 export finalstateid
 
+export Label
+export Pdfindex
+
 export Link
 
 export State
@@ -49,8 +52,9 @@ export ThresholdPruning
 # FSM operations
 export addselfloop
 export determinize
-export weightnormalize
-export minimize
+export minimize!
+export removenilstates!
+export weightnormalize!
 
 include("algorithms.jl")
 
@@ -73,7 +77,7 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     end
 
     for link in links(fsm)
-        weight = round(link.weight, digits = 3)
+        weight = round(link.weight, digits = 5)
         write(dotfile, "$(link.src.id) -> $(link.dest.id) [ label=\"$(weight)\" ];\n")
     end
     write(dotfile, "}\n")
