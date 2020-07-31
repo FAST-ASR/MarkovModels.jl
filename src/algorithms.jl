@@ -129,8 +129,6 @@ function αβrecursion(
     γ, ttl
 end
 
-# function total_llh()
-
 #######################################################################
 # Viterbi algorithm (find the best path)
 
@@ -373,8 +371,6 @@ end
 unreachablestates(fsm::FSM, ::Forward) = unreachablestates(fsm, initstate(fsm), children)
 unreachablestates(fsm::FSM, ::Backward) = unreachablestates(fsm, finalstate(fsm), parents)
 
-export prefixes
-
 # Compute the set of all possible pdfindex sequences "prefixing" each
 # state
 function prefixes(fsm::FSM, start::State, nextlinks::Function)
@@ -389,7 +385,8 @@ function prefixes(fsm::FSM, start::State, nextlinks::Function)
             set = get(retval, next.id, Set{Tuple}())
             retval[next.id] = union(
                 set,
-                Set([(p..., state.pdfindex) for p in retval[state.id]])
+                Set([(p..., (state.pdfindex, state.label))
+                      for p in retval[state.id]])
             )
             push!(tovisit, next)
         end
@@ -463,7 +460,6 @@ function minimize(fsm::FSM)
         if (state.id == initstateid || state.id == finalstateid) continue end
         if ! isemitting(state) && ! islabeled(state)
             push!(toremove, state)
-            display(state)
             for l1 in parents(fsm, state)
                 for l2 in children(fsm, state)
                     link!(fsm, l1.dest, l2.dest, l1.weight + l2.weight)

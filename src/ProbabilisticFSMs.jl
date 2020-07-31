@@ -1,4 +1,5 @@
 
+#module MarkovModels
 module ProbabilisticFSMs
 
 #######################################################################
@@ -33,7 +34,6 @@ export parents
 export states
 
 include("fsm.jl")
-
 
 #######################################################################
 # Major algorithms
