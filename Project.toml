@@ -1,4 +1,4 @@
-name = "ProbabilisticFSMs"
+name = "MarkovModels"
 uuid = "c2ae6250-d0a1-11ea-0991-234599ce5244"
 authors = ["Lucas Ondel <iondel@fit.vutbr.cz>"]
 version = "0.1.0"
