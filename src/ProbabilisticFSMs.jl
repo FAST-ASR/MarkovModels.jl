@@ -41,15 +41,19 @@ include("fsm.jl")
 #######################################################################
 # Major algorithms
 
+export PruningStrategy
+export ThresholdPruning
+export nopruning
+
 # Baum-Welch algorithm
 export αrecursion
 export αβrecursion
 export βrecursion
-export nopruning
-export PruningStrategy
-export ThresholdPruning
+export viterbi
 
 # FSM operations
+export addselfloop!
+export compose!
 export determinize!
 export minimize!
 export removenilstates!
