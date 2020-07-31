@@ -203,7 +203,7 @@ end
 
 Create a new graph where each states are connected by at most one link.
 """
-function determinize(fsm::FSM)
+function determinize!(fsm::FSM)
     newfsm = FSM()
 
     newstates = Dict{StateID, State}()
@@ -251,24 +251,6 @@ function weightnormalize!(fsm::FSM)
 end
 
 """
-    addselfloop!(graph[, loopprob = 0.5]))
-
-Add a self-loop to all emitting states of the graph.
-"""
-function addselfloop!(
-    fsm::FSM;
-    loopprob::Real = 0.5
-)
-    for state in states(fsm)
-        if isemitting(state)
-            for l in children(fsm, state) l.weight += log(1 - loopprob) end
-            link!(fsm, state, state, weight)
-        end
-    end
-    fsm
-end
-
-"""
     union(fsm1, fsm2, ...)
 
 Merge several FSMs into a single one.
@@ -279,33 +261,25 @@ function Base.union(
 )
     fsm = FSM()
 
-    old2new1 = Dict{State, State}(
+    smap = Dict{State, State}(
         initstate(fsm1) => initstate(fsm),
         finalstate(fsm1) => finalstate(fsm),
     )
-    for state in states(fsm1)
-        if state.id == finalstateid || state.id == initstateid continue end
-        old2new1[state] = addstate!(fsm, pdfindex = state.pdfindex,
-                                    label =state.label)
+    for s in states(fsm1)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
+    for l in links(fsm1) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
 
-    old2new2 = Dict{State, State}(
+    smap = Dict{State, State}(
         initstate(fsm2) => initstate(fsm),
         finalstate(fsm2) => finalstate(fsm),
     )
-    for state in states(fsm2)
-        if state.id == finalstateid || state.id == initstateid continue end
-        old2new2[state] = addstate!(fsm, pdfindex = state.pdfindex,
-                                    label = state.label)
+    for s in states(fsm2)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-
-    for link in links(fsm1)
-        link!(fsm, old2new1[link.src], old2new1[link.dest], link.weight)
-    end
-
-    for link in links(fsm2)
-        link!(fsm, old2new2[link.src], old2new2[link.dest], link.weight)
-    end
+    for l in links(fsm2) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
 
     fsm
 end

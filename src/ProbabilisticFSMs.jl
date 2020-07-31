@@ -50,8 +50,7 @@ export PruningStrategy
 export ThresholdPruning
 
 # FSM operations
-export addselfloop
-export determinize
+export determinize!
 export minimize!
 export removenilstates!
 export weightnormalize!
