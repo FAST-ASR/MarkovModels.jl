@@ -339,8 +339,32 @@ function Base.union(
 
     fsm
 end
-Base.union(fsm1::FSM, fsm2::FSM, x::Vararg{FSM}) = union(union(fsm1, fsm2), x...)
-Base.union(fsm::FSM) = fsm
+Base.union(fsm::FSM, rest::FSM...) = foldl(union, rest, init=fsm)
+
+function concat(fsm1::FSM, fsm2::FSM)
+    fsm = FSM()
+    
+    cs = addstate!(fsm) # special non-emitting state for concatenaton
+    
+    smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
+                              finalstate(fsm1) => cs)
+    for s in states(fsm1)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm1) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+
+    smap = Dict{State, State}(initstate(fsm2) => cs,
+                              finalstate(fsm2) => finalstate(fsm))
+    for s in states(fsm2)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm2) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+
+    fsm
+end
+concat(fsm1::FSM, rest::FSM...) = foldl(concat, rest, init=fsm1)
 
 """
     removenilstates!(fsm)
