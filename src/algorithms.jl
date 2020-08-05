@@ -148,9 +148,9 @@ function αβperpdf(
     γ = Dict{Int, Vector}()
     for n in 1:N
         for (s, w) in lnαβ[n]
-            γ_pdf = get(γ, pdfindex(s), zeros(N))
+            γ_pdf = get(γ, s.pdfindex, zeros(N))
             γ_pdf[n] += exp(w)
-            γ[pdfindex(s)] = γ_pdf
+            γ[s.pdfindex] = γ_pdf
         end
     end
     γ, ttl
