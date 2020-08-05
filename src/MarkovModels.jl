@@ -49,6 +49,7 @@ export αrecursion
 export αβrecursion
 export βrecursion
 export viterbi
+export αβperpdf
 
 # FSM operations
 export addselfloop!
