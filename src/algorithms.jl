@@ -98,7 +98,7 @@ end
 """
     αβrecursion(graph, llh[, pruning = ...])
 
-Baum-Welch algorithm in  the log domain.
+Baum-Welch algorithm per state in the log domain.
 """
 function αβrecursion(
     fsm::FSM, llh::Matrix{T};
@@ -129,6 +129,30 @@ function αβrecursion(
     fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(fsm, finalstate(fsm), backward); init=[])
     ttl = filter(s -> s[1] in fs, α[end]) |> values |> sum
 
+    γ, ttl
+end
+
+"""
+    αβperpdf(graph, llh[, pruning = ...])
+
+Baum-Welch algorithm per emission densities (per p.d.f.).
+"""
+function αβperpdf(
+    fsm::FSM, llh::Matrix{T};
+    pruning::Union{Real, NoPruning} = nopruning
+) where T <: AbstractFloat
+
+    lnαβ, ttl = αβrecursion(fsm, llh, pruning = pruning)
+    N = length(lnαβ)
+
+    γ = Dict{Int, Vector}()
+    for n in 1:N
+        for (s, w) in lnαβ[n]
+            γ_pdf = get(γ, pdfindex(s), zeros(N))
+            γ_pdf[n] += exp(w)
+            γ[pdfindex(s)] = γ_pdf
+        end
+    end
     γ, ttl
 end
 
