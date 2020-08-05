@@ -58,6 +58,7 @@ export determinize!
 export minimize!
 export removenilstates!
 export weightnormalize!
+export concat
 
 include("algorithms.jl")
 
