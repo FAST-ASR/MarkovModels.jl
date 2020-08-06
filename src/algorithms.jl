@@ -137,7 +137,7 @@ end
 
 Merge state responsibilities withe same pdfindex together.
 """
-function mergepdf(lnαβ::Vector{Dict})
+function mergepdf(lnαβ::Vector{T}) where T <: Dict
 
     N = length(lnαβ)
 
