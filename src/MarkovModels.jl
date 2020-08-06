@@ -48,11 +48,13 @@ export nopruning
 export αrecursion
 export αβrecursion
 export βrecursion
+export mergepdf
 export viterbi
 
 # FSM operations
 export addselfloop!
 export compose!
+export concat
 export determinize!
 export minimize!
 export removenilstates!

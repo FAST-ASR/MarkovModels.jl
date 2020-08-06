@@ -98,7 +98,7 @@ end
 """
     αβrecursion(graph, llh[, pruning = ...])
 
-Baum-Welch algorithm in  the log domain.
+Baum-Welch algorithm per state in the log domain.
 """
 function αβrecursion(
     fsm::FSM, llh::Matrix{T};
@@ -129,6 +129,26 @@ function αβrecursion(
     fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(fsm, finalstate(fsm), backward); init=[])
     ttl = filter(s -> s[1] in fs, α[end]) |> values |> sum
 
+    γ, ttl
+end
+
+"""
+    mergepdf(graph, llh[, pruning = ...])
+
+Merge state responsibilities withe same pdfindex together.
+"""
+function mergepdf(lnαβ::Vector{Dict})
+
+    N = length(lnαβ)
+
+    γ = Dict{Int, Vector}()
+    for n in 1:N
+        for (s, w) in lnαβ[n]
+            γ_pdf = get(γ, s.pdfindex, zeros(N))
+            γ_pdf[n] += exp(w)
+            γ[s.pdfindex] = γ_pdf
+        end
+    end
     γ, ttl
 end
 
@@ -315,8 +335,37 @@ function Base.union(
 
     fsm
 end
-Base.union(fsm1::FSM, fsm2::FSM, x::Vararg{FSM}) = union(union(fsm1, fsm2), x...)
-Base.union(fsm::FSM) = fsm
+Base.union(fsm::FSM, rest::FSM...) = foldl(union, rest, init=fsm)
+
+"""
+    concat(fsm1, fsm2, ...)
+
+Concatenate several FSMs into single FSM.
+"""
+function concat(fsm1::FSM, fsm2::FSM)
+    fsm = FSM()
+    
+    cs = addstate!(fsm) # special non-emitting state for concatenaton
+    
+    smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
+                              finalstate(fsm1) => cs)
+    for s in states(fsm1)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm1) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+
+    smap = Dict{State, State}(initstate(fsm2) => cs,
+                              finalstate(fsm2) => finalstate(fsm))
+    for s in states(fsm2)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm2) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+
+    fsm
+end
+concat(fsm1::FSM, rest::FSM...) = foldl(concat, rest, init=fsm1)
 
 """
     removenilstates!(fsm)
