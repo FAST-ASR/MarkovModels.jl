@@ -149,7 +149,7 @@ function mergepdf(lnαβ::Vector{T}) where T <: Dict
             γ[s.pdfindex] = γ_pdf
         end
     end
-    γ, ttl
+    γ
 end
 
 function maxβrecursion(
