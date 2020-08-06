@@ -48,17 +48,17 @@ export nopruning
 export αrecursion
 export αβrecursion
 export βrecursion
+export mergepdf
 export viterbi
-export αβperpdf
 
 # FSM operations
 export addselfloop!
 export compose!
+export concat
 export determinize!
 export minimize!
 export removenilstates!
 export weightnormalize!
-export concat
 
 include("algorithms.jl")
 

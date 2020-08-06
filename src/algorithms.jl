@@ -133,16 +133,12 @@ function αβrecursion(
 end
 
 """
-    αβperpdf(graph, llh[, pruning = ...])
+    mergepdf(graph, llh[, pruning = ...])
 
-Baum-Welch algorithm per emission densities (per p.d.f.).
+Merge state responsibilities withe same pdfindex together.
 """
-function αβperpdf(
-    fsm::FSM, llh::Matrix{T};
-    pruning::Union{Real, NoPruning} = nopruning
-) where T <: AbstractFloat
+function mergepdf(lnαβ::Vector{Dict})
 
-    lnαβ, ttl = αβrecursion(fsm, llh, pruning = pruning)
     N = length(lnαβ)
 
     γ = Dict{Int, Vector}()
@@ -341,6 +337,11 @@ function Base.union(
 end
 Base.union(fsm::FSM, rest::FSM...) = foldl(union, rest, init=fsm)
 
+"""
+    concat(fsm1, fsm2, ...)
+
+Concatenate several FSMs into single FSM.
+"""
 function concat(fsm1::FSM, fsm2::FSM)
     fsm = FSM()
     
