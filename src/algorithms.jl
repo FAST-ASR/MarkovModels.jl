@@ -49,11 +49,12 @@ function αrecursion(
         for (state, weightpath) in activestates
             for (nstate, linkweight) in emittingstates(fsm, state, forward)
                 nweightpath = weightpath + linkweight
-                #α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
                 α[n][nstate] = logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
-            for s in keys(α[n]) α[n][s] += llh[s.pdfindex, n] end
         end
+
+        # Add the log-likelihood outside the loop to add it only once
+        for s in keys(α[n]) α[n][s] += llh[s.pdfindex, n] end
 
         empty!(activestates)
         merge!(activestates, pruning!(α[n]))
