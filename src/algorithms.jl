@@ -44,14 +44,15 @@ function αrecursion(
 
     activestates = Dict{State, T}(initstate(fsm) => T(0.0))
     α = Vector{Dict{State, T}}()
-
     for n in 1:size(llh, 2)
         push!(α, Dict{State,T}())
         for (state, weightpath) in activestates
             for (nstate, linkweight) in emittingstates(fsm, state, forward)
                 nweightpath = weightpath + linkweight
-                α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
+                #α[n][nstate] = llh[nstate.pdfindex, n] + logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
+                α[n][nstate] = logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
+            for s in keys(α[n]) α[n][s] += llh[s.pdfindex, n] end
         end
 
         empty!(activestates)
@@ -344,9 +345,9 @@ Concatenate several FSMs into single FSM.
 """
 function concat(fsm1::FSM, fsm2::FSM)
     fsm = FSM()
-    
+
     cs = addstate!(fsm) # special non-emitting state for concatenaton
-    
+
     smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
                               finalstate(fsm1) => cs)
     for s in states(fsm1)
