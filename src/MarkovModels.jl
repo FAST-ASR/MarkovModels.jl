@@ -67,6 +67,8 @@ export βrecursion
 export mergepdf
 export viterbi
 
+include("inference.jl")
+
 #######################################################################
 # Pretty display functions
 

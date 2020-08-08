@@ -133,6 +133,20 @@ Returns `true` if the `state` is associated with a probability density.
 isemitting(s::State) = ! isnothing(s.pdfindex)
 
 """
+    isinit(state)
+
+Returns `true` if the `state` is the initial state of the FSM.
+"""
+isinit(s::State) = s.id == initstateid
+
+"""
+    isfinal(state)
+
+Returns `true` if the `state` is the final state of the FSM.
+"""
+isinit(s::State) = s.id == finalstateid
+
+"""
     islabeled(state)
 
 Returns `true` if the `state` has a label.
@@ -371,30 +385,24 @@ function Base.iterate(
     end
 
     hasfoundstate = false
-    nextstate = weight = nothing
+    nextstate = nothing
+    weight = nothing
     while hasfoundstate ≠ true
+        # We didn't find any emitting state, return `nothing`
         if isempty(queue) return nothing end
-        s_w = nextemittingstates!(queue, iter.getlinks)
-        if s_w ≠ nothing
+
+        # Explore the next link in the queue
+        link, pathweight = pop!(queue)
+
+        if isemitting(link.dest) || isinit(link.dest) || isfinal(link.dest)
+            nextstate = link.dest, pathweight + link.weight
             hasfoundstate = true
-            nextstate, weight = s_w
+        else
+            append!(queue, [(l, pathweight + link.weight)
+                            for l in iter.getlinks(link.dest)])
         end
     end
     (nextstate, weight), queue
-end
-
-function nextemittingstates!(
-    queue::Vector{Tuple{Link{T}, T}},
-    getlinks::Function
-) where T <: AbstractFloat
-
-    link, pathweight = pop!(queue)
-    if isemitting(link.dest)
-        return link.dest, pathweight + link.weight
-    end
-    append!(queue, [(newlink, pathweight + link.weight)
-                    for newlink in getlinks(link.dest)])
-    return nothing
 end
 
 """
@@ -403,7 +411,8 @@ end
 Iterator over the next (forward) or previous (backward) emitting
 states. For each value, the iterator return a tuple
 `(nextstate, weightpath)`. The weight path is the sum of the weights
-for all the link to reach `nextstate`.
+for all the link to reach `nextstate`. Note that the, initial and
+final states are considered to be `emitting`.
 """
 function emittingstates(
     fsm::FSM,
@@ -419,5 +428,14 @@ function emittingstates(
     ::Backward
 )
     EmittingStatesIterator(s, st -> parents(fsm, st))
+end
+
+"""
+    emittingstates(fsm)
+
+Returns an iterator over all the emitting states of the FSM.
+"""
+function emittingstates(fsm::FSM)
+    values(filter(p -> isemitting(p.second), fsm.states))
 end
 
