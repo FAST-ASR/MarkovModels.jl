@@ -144,7 +144,7 @@ isinit(s::State) = s.id == initstateid
 
 Returns `true` if the `state` is the final state of the FSM.
 """
-isinit(s::State) = s.id == finalstateid
+isfinal(s::State) = s.id == finalstateid
 
 """
     islabeled(state)
@@ -394,8 +394,8 @@ function Base.iterate(
         # Explore the next link in the queue
         link, pathweight = pop!(queue)
 
-        if isemitting(link.dest) || isinit(link.dest) || isfinal(link.dest)
-            nextstate = link.dest, pathweight + link.weight
+        if isemitting(link.dest)
+            nextstate, weight = link.dest, pathweight + link.weight
             hasfoundstate = true
         else
             append!(queue, [(l, pathweight + link.weight)
@@ -411,8 +411,7 @@ end
 Iterator over the next (forward) or previous (backward) emitting
 states. For each value, the iterator return a tuple
 `(nextstate, weightpath)`. The weight path is the sum of the weights
-for all the link to reach `nextstate`. Note that the, initial and
-final states are considered to be `emitting`.
+for all the link to reach `nextstate`.
 """
 function emittingstates(
     fsm::FSM,
