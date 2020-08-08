@@ -90,7 +90,7 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     end
 
     for link in links(fsm)
-        weight = round(link.weight, digits = 5)
+        weight = round(link.weight, digits = 3)
         write(dotfile, "$(link.src.id) -> $(link.dest.id) [ label=\"$(weight)\" ];\n")
     end
     write(dotfile, "}\n")
