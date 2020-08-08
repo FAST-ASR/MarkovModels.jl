@@ -66,7 +66,7 @@ export nopruning
 export αrecursion
 export αβrecursion
 export βrecursion
-export mergepdf
+export resps
 export viterbi
 
 include("inference.jl")

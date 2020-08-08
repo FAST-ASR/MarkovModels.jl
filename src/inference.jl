@@ -39,7 +39,6 @@ function αrecursion(
     llh::Matrix{T};
     pruning::Union{Real, NoPruning} = nopruning
 ) where T <: AbstractFloat
-
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
 
     activestates = Dict{State, T}(initstate(fsm) => T(0.0))
@@ -107,52 +106,65 @@ function αβrecursion(
     pruning::Union{Real, NoPruning} = nopruning
 ) where T <: AbstractFloat
 
-    α = αrecursion(fsm, llh, pruning = pruning)
-    β = βrecursion(fsm, llh, pruning = pruning)
+    lnα = αrecursion(fsm, llh, pruning = pruning)
+    lnβ = βrecursion(fsm, llh, pruning = pruning)
 
-    γ = Vector{Dict{State,T}}()
+    lnγ = Vector{Dict{State,T}}()
 
+    ttl = 0.
     for n in 1:size(llh, 2)
-        push!(γ, Dict{State, T}())
-        for s in union(keys(α[n]), keys(β[n]))
-            a = get(α[n], s, T(-Inf))
-            b = get(β[n], s, T(-Inf))
-            γ[n][s] = a + b
+        push!(lnγ, Dict{State, T}())
+        for s in intersect(keys(lnα[n]), keys(lnβ[n]))
+            lnγ[n][s] = lnα[n][s] + lnβ[n][s]
         end
-        filter!(p -> isfinite(p.second), γ[n])
-        sum = logsumexp(values(γ[n]))
 
-        for s in keys(γ[n])
-            γ[n][s] -= sum
-        end
+        sum = logsumexp(values(lnγ[n]))
+        for s in keys(lnγ[n]) lnγ[n][s] -= sum end
+
+        # We could use any other time step to get the total
+        # log-likelihood but, in case of heavy pruning, it is probably
+        # safer to get it from the last frame.
+        if n == size(llh, 2) ttl = sum end
     end
 
-
-    # Total Log Likelihood
-    fs = foldl((acc, (s, w)) -> push!(acc, s), emittingstates(fsm, finalstate(fsm), backward); init=[])
-    ttl = filter(s -> s[1] in fs, α[end]) |> values |> sum
-
-    γ, ttl
+    lnγ, ttl
 end
 
 """
-    mergepdf(graph, llh[, pruning = ...])
+    resps(fsm, lnαβ[, dense = false])
 
-Merge state responsibilities withe same pdfindex together.
+Convert the output of the `αβrecursion` to the per-frame pdf
+responsibilities. When `dense = false` (default) the function returns
+a `Dict{Pdfindex, Vector}. If `dense = true`, the function returns
+a matrix of size SxN where S is the number of unique pdfs.
 """
-function mergepdf(lnαβ::Vector{Dict})
-
+function resps(
+    fsm::FSM,
+    lnαβ::Vector{Dict{State, T}};
+    dense = false,
+) where T <: AbstractFloat
     N = length(lnαβ)
 
-    γ = Dict{Int, Vector}()
+    γ = Dict{Pdfindex, Vector}()
     for n in 1:N
         for (s, w) in lnαβ[n]
-            γ_pdf = get(γ, s.pdfindex, zeros(N))
-            γ_pdf[n] += exp(w)
-            γ[s.pdfindex] = γ_pdf
+            γ_s = get(γ, s.pdfindex, zeros(N))
+            γ_s[n] += exp(w)
+            γ[s.pdfindex] = γ_s
         end
     end
-    γ, ttl
+
+    if ! dense
+        return γ
+    end
+
+    # Build the dense matrix
+    S = length(Set([s.pdfindex for s in emittingstates(fsm)]))
+    denseγ = zeros(T, S, N)
+    for idx in keys(γ)
+        denseγ[idx, :] = γ[idx]
+    end
+    denseγ
 end
 
 function maxβrecursion(
