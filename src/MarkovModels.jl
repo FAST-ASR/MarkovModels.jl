@@ -18,6 +18,8 @@ export Link
 
 export State
 export isemitting
+export isinit
+export isfinal
 
 export FSM
 export LinearFSM
