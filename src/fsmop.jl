@@ -19,7 +19,7 @@ function addselfloop!(
 end
 
 """
-    determinize(graph)
+    determinize!(graph)
 
 Create a new graph where each states are connected by at most one link.
 """
@@ -31,13 +31,14 @@ function determinize!(
 )
     leaves = Dict()
     for l in nextlinks(fsm, s)
-        if (l.dest.id == initstateid || l.dest.id == finalstateid) continue end
+        if (isinit(l.dest) || isfinal(l.dest)) continue end
         if l.dest ∈  visited continue end
         leaf, weight = get(leaves, (l.dest.pdfindex, l.dest.label), (Set(), -Inf))
         push!(leaf, l.dest)
         key = (l.dest.pdfindex, l.dest.label)
         leaves[key] = (leaf, logaddexp(weight, l.weight))
     end
+
 
     olds = State[]
     for (key, value) in leaves
@@ -49,9 +50,16 @@ function determinize!(
 
             for l in children(fsm, old)
                 w = get(dests1, l.dest, -Inf)
-                dests1[l.dest] = logaddexp(w, l.weight)
+                if l.dest == old
+                    dests1[ns] = logaddexp(w, l.weight)
+                else
+                    dests1[l.dest] = logaddexp(w, l.weight)
+                end
             end
             for l in parents(fsm, old)
+                # Ignore self-loops
+                if l.dest == old continue end
+
                 w = get(dests2, l.dest, -Inf)
                 dests2[l.dest] = logaddexp(w, l.weight)
             end
