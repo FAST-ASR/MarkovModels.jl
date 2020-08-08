@@ -1,6 +1,9 @@
 
 module MarkovModels
 
+using StatsFuns: logaddexp, logsumexp
+import Base: union
+
 #######################################################################
 # FSM definition
 
@@ -38,7 +41,20 @@ export states
 include("fsm.jl")
 
 #######################################################################
-# Major algorithms
+# FSM algorithms
+
+export addselfloop!
+export compose!
+export concat
+export determinize!
+export minimize!
+export removenilstates!
+export weightnormalize!
+
+include("fsmop.jl")
+
+#######################################################################
+# Algorthms for inference with Markov chains
 
 export PruningStrategy
 export ThresholdPruning
@@ -50,17 +66,6 @@ export αβrecursion
 export βrecursion
 export mergepdf
 export viterbi
-
-# FSM operations
-export addselfloop!
-export compose!
-export concat
-export determinize!
-export minimize!
-export removenilstates!
-export weightnormalize!
-
-include("algorithms.jl")
 
 #######################################################################
 # Pretty display functions
