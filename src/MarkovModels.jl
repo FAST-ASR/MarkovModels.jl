@@ -83,9 +83,20 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     write(dotfile, "rankdir=LR;")
 
     for state in states(fsm)
-        shape = ! isemitting(state) && ! islabeled(state) ? "point" : "circle"
-        label = islabeled(state) ? "$(state.label)" : "$(state.pdfindex)"
-        color = ! isemitting(state) && islabeled(state) ? "none" : "lightblue"
+        shape = ""
+        label = ""
+        color = "none"
+        if islabeled(state) || isemitting(state)
+            shape = "circle"
+            label = islabeled(state) ? state.label : state.pdfindex
+            color = isemitting(state) ? "lightblue" : "none"
+        elseif isfinal(state) || isinit(state)
+            shape = "doublecircle"
+            label = isfinal(state) ? "e" : "s"
+        else
+            shape = "point"
+        end
+
         write(dotfile, "$(state.id) [ shape=\"$(shape)\" label=\"$label \" style=filled fillcolor=$color ];\n")
     end
 
