@@ -33,12 +33,13 @@ function determinize!(
     for l in nextlinks(fsm, s)
         if (isinit(l.dest) || isfinal(l.dest)) continue end
         if l.dest ∈  visited continue end
-        leaf, weight = get(leaves, (l.dest.pdfindex, l.dest.label), (Set(), -Inf))
+
+        context = Set([nl.dest for nl in parents(fsm, l.dest)])
+        key = (l.dest.pdfindex, l.dest.label, context)
+        leaf, weight = get(leaves, key, (Set(), -Inf))
         push!(leaf, l.dest)
-        key = (l.dest.pdfindex, l.dest.label)
         leaves[key] = (leaf, logaddexp(weight, l.weight))
     end
-
 
     olds = State[]
     for (key, value) in leaves
@@ -50,16 +51,10 @@ function determinize!(
 
             for l in children(fsm, old)
                 w = get(dests1, l.dest, -Inf)
-                if l.dest == old
-                    dests1[ns] = logaddexp(w, l.weight)
-                else
-                    dests1[l.dest] = logaddexp(w, l.weight)
-                end
+                dests1[l.dest] = logaddexp(w, l.weight)
             end
-            for l in parents(fsm, old)
-                # Ignore self-loops
-                if l.dest == old continue end
 
+            for l in parents(fsm, old)
                 w = get(dests2, l.dest, -Inf)
                 dests2[l.dest] = logaddexp(w, l.weight)
             end
@@ -224,53 +219,12 @@ function distribute!(fsm::FSM)
     fsm
 end
 
-function minimizestep!(fsm::FSM, state::State, nextlinks::Function)
-    leaves = Dict()
-    for link in nextlinks(fsm, state)
-        if (link.dest.id == initstateid || link.dest.id == finalstateid) continue end
-
-        leaf, weight = get(leaves, (link.dest.pdfindex, link.dest.label),
-                           (Set(), -Inf))
-        push!(leaf, link.dest)
-        key = (link.dest.pdfindex, link.dest.label)
-        leaves[key] = (leaf, logaddexp(weight, link.weight))
-    end
-
-    # OPTIMIZATION: we recreate all the states generating
-    # lot of memory operations. We ould simply remove states...
-    newstates = State[]
-    for (key, value) in leaves
-        s = addstate!(fsm, pdfindex = key[1], label = key[2])
-        for oldstate in value[1]
-            for link in children(fsm, oldstate)
-                link!(fsm, s, link.dest, link.weight)
-            end
-
-            for link in parents(fsm, oldstate)
-                link!(fsm, link.dest, s, link.weight)
-            end
-        end
-        push!(newstates, s)
-    end
-
-    for (oldstates, _) in values(leaves)
-        for s in oldstates
-            removestate!(fsm, s)
-        end
-    end
-
-    for s in newstates
-        minimizestep!(fsm, s, nextlinks)
-    end
-end
-minimizestep!(f::FSM, s::State, ::Forward) = minimizestep!(f, s, children)
-minimizestep!(f::FSM, s::State, ::Backward) = minimizestep!(f, s, parents)
-
 """
     minimize!(fsm)
 
 Return an equivalent FSM which has the minimum number of states. Only
-the states that have the same `pdfindex` can be potentially merged.
+the states that have the same `pdfindex` and the same `label` can be
+potentially merged.
 
 Warning: `fsm` should not contain cycle !!
 """
@@ -288,11 +242,59 @@ function minimize!(fsm::FSM)
     fsm = distribute!(fsm)
 
     # Merge states that are "equivalent"
-    determinize!(fsm, forward)
-    determinize!(fsm, backward)
+    minimize!(fsm, forward)
+    minimize!(fsm, backward)
 
     fsm |> weightnormalize!
 end
+
+function minimize!(
+    fsm::FSM,
+    s::State,
+    nextlinks::Function,
+    prevlinks::Function
+)
+    leaves = Dict()
+    for l in nextlinks(fsm, s)
+        if (isinit(l.dest) || isfinal(l.dest)) continue end
+
+        context = Set([nl.dest for nl in prevlinks(fsm, l.dest)])
+        key = (l.dest.pdfindex, l.dest.label, context)
+        leaf, weight = get(leaves, key, (Set(), -Inf))
+        push!(leaf, l.dest)
+        leaves[key] = (leaf, logaddexp(weight, l.weight))
+    end
+
+    olds = State[]
+    for (key, value) in leaves
+        ns = addstate!(fsm, pdfindex = key[1], label = key[2])
+        dests1 = Dict{State, Real}()
+        dests2 = Dict{State, Real}()
+        for old in value[1]
+            push!(olds, old)
+
+            for l in children(fsm, old)
+                w = get(dests1, l.dest, -Inf)
+                dests1[l.dest] = logaddexp(w, l.weight)
+            end
+
+            for l in parents(fsm, old)
+                w = get(dests2, l.dest, -Inf)
+                dests2[l.dest] = logaddexp(w, l.weight)
+            end
+        end
+        for (d, w) in dests1 link!(fsm, ns, d, w) end
+        for (d, w) in dests2 link!(fsm, d, ns, w) end
+    end
+    for old in olds removestate!(fsm, old) end
+
+    for l in nextlinks(fsm, s)
+        minimize!(fsm, l.dest, nextlinks, prevlinks)
+    end
+    fsm
+end
+minimize!(f::FSM, ::Forward) = minimize!(f, initstate(f), children, parents)
+minimize!(f::FSM, ::Backward) = minimize!(f, finalstate(f), parents, children)
 
 function replace!(
     fsm::FSM,
