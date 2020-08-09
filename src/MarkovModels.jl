@@ -82,27 +82,48 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     write(dotfile, "Digraph {\n")
     write(dotfile, "rankdir=LR;")
 
-    for state in states(fsm)
-        shape = ""
-        label = ""
-        color = "none"
-        if islabeled(state) || isemitting(state)
-            shape = "circle"
-            label = islabeled(state) ? state.label : state.pdfindex
-            color = isemitting(state) ? "lightblue" : "none"
-        elseif isfinal(state) || isinit(state)
-            shape = "doublecircle"
-            label = isfinal(state) ? "e" : "s"
+    for s in states(fsm)
+        attrs = ""
+        name = ""
+        if islabeled(s) || isemitting(s)
+            name = "$(s.id)"
+            attrs *=  "shape=circle"
+            attrs *= " label=\"" * (islabeled(s) ? s.label : s.pdfindex) * "\""
+            attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
+        elseif isfinal(s) || isinit(s)
+            name = isinit(s) ? "s" : "e"
+            attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
+            attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
+            attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
+            attrs *= " fixedsize=true width=0.6"
         else
-            shape = "point"
+            attrs *= "shape=point"
         end
 
-        write(dotfile, "$(state.id) [ shape=\"$(shape)\" label=\"$label \" style=filled fillcolor=$color ];\n")
+        write(dotfile, "$name [ $attrs ];\n")
     end
 
     for link in links(fsm)
         weight = round(link.weight, digits = 3)
-        write(dotfile, "$(link.src.id) -> $(link.dest.id) [ label=\"$(weight)\" ];\n")
+
+        srcname = ""
+        if isinit(link.src)
+            srcname = "s"
+        elseif isfinal(link.src)
+            srcname = "e"
+        else
+            srcname = "$(link.src.id)"
+        end
+
+        destname = ""
+        if isinit(link.dest)
+            destname = "s"
+        elseif isfinal(link.dest)
+            destname = "e"
+        else
+            destname = "$(link.dest.id)"
+        end
+        write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
     write(dotfile, "}\n")
     close(dotfile)
