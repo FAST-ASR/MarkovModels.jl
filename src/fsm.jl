@@ -265,12 +265,13 @@ should be a one-to-one mapping pdfindex -> label.
 """
 function LinearFSM(
     sequence::AbstractArray{String},
-    emissionsmap::Dict
+    emissionsmap::Dict = Dict()
 )
     fsm = FSM()
     prevstate = initstate(fsm)
     for token in sequence
-        s = addstate!(fsm, pdfindex = emissionsmap[token], label = token)
+        pdfindex = get(emissionsmap, token, nothing)
+        s = addstate!(fsm, pdfindex = pdfindex, label = token)
         link!(fsm, prevstate, s)
         prevstate = s
     end
