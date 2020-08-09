@@ -208,8 +208,10 @@ function removestate!(
     # Remove all the connections of `s` before to remove it
     toremove = State[]
     for link in children(fsm, s) push!(toremove, link.dest) end
-    for link in parents(fsm, s) push!(toremove, link.dest) end
     for s2 in toremove unlink!(fsm, s, s2) end
+
+    for link in parents(fsm, s) push!(toremove, link.dest) end
+    for s2 in toremove unlink!(fsm, s2, s) end
 
     delete!(fsm.states, s.id)
     delete!(fsm.links, s.id)
@@ -242,7 +244,7 @@ end
 """
     unlink!(fsm, src, dest)
 
-Remove all the connections between `src` and `dest` in `fsm`.
+Remove all the connections from `src` to `dest` in `fsm`.
 """
 function unlink!(
     fsm::FSM,
@@ -250,8 +252,6 @@ function unlink!(
     s2::State
 )
     if s1.id ∈ keys(fsm.links) filter!(l -> l.dest.id ≠ s2.id, fsm.links[s1.id]) end
-    if s2.id ∈ keys(fsm.links) filter!(l -> l.dest.id ≠ s1.id, fsm.links[s2.id]) end
-    if s1.id ∈ keys(fsm.backwardlinks) filter!(l -> l.dest.id ≠ s2.id, fsm.backwardlinks[s1.id]) end
     if s2.id ∈ keys(fsm.backwardlinks) filter!(l -> l.dest.id ≠ s1.id, fsm.backwardlinks[s2.id]) end
 
     nothing

@@ -1,4 +1,4 @@
-# Implementation of comom FSM operations.
+# Implementation of common FSM operations.
 
 """
     addselfloop!(fsm[, loopprob = 0.5])
@@ -19,61 +19,28 @@ function addselfloop!(
 end
 
 """
-    determinize!(graph)
+    determinize!(fsm)
 
-Create a new graph where each states are connected by at most one link.
+Transform `fsm` such that each state has at most one link to any other
+states.
 """
-function determinize!(
-    fsm::FSM,
-    s::State,
-    nextlinks::Function,
-    visited::Vector{State}
-)
-    leaves = Dict()
-    for l in nextlinks(fsm, s)
-        if (isinit(l.dest) || isfinal(l.dest)) continue end
-        if l.dest ∈  visited continue end
-
-        context = Set([nl.dest for nl in parents(fsm, l.dest)])
-        key = (l.dest.pdfindex, l.dest.label, context)
-        leaf, weight = get(leaves, key, (Set(), -Inf))
-        push!(leaf, l.dest)
-        leaves[key] = (leaf, logaddexp(weight, l.weight))
-    end
-
-    olds = State[]
-    for (key, value) in leaves
-        ns = addstate!(fsm, pdfindex = key[1], label = key[2])
-        dests1 = Dict{State, Real}()
-        dests2 = Dict{State, Real}()
-        for old in value[1]
-            push!(olds, old)
-
-            for l in children(fsm, old)
-                w = get(dests1, l.dest, -Inf)
-                dests1[l.dest] = logaddexp(w, l.weight)
-            end
-
-            for l in parents(fsm, old)
-                w = get(dests2, l.dest, -Inf)
-                dests2[l.dest] = logaddexp(w, l.weight)
-            end
+function determinize!(fsm::FSM)
+    toremove = Link[]
+    for s in states(fsm)
+        empty!(toremove)
+        dests = Dict()
+        for l in children(fsm, s)
+            w = get(dests, l.dest, -Inf)
+            dests[l.dest] = logaddexp(w, l.weight)
         end
-        for (d, w) in dests1 link!(fsm, ns, d, w) end
-        for (d, w) in dests2 link!(fsm, d, ns, w) end
-    end
-    for old in olds removestate!(fsm, old) end
 
-    push!(visited, s)
-
-    for l in nextlinks(fsm, s)
-        if l.dest ∉ visited determinize!(fsm, l.dest, nextlinks, visited) end
+        for (d, w) in dests
+            unlink!(fsm, s, d)
+            link!(fsm, s, d)
+        end
     end
     fsm
 end
-determinize!(f::FSM, ::Forward) = determinize!(f, initstate(f), children, State[])
-determinize!(f::FSM, ::Backward) = determinize!(f, finalstate(f), parents, State[])
-determinize!(f::FSM) = determinize!(f, initstate(f), children, State[])
 
 """
     weightnormalize(fsm)
