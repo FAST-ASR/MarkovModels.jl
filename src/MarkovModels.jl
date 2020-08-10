@@ -88,18 +88,18 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         if islabeled(s) || isemitting(s)
             name = "$(s.id)"
             attrs *=  "shape=circle"
-            attrs *= " label=\"" * (islabeled(s) ? s.label : s.pdfindex) * "\""
+            attrs *= " label=\"" * (islabeled(s) ? "$(s.label)" : "$(s.pdfindex)") * "\""
             attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
         elseif isfinal(s) || isinit(s)
             name = isinit(s) ? "s" : "e"
-            attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
+            attrs *= "shape=" * (isfinal(s) ? "doublecircle" : "circle")
             attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
             attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
             attrs *= " fixedsize=true width=0.6"
         else
+            name = "$(s.id)"
             attrs *= "shape=point"
         end
-
         write(dotfile, "$name [ $attrs ];\n")
     end
 
