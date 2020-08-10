@@ -258,14 +258,15 @@ function unlink!(
 end
 
 """
-    LinearFSM(seq, emissions_names)
+    LinearFSM(seq[, emissionsmap::Dict{<:Label, <:Pdfindex}])
 
-Create a linear FSM from a sequence of label `seq`. `emissions_names`
-should be a one-to-one mapping pdfindex -> label.
+Create a linear FSM from a sequence of labels `seq`. If
+`emissionsmap` is provided, every item `l` of `seq` with a matching entry
+in `emissionsmap` will be assigned the pdf index `emissionsmap[l]`.
 """
 function LinearFSM(
-    sequence::AbstractArray{String},
-    emissionsmap::Dict = Dict()
+    sequence::AbstractArray{<:Label},
+    emissionsmap::Dict{<:Label, <:Pdfindex} = Dict{Label, Pdfindex}()
 )
     fsm = FSM()
     prevstate = initstate(fsm)

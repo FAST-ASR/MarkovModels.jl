@@ -6,6 +6,13 @@ using MarkovModels
 makedocs(
     sitename = "MarkovModels",
     format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
+    pages = [
+        "Home" => "index.md",
+        "Manual" => Any[
+            "Installation" => "install.md",
+            "Finite State Machines" => "fsm.md"
+        ]
+    ]
 )
 
 deploydocs(

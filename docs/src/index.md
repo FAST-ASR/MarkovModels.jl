@@ -16,5 +16,5 @@ TODO: Add DOI
 ## Manual Outline
 
 ```@contents
-Pages = ["fsm.md"]
+Pages = ["install.md", "fsm.md"]
 ```
