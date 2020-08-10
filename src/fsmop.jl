@@ -214,9 +214,12 @@ function distribute!(fsm::FSM)
     while ! isempty(queue)
         state, weightpath = pop!(queue)
         push!(visited, state.id)
-        for l in children(fsm, state)
-            l.weight += weightpath
-            if l.dest.id ∉ visited push!(queue, (l.dest, l.weight)) end
+        links = [l for l in children(fsm, state)]
+        for l in links
+            unlink!(fsm, state, l.dest)
+            w = l.weight + weightpath
+            link!(fsm, state, l.dest, w)
+            if l.dest.id ∉ visited push!(queue, (l.dest, w)) end
         end
     end
     fsm
@@ -305,9 +308,7 @@ function Base.replace!(
     subfsm::FSM
 )
     incoming = [link for link in parents(fsm, state)]
-    println(incoming)
     outgoing = [link for link in children(fsm, state)]
-    println(outgoing)
     removestate!(fsm, state)
     idmap = Dict{StateID, State}()
     for s in states(subfsm)
