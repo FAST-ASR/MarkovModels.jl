@@ -1,18 +1,48 @@
 # Implementation of common FSM operations.
 
 """
-    addselfloop!(fsm[, loopprob = 0.5])
+    addselfloop!(fsm[, looplogprob = log(1/2)])
 
-Add a self-loop to all emitting states.
+Add a self-loop to all emitting states of `fsm`. `looplogprob` is the
+log-probability of self-transition.
+
+# Examples
+```julia-repl
+julia> fsm = LinearFSM(["a", "b", "c"], Dict("a" => 1, "b" => 2))
+julia> addselfloop!(fsm, log(1/4))
+```
+Input:
+
+![See the online documentation to visualize the image](images/addselfloop_input.svg)
+
+Output:
+
+![See the online documentation to visualize the image](images/addselfloop_output.svg)
+
+```julia-repl
+julia> fsm = LinearFSM(["a", "b", "c"], Dict("a" => 1, "b" => 2))
+julia> fsm |> addselfloop!
+```
+Input:
+
+![See the online documentation to visualize the image](images/addselfloop_input.svg)
+
+Output:
+
+![See the online documentation to visualize the image](images/addselfloop_output2.svg)
 """
 function addselfloop!(
     fsm::FSM,
-    loopprob::Real = 0.5
+    looplogprob::Real = log(1/2)
 )
     for s in states(fsm)
         if isemitting(s)
-            for l in children(fsm, s) l.weight += log(1 - 0.5) end
-            link!(fsm, s, s, log(loopprob))
+            links = [l for l in children(fsm, s)]
+            for l in links unlink!(fsm, l.src, l.dest) end
+            for l in links
+                link!(fsm, l.src, l.dest, l.weight + log(1 - exp(looplogprob)))
+            end
+            link!(fsm, s, s, looplogprob)
         end
     end
     fsm
@@ -52,8 +82,14 @@ will sum up to one.
 function weightnormalize!(fsm::FSM)
     for s in states(fsm)
         total = -Inf
-        for l in children(fsm, s) total = logaddexp(total, l.weight) end
-        for l in children(fsm, s) l.weight -= total end
+        dests = Dict{State, Float64}()
+        total = -Inf
+        for l in children(fsm, s)
+            dests[l.dest] = l.weight
+            total = logaddexp(total, l.weight)
+        end
+        for d in keys(dests) unlink!(fsm, s, d) end
+        for (d, w) in dests link!(fsm, s, d, w - total) end
     end
     fsm
 end
@@ -263,13 +299,15 @@ end
 minimize!(f::FSM, ::Forward) = minimize!(f, initstate(f), children, parents)
 minimize!(f::FSM, ::Backward) = minimize!(f, finalstate(f), parents, children)
 
-function replace!(
+function Base.replace!(
     fsm::FSM,
     state::State,
     subfsm::FSM
 )
     incoming = [link for link in parents(fsm, state)]
+    println(incoming)
     outgoing = [link for link in children(fsm, state)]
+    println(outgoing)
     removestate!(fsm, state)
     idmap = Dict{StateID, State}()
     for s in states(subfsm)

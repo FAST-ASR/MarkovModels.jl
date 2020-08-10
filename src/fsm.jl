@@ -18,7 +18,7 @@ Weighted link pointing to a state `dest` with label `label`. `T` is
 the type of the weight. The weight represents the log-probability of
 going through this link.
 """
-mutable struct Link{T<:AbstractFloat}
+struct Link{T<:AbstractFloat}
     src::AbstractState
     dest::AbstractState
     weight::T
