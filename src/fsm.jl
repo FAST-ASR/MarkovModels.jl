@@ -18,7 +18,7 @@ Weighted link pointing to a state `dest` with label `label`. `T` is
 the type of the weight. The weight represents the log-probability of
 going through this link.
 """
-mutable struct Link{T<:AbstractFloat}
+struct Link{T<:AbstractFloat}
     src::AbstractState
     dest::AbstractState
     weight::T
@@ -133,6 +133,20 @@ Returns `true` if the `state` is associated with a probability density.
 isemitting(s::State) = ! isnothing(s.pdfindex)
 
 """
+    isinit(state)
+
+Returns `true` if the `state` is the initial state of the FSM.
+"""
+isinit(s::State) = s.id == initstateid
+
+"""
+    isfinal(state)
+
+Returns `true` if the `state` is the final state of the FSM.
+"""
+isfinal(s::State) = s.id == finalstateid
+
+"""
     islabeled(state)
 
 Returns `true` if the `state` has a label.
@@ -194,8 +208,10 @@ function removestate!(
     # Remove all the connections of `s` before to remove it
     toremove = State[]
     for link in children(fsm, s) push!(toremove, link.dest) end
-    for link in parents(fsm, s) push!(toremove, link.dest) end
     for s2 in toremove unlink!(fsm, s, s2) end
+
+    for link in parents(fsm, s) push!(toremove, link.dest) end
+    for s2 in toremove unlink!(fsm, s2, s) end
 
     delete!(fsm.states, s.id)
     delete!(fsm.links, s.id)
@@ -228,7 +244,7 @@ end
 """
     unlink!(fsm, src, dest)
 
-Remove all the connections between `src` and `dest` in `fsm`.
+Remove all the connections from `src` to `dest` in `fsm`.
 """
 function unlink!(
     fsm::FSM,
@@ -236,27 +252,27 @@ function unlink!(
     s2::State
 )
     if s1.id ∈ keys(fsm.links) filter!(l -> l.dest.id ≠ s2.id, fsm.links[s1.id]) end
-    if s2.id ∈ keys(fsm.links) filter!(l -> l.dest.id ≠ s1.id, fsm.links[s2.id]) end
-    if s1.id ∈ keys(fsm.backwardlinks) filter!(l -> l.dest.id ≠ s2.id, fsm.backwardlinks[s1.id]) end
     if s2.id ∈ keys(fsm.backwardlinks) filter!(l -> l.dest.id ≠ s1.id, fsm.backwardlinks[s2.id]) end
 
     nothing
 end
 
 """
-    LinearFSM(seq, emissions_names)
+    LinearFSM(seq[, emissionsmap::Dict{<:Label, <:Pdfindex}])
 
-Create a linear FSM from a sequence of label `seq`. `emissions_names`
-should be a one-to-one mapping pdfindex -> label.
+Create a linear FSM from a sequence of labels `seq`. If
+`emissionsmap` is provided, every item `l` of `seq` with a matching entry
+in `emissionsmap` will be assigned the pdf index `emissionsmap[l]`.
 """
 function LinearFSM(
-    sequence::AbstractArray{String},
-    emissionsmap::Dict
+    sequence::AbstractArray{<:Label},
+    emissionsmap::Dict{<:Label, <:Pdfindex} = Dict{Label, Pdfindex}()
 )
     fsm = FSM()
     prevstate = initstate(fsm)
     for token in sequence
-        s = addstate!(fsm, pdfindex = emissionsmap[token], label = token)
+        pdfindex = get(emissionsmap, token, nothing)
+        s = addstate!(fsm, pdfindex = pdfindex, label = token)
         link!(fsm, prevstate, s)
         prevstate = s
     end
@@ -371,30 +387,24 @@ function Base.iterate(
     end
 
     hasfoundstate = false
-    nextstate = weight = nothing
+    nextstate = nothing
+    weight = nothing
     while hasfoundstate ≠ true
+        # We didn't find any emitting state, return `nothing`
         if isempty(queue) return nothing end
-        s_w = nextemittingstates!(queue, iter.getlinks)
-        if s_w ≠ nothing
+
+        # Explore the next link in the queue
+        link, pathweight = pop!(queue)
+
+        if isemitting(link.dest)
+            nextstate, weight = link.dest, pathweight + link.weight
             hasfoundstate = true
-            nextstate, weight = s_w
+        else
+            append!(queue, [(l, pathweight + link.weight)
+                            for l in iter.getlinks(link.dest)])
         end
     end
     (nextstate, weight), queue
-end
-
-function nextemittingstates!(
-    queue::Vector{Tuple{Link{T}, T}},
-    getlinks::Function
-) where T <: AbstractFloat
-
-    link, pathweight = pop!(queue)
-    if isemitting(link.dest)
-        return link.dest, pathweight + link.weight
-    end
-    append!(queue, [(newlink, pathweight + link.weight)
-                    for newlink in getlinks(link.dest)])
-    return nothing
 end
 
 """
@@ -419,5 +429,14 @@ function emittingstates(
     ::Backward
 )
     EmittingStatesIterator(s, st -> parents(fsm, st))
+end
+
+"""
+    emittingstates(fsm)
+
+Returns an iterator over all the emitting states of the FSM.
+"""
+function emittingstates(fsm::FSM)
+    values(filter(p -> isemitting(p.second), fsm.states))
 end
 
