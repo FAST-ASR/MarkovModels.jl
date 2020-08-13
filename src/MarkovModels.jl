@@ -1,6 +1,9 @@
 
 module MarkovModels
 
+using StatsFuns: logaddexp, logsumexp
+import Base: union
+
 #######################################################################
 # FSM definition
 
@@ -15,6 +18,8 @@ export Link
 
 export State
 export isemitting
+export isinit
+export isfinal
 
 export FSM
 export LinearFSM
@@ -38,7 +43,20 @@ export states
 include("fsm.jl")
 
 #######################################################################
-# Major algorithms
+# FSM algorithms
+
+export addselfloop!
+export compose!
+export concat
+export determinize!
+export minimize!
+export removenilstates!
+export weightnormalize!
+
+include("fsmop.jl")
+
+#######################################################################
+# Algorthms for inference with Markov chains
 
 export PruningStrategy
 export ThresholdPruning
@@ -48,19 +66,10 @@ export nopruning
 export αrecursion
 export αβrecursion
 export βrecursion
-export mergepdf
+export resps
 export viterbi
 
-# FSM operations
-export addselfloop!
-export compose!
-export concat
-export determinize!
-export minimize!
-export removenilstates!
-export weightnormalize!
-
-include("algorithms.jl")
+include("inference.jl")
 
 #######################################################################
 # Pretty display functions
@@ -73,16 +82,48 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     write(dotfile, "Digraph {\n")
     write(dotfile, "rankdir=LR;")
 
-    for state in states(fsm)
-        shape = ! isemitting(state) && ! islabeled(state) ? "point" : "circle"
-        label = islabeled(state) ? "$(state.label)" : "$(state.pdfindex)"
-        color = ! isemitting(state) && islabeled(state) ? "none" : "lightblue"
-        write(dotfile, "$(state.id) [ shape=\"$(shape)\" label=\"$label \" style=filled fillcolor=$color ];\n")
+    for s in states(fsm)
+        attrs = ""
+        name = ""
+        if islabeled(s) || isemitting(s)
+            name = "$(s.id)"
+            attrs *=  "shape=circle"
+            attrs *= " label=\"" * (islabeled(s) ? "$(s.label)" : "$(s.pdfindex)") * "\""
+            attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
+        elseif isfinal(s) || isinit(s)
+            name = isinit(s) ? "s" : "e"
+            attrs *= "shape=" * (isfinal(s) ? "doublecircle" : "circle")
+            attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
+            attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
+            attrs *= " fixedsize=true width=0.6"
+        else
+            name = "$(s.id)"
+            attrs *= "shape=point"
+        end
+        write(dotfile, "$name [ $attrs ];\n")
     end
 
     for link in links(fsm)
-        weight = round(link.weight, digits = 5)
-        write(dotfile, "$(link.src.id) -> $(link.dest.id) [ label=\"$(weight)\" ];\n")
+        weight = round(link.weight, digits = 3)
+
+        srcname = ""
+        if isinit(link.src)
+            srcname = "s"
+        elseif isfinal(link.src)
+            srcname = "e"
+        else
+            srcname = "$(link.src.id)"
+        end
+
+        destname = ""
+        if isinit(link.dest)
+            destname = "s"
+        elseif isfinal(link.dest)
+            destname = "e"
+        else
+            destname = "$(link.dest.id)"
+        end
+        write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
     write(dotfile, "}\n")
     close(dotfile)
