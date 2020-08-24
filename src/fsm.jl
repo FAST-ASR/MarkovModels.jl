@@ -449,7 +449,7 @@ and the corresponding paths.
 """
 function finalemittingstates(fsm::FSM)
     states = Dict{State, Vector}()
-    for (s,_,p) in emittingstates2(fsm, finalstate(fsm), backward)
+    for (s,_,p) in emittingstates(fsm, finalstate(fsm), backward)
         # Need to reverse the links, cause it was created in backward way
         states[s] = map(reverse!(p)) do l Link(l.dest, l.src, l.weight) end 
     end
