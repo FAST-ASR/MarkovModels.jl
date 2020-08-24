@@ -9,13 +9,13 @@ abstract type AbstractState end
 
 """
     struct Link{T} where T <: AbstractFloat
+        src
         dest
         weight
-        label
     end
 
-Weighted link pointing to a state `dest` with label `label`. `T` is
-the type of the weight. The weight represents the log-probability of
+Weighted link pointing from a state `src` to a state `dest` with weight `weight`.
+`T` is the type of the weight. The weight represents the log-probability of
 going through this link.
 """
 struct Link{T<:AbstractFloat}
@@ -83,11 +83,10 @@ Type of the state pdf index.
 const Pdfindex = Union{Int64, Nothing}
 
 """
-    stuct State
+    struct State
         id
         pdfindex
-        outgoing
-        incoming
+        label
     end
 
 State of a FSM.
@@ -95,8 +94,7 @@ State of a FSM.
   * `pdfindex` is the index of a probability density associated to the
      state. If the state is non-emitting, `pdfindex` is equal to
      `nothing`.
-  * `outgoing` is a `Vector` of links leaving the state.
-  * `incoming` is a `Vector` of links arriving to the state.
+  * `label` is a readable name (either `String` or `Nothing`).
 
 # Examples
 ```julia-repl
@@ -382,29 +380,31 @@ function Base.iterate(
     queue = nothing
 )
     if queue == nothing
-        queue = Vector([(link, oftype(link.weight, 0.0))
-                        for link in iter.getlinks(iter.state)])
+        queue = Vector([([link], oftype(link.weight, 0.0))
+                for link in iter.getlinks(iter.state)])
     end
 
     hasfoundstate = false
     nextstate = nothing
     weight = nothing
+    path = nothing
     while hasfoundstate ≠ true
         # We didn't find any emitting state, return `nothing`
         if isempty(queue) return nothing end
 
         # Explore the next link in the queue
-        link, pathweight = pop!(queue)
+        path, pathweight = pop!(queue)
+        link = last(path)
 
         if isemitting(link.dest)
             nextstate, weight = link.dest, pathweight + link.weight
             hasfoundstate = true
         else
-            append!(queue, [(l, pathweight + link.weight)
+            append!(queue, [([path; l], pathweight + link.weight)
                             for l in iter.getlinks(link.dest)])
         end
     end
-    (nextstate, weight), queue
+    (nextstate, weight, path), queue
 end
 
 """
@@ -412,8 +412,9 @@ end
 
 Iterator over the next (forward) or previous (backward) emitting
 states. For each value, the iterator return a tuple
-`(nextstate, weightpath)`. The weight path is the sum of the weights
-for all the link to reach `nextstate`.
+`(nextstate, weightpath, path)`. The weight path is the sum of 
+the weights for all the link to reach `nextstate`. Path is a 
+vector of links between `state` and `nextstate`.
 """
 function emittingstates(
     fsm::FSM,
@@ -438,5 +439,20 @@ Returns an iterator over all the emitting states of the FSM.
 """
 function emittingstates(fsm::FSM)
     values(filter(p -> isemitting(p.second), fsm.states))
+end
+
+"""
+    finalemittingstates(fsm)
+
+Returns the emmiting states, which has the link with finalstate 
+and the corresponding paths.
+"""
+function finalemittingstates(fsm::FSM)
+    states = Dict{State, Vector}()
+    for (s,_,p) in emittingstates2(fsm, finalstate(fsm), backward)
+        # Need to reverse the links, cause it was created in backward way
+        states[s] = map(reverse!(p)) do l Link(l.dest, l.src, l.weight) end 
+    end
+    states
 end
 
