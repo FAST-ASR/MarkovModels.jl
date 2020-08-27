@@ -247,6 +247,5 @@ function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopru
     end
     link!(ng, prevs, finalstate(ng))
     
-    ng
+    ng |> removenilstates!
 end
-
