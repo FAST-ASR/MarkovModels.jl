@@ -167,69 +167,85 @@ function resps(
     denseγ
 end
 
-function maxβrecursion(
-    g::FSM,
-    llh::Matrix{T},
-    α::Vector{Dict{State,T}}
-) where T <: AbstractFloat
+"""
+    ωrecursion(fsm, llh [, pruning = nopruning]}
 
-    bestseq = Vector{State}()
-    activestates = Dict{State, T}(finalstate(g) => T(0.0))
-    newstates = Dict{State, T}()
+Max-sum algorithm for finding the most probable path in the `fsm`
+based on the log-likelihoods `llh`.
 
-    for n in size(llh, 2):-1:1
+Returns the maximum weigths for each state per frame and the corresponding path.
+"""
+function ωrecursion(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+    pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
+    
+    activestates = Dict{State, T}(initstate(g) => T(0.0))
+    # Weights per state and per frame 
+    ω = Vector{Dict{State, T}}() 
+    # Partial path how we reach the state in each frame
+    ψ = Vector{Dict{State, Tuple{State, Vector}}}() 
+    
+    for n in 1:size(llh, 2)
+        push!(ω, Dict{State, T}())
+        push!(ψ, Dict{State, Tuple{State, Vector}}())
         for (state, weightpath) in activestates
-            emitting = isemitting(state)
-            prev_llh = emitting ? llh[state.pdfindex, n+1] : T(0.0)
-            for (nstate, linkweight) in emittingstates(g, state, backward)
-                nweightpath = weightpath + linkweight + prev_llh
-                newstates[nstate] = logaddexp(get(newstates, nstate, T(-Inf)), nweightpath)
+            for(nstate, linkweight, path) in emittingstates(g, state, forward)
+                nweightpath = weightpath + linkweight
+                m = max(get(ω[n], nstate, T(-Inf)), nweightpath)
+                ω[n][nstate] = m
+                if m === nweightpath 
+                    # Update the best path for nstate
+                    ψ[n][nstate] = (state, path) # path: state -> nstate
+                end
             end
         end
-
-        hypscores = Vector{T}(undef, length(newstates))
-        hypstates = Vector{State}(undef, length(newstates))
-        for (i, (nstate, nweightpath)) in enumerate(newstates)
-            hypscores[i] = get(α[n], nstate, T(-Inf)) + nweightpath
-            hypstates[i] = nstate
-        end
-        println(hypstates)
-        println(hypscores)
-        println("-----")
-        maxval, maxidx = findmax(hypscores)
-        best = hypstates[maxidx]
-        pushfirst!(bestseq, best)
-
+        for s in keys(ω[n]) ω[n][s] += llh[s.pdfindex, n] end
+        
         empty!(activestates)
-        activestates[best] = newstates[best]
-        empty!(newstates)
+        merge!(activestates, pruning!(ω[n]))
     end
-    bestseq
+    
+    # Remove emiting states with no direct connection with the final state
+    fes = finalemittingstates(g)
+    filter!(ψ[end]) do p
+        haskey(fes, p.first)
+    end
+    filter!(ω[end]) do p
+        haskey(fes, p.first)
+    end
+    
+    # Add path from last emiting state to FSM's final state
+    for s in keys(ψ[end])
+        (_, path) = ψ[end][s]
+        append!(path, fes[s])
+    end
+    
+    ω,ψ
 end
 
 """
-    viterbi(graph, llh[, pruning = ...])
+    viterbi(fsm, llh [, pruning = nopruning])
 
-Viterbi algorithm.
+Viterbi algorithm for finding the best path.
 """
-function viterbi(
-    fsm::FSM,
-    llh::Matrix{T};
-    pruning::Union{Real, NoPruning} = nopruning
-) where T <: AbstractFloat
-
-    α = αrecursion(fsm, llh, pruning = pruning)
-    path = maxβrecursion(fsm, llh, α)
-
-    # Return the best seq as a new graph
+function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+    lnω, ψ = ωrecursion(g, llh; pruning = pruning)
+    
+    bestpath = Vector{Link}()
+    _, state = findmax(lnω[end])
+    for n in length(ψ):-1:1
+        state, path = ψ[n][state]
+        prepend!(bestpath, path)
+    end
+    
     ng = FSM()
-    prevstate = initstate(ng)
-    for state in path
-        s = addstate!(ng, pdfindex = state.pdfindex, label = state.label)
-        link!(ng, prevstate, s)
-        prevstate = s
+    prevs = initstate(ng)
+    for l in bestpath
+        s = addstate!(ng, pdfindex = l.dest.pdfindex, label = l.dest.label)
+        #link!(ng, prevs, s, l.weight)
+        link!(ng, prevs, s)
+        prevs = s
     end
-    link!(ng, prevstate, finalstate(ng), 0.)
-    ng
+    link!(ng, prevs, finalstate(ng))
+    
+    ng |> removenilstates!
 end
-

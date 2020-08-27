@@ -66,6 +66,7 @@ export nopruning
 export αrecursion
 export αβrecursion
 export βrecursion
+export ωrecursion
 export resps
 export viterbi
 
