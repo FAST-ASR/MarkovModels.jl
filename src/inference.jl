@@ -241,7 +241,8 @@ function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopru
     prevs = initstate(ng)
     for l in bestpath
         s = addstate!(ng, pdfindex = l.dest.pdfindex, label = l.dest.label)
-        link!(ng, prevs, s, l.weight)
+        #link!(ng, prevs, s, l.weight)
+        link!(ng, prevs, s)
         prevs = s
     end
     link!(ng, prevs, finalstate(ng))
