@@ -177,13 +177,13 @@ Returns the maximum weigths for each state per frame and the corresponding path.
 """
 function ωrecursion(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
     pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-    
+
     activestates = Dict{State, T}(initstate(g) => T(0.0))
-    # Weights per state and per frame 
-    ω = Vector{Dict{State, T}}() 
+    # Weights per state and per frame
+    ω = Vector{Dict{State, T}}()
     # Partial path how we reach the state in each frame
-    ψ = Vector{Dict{State, Tuple{State, Vector}}}() 
-    
+    ψ = Vector{Dict{State, Tuple{State, Vector}}}()
+
     for n in 1:size(llh, 2)
         push!(ω, Dict{State, T}())
         push!(ψ, Dict{State, Tuple{State, Vector}}())
@@ -192,18 +192,18 @@ function ωrecursion(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = n
                 nweightpath = weightpath + linkweight
                 m = max(get(ω[n], nstate, T(-Inf)), nweightpath)
                 ω[n][nstate] = m
-                if m === nweightpath 
+                if m === nweightpath
                     # Update the best path for nstate
                     ψ[n][nstate] = (state, path) # path: state -> nstate
                 end
             end
         end
         for s in keys(ω[n]) ω[n][s] += llh[s.pdfindex, n] end
-        
+
         empty!(activestates)
         merge!(activestates, pruning!(ω[n]))
     end
-    
+
     # Remove emiting states with no direct connection with the final state
     fes = finalemittingstates(g)
     filter!(ψ[end]) do p
@@ -212,13 +212,13 @@ function ωrecursion(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = n
     filter!(ω[end]) do p
         haskey(fes, p.first)
     end
-    
+
     # Add path from last emiting state to FSM's final state
     for s in keys(ψ[end])
         (_, path) = ψ[end][s]
         append!(path, fes[s])
     end
-    
+
     ω,ψ
 end
 
@@ -231,14 +231,14 @@ function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopru
 
     @warn "viterbi is depracated! Use bestpath instead."
     lnω, ψ = ωrecursion(g, llh; pruning = pruning)
-    
+
     bestpath = Vector{Link}()
     _, state = findmax(lnω[end])
     for n in length(ψ):-1:1
         state, path = ψ[n][state]
         prepend!(bestpath, path)
     end
-    
+
     ng = FSM()
     prevs = initstate(ng)
     for l in bestpath
@@ -248,7 +248,7 @@ function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopru
         prevs = s
     end
     link!(ng, prevs, finalstate(ng))
-    
+
     ng |> removenilstates!
 end
 
@@ -260,12 +260,12 @@ Compute bestpath using forward pass.
 function maxβrecursion(
     g::FSM,
     lnα::Vector{Dict{State, T}}) where T <: AbstractFloat
-    
+
     π = FSM()
     prevs = finalstate(g)
     lasts = finalstate(π)
 
-    for n in size(llh, 2):-1:1
+    for n in length(lnα):-1:1
         m = T(-Inf)
         bests = nothing
         bestp = nothing
