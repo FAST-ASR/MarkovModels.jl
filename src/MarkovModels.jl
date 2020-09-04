@@ -67,6 +67,7 @@ export αrecursion
 export αβrecursion
 export βrecursion
 export ωrecursion
+export bestpath
 export resps
 export viterbi
 
