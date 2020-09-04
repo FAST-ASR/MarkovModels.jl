@@ -228,6 +228,8 @@ end
 Viterbi algorithm for finding the best path.
 """
 function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+
+    @warn "viterbi is depracated! Use bestpath instead."
     lnω, ψ = ωrecursion(g, llh; pruning = pruning)
     
     bestpath = Vector{Link}()
@@ -249,3 +251,56 @@ function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopru
     
     ng |> removenilstates!
 end
+
+"""
+    maxβrecursion(fsm, lnα)
+
+Compute bestpath using forward pass.
+"""
+function maxβrecursion(
+    g::FSM,
+    lnα::Vector{Dict{State, T}}) where T <: AbstractFloat
+    
+    π = FSM()
+    prevs = finalstate(g)
+    lasts = finalstate(π)
+
+    for n in size(llh, 2):-1:1
+        m = T(-Inf)
+        bests = nothing
+        bestp = nothing
+        for (state, weight, path) in emittingstates(g, prevs, backward)
+            hyp = weight + get(lnα[n], state, T(-Inf))
+            if (hyp > m)
+                m = hyp
+                bests = state
+                bestp = path
+            end
+        end
+        prevs = bests
+
+        for l in bestp
+            s = addstate!(π, pdfindex = l.dest.pdfindex, label = l.dest.label)
+            link!(π, s, lasts)
+            lasts = s
+        end
+    end
+
+    link!(π, initstate(π), lasts)
+
+    π
+end
+
+"""
+    bestpath(fsm, llh [, pruning = nopruning])
+
+Lucas's algorithm for finding the best path.
+
+It uses forward pass from forward-backward.
+"""
+function bestpath(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
+    lnα = αrecursion(g, llh, pruning = pruning)
+    maxβrecursion(g, lnα)
+end
+
+
