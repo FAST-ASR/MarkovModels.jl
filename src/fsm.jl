@@ -412,8 +412,8 @@ end
 
 Iterator over the next (forward) or previous (backward) emitting
 states. For each value, the iterator return a tuple
-`(nextstate, weightpath, path)`. The weight path is the sum of 
-the weights for all the link to reach `nextstate`. Path is a 
+`(nextstate, weightpath, path)`. The weight path is the sum of
+the weights for all the link to reach `nextstate`. Path is a
 vector of links between `state` and `nextstate`.
 """
 function emittingstates(
@@ -444,14 +444,14 @@ end
 """
     finalemittingstates(fsm)
 
-Returns the emmiting states, which has the link with finalstate 
+Returns the emmiting states, which has the link with finalstate
 and the corresponding paths.
 """
 function finalemittingstates(fsm::FSM)
     states = Dict{State, Vector}()
     for (s,_,p) in emittingstates(fsm, finalstate(fsm), backward)
         # Need to reverse the links, cause it was created in backward way
-        states[s] = map(reverse!(p)) do l Link(l.dest, l.src, l.weight) end 
+        states[s] = map(reverse!(p)) do l Link(l.dest, l.src, l.weight) end
     end
     states
 end

@@ -94,8 +94,7 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
             attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
         elseif isfinal(s) || isinit(s)
             name = isinit(s) ? "s" : "e"
-            attrs *= "shape=" * (isfinal(s) ? "doublecircle" : "circle")
-            attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
+            attrs *= "shape=" * (isfinal(s) ? "doublecircle" : "circle") attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
             attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
             attrs *= " fixedsize=true width=0.6"
         else
