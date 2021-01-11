@@ -7,19 +7,17 @@ import Base: union
 #######################################################################
 # FSM definition
 
-export StateID
+export Link
+export State
+export PdfIndex
+export Label
+
 export initstateid
 export finalstateid
-
-export Label
-export Pdfindex
-
-export Link
-
-export State
 export isemitting
 export isinit
 export isfinal
+export islabeled
 
 export FSM
 export LinearFSM
@@ -51,7 +49,7 @@ export concat
 export determinize!
 export minimize!
 export removenilstates!
-export weightnormalize!
+export weightnormalize
 
 include("fsmop.jl")
 
@@ -94,7 +92,8 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
             attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
         elseif isfinal(s) || isinit(s)
             name = isinit(s) ? "s" : "e"
-            attrs *= "shape=" * (isfinal(s) ? "doublecircle" : "circle") attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
+            attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
+            attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
             attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
             attrs *= " fixedsize=true width=0.6"
         else
@@ -124,8 +123,11 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         else
             destname = "$(link.dest.id)"
         end
+
+
         write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
+
     write(dotfile, "}\n")
     close(dotfile)
     run(`dot -Tsvg $(dotpath) -o $(svgpath)`)
@@ -157,10 +159,5 @@ function Base.show(
         write(io, "\n")
     end
 end
-
-#######################################################################
-# Other
-
-#include("../src/misc.jl")
 
 end

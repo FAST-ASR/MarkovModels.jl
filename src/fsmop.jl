@@ -1,5 +1,19 @@
 # Implementation of common FSM operations.
 
+function Base.transpose(fsm::FSM{T}) where T
+    nfsm = FSM{T}()
+    smap = Dict(initstateid => finalstate(nfsm), finalstateid => initstate(nfsm))
+    for s in states(fsm)
+        (isinit(s) || isfinal(s)) && continue
+        smap[s.id] = addstate!(nfsm, pdfindex = s.pdfindex, label = s.label)
+    end
+
+    for l in links(fsm)
+        link!(smap[l.dest.id], smap[l.src.id], l.weight)
+    end
+    nfsm
+end
+
 """
     addselfloop!(fsm[, looplogprob = log(1/2)])
 
@@ -31,13 +45,10 @@ Output:
 
 ![See the online documentation to visualize the image](images/addselfloop_output2.svg)
 """
-function addselfloop!(
-    fsm::FSM,
-    looplogprob::Real = log(1/2)
-)
+function addselfloop!(fsm::FSM, looplogprob = log(1/2))
     for s in states(fsm)
         if isemitting(s)
-            links = [l for l in children(fsm, s)]
+            links = [l for l in links(fsm, s)]
             for l in links unlink!(fsm, l.src, l.dest) end
             for l in links
                 link!(fsm, l.src, l.dest, l.weight + log(1 - exp(looplogprob)))
@@ -59,7 +70,7 @@ function determinize!(fsm::FSM)
     for s in states(fsm)
         empty!(toremove)
         dests = Dict()
-        for l in children(fsm, s)
+        for l in links(fsm, s)
             w = get(dests, l.dest, -Inf)
             dests[l.dest] = logaddexp(w, l.weight)
         end
@@ -73,7 +84,7 @@ function determinize!(fsm::FSM)
 end
 
 """
-    weightnormalize!(fsm)
+    weightnormalize(fsm)
 
 Change the weight of the links such that the sum of the exponentiated
 weights of the outgoing links from one state will sum up to one.
@@ -102,19 +113,25 @@ Output:
     node.
 
 """
-function weightnormalize!(fsm::FSM)
+function weightnormalize(fsm::FSM{T}) where T
+    nfsm = FSM{T}()
+    smap = Dict(
+        initstateid => initstate(nfsm),
+        finalstateid => finalstate(nfsm)
+    )
+    for s in states(fsm)
+        (isinit(s) || isfinal(s)) && continue
+        smap[s.id] = addstate!(nfsm, pdfindex = s.pdfindex, label = s.label)
+    end
+
     for s in states(fsm)
         total = -Inf
-        dests = Dict{State, Float64}()
-        total = -Inf
-        for l in children(fsm, s)
-            dests[l.dest] = l.weight
-            total = logaddexp(total, l.weight)
+        for l in links(s) total = logaddexp(total, l.weight) end
+        for l in links(s)
+            link!(smap[l.src.id], smap[l.dest.id], l.weight - total)
         end
-        for d in keys(dests) unlink!(fsm, s, d) end
-        for (d, w) in dests link!(fsm, s, d, w - total) end
     end
-    fsm
+    nfsm
 end
 
 """
@@ -142,11 +159,8 @@ Output:
 ![See the online documentation to visualize the image](images/union_output.svg)
 
 """
-function Base.union(
-    fsm1::FSM,
-    fsm2::FSM
-)
-    fsm = FSM()
+function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
+    fsm = FSM{T}()
 
     smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
                               finalstate(fsm1) => finalstate(fsm))
@@ -154,7 +168,7 @@ function Base.union(
         if s.id == finalstateid || s.id == initstateid continue end
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm1) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
 
     smap = Dict{State, State}(initstate(fsm2) => initstate(fsm),
                               finalstate(fsm2) => finalstate(fsm))
@@ -162,7 +176,7 @@ function Base.union(
         if s.id == finalstateid || s.id == initstateid continue end
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm2) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
 
     fsm
 end
@@ -191,26 +205,23 @@ Input:
 Output:
   ![See the online documentation to visualize the image](images/concat_output.svg)
 """
-function concat(fsm1::FSM, fsm2::FSM)
-    fsm = FSM()
+function concat(fsm1::FSM{T}, fsm2::FSM{T}) where T
+    fsm = FSM{T}()
 
     cs = addstate!(fsm) # special non-emitting state for concatenaton
-
-    smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
-                              finalstate(fsm1) => cs)
+    smap = Dict(initstate(fsm1) => initstate(fsm), finalstate(fsm1) => cs)
     for s in states(fsm1)
-        if s.id == finalstateid || s.id == initstateid continue end
+        (isinit(s) || isfinal(s)) && continue
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm1) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
 
-    smap = Dict{State, State}(initstate(fsm2) => cs,
-                              finalstate(fsm2) => finalstate(fsm))
+    smap = Dict(initstate(fsm2) => cs, finalstate(fsm2) => finalstate(fsm))
     for s in states(fsm2)
-        if s.id == finalstateid || s.id == initstateid continue end
+        (isinit(s) || isfinal(s)) && continue
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm2) link!(fsm, smap[l.src], smap[l.dest], l.weight) end
+    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
 
     fsm
 end
@@ -283,8 +294,8 @@ function unreachablestates(
     end
     [fsm.states[id] for id in filter(s -> s ∉ reachable, keys(fsm.states))]
 end
-unreachablestates(fsm::FSM, ::Forward) = unreachablestates(fsm, initstate(fsm), children)
-unreachablestates(fsm::FSM, ::Backward) = unreachablestates(fsm, finalstate(fsm), parents)
+#unreachablestates(fsm::FSM, ::Forward) = unreachablestates(fsm, initstate(fsm), children)
+#unreachablestates(fsm::FSM, ::Backward) = unreachablestates(fsm, finalstate(fsm), parents)
 
 # propagate the weight of each link through the graph
 function distribute!(fsm::FSM)
@@ -374,7 +385,7 @@ function minimize!(
         for old in value[1]
             push!(olds, old)
 
-            for l in children(fsm, old)
+            for l in links(old)
                 w = get(dests1, l.dest, -Inf)
                 dests1[l.dest] = logaddexp(w, l.weight)
             end
@@ -394,8 +405,8 @@ function minimize!(
     end
     fsm
 end
-minimize!(f::FSM, ::Forward) = minimize!(f, initstate(f), children, parents)
-minimize!(f::FSM, ::Backward) = minimize!(f, finalstate(f), parents, children)
+#minimize!(f::FSM, ::Forward) = minimize!(f, initstate(f), children, parents)
+#minimize!(f::FSM, ::Backward) = minimize!(f, finalstate(f), parents, children)
 
 function Base.replace!(
     fsm::FSM,
@@ -403,7 +414,7 @@ function Base.replace!(
     subfsm::FSM
 )
     incoming = [link for link in parents(fsm, state)]
-    outgoing = [link for link in children(fsm, state)]
+    outgoing = [link for link in links(fsm, state)]
     removestate!(fsm, state)
     idmap = Dict{StateID, State}()
     for s in states(subfsm)
