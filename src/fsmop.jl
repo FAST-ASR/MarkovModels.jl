@@ -1,5 +1,11 @@
 # Implementation of common FSM operations.
 
+"""
+    Base.transpose(fsm)
+
+Transpose the fsm, i.e. reverse all it's arcs. The final state becomes
+the initial state.
+"""
 function Base.transpose(fsm::FSM{T}) where T
     nfsm = FSM{T}()
     smap = Dict(initstateid => finalstate(nfsm), finalstateid => initstate(nfsm))
@@ -15,73 +21,52 @@ function Base.transpose(fsm::FSM{T}) where T
 end
 
 """
-    addselfloop!(fsm[, looplogprob = log(1/2)])
+    union(fsm1, fsm2, ...)
 
-Add a self-loop to all emitting states of `fsm`. `looplogprob` is the
-log-probability of self-transition.
+Merge several FSMs into a single one.
 
 # Examples
 ```julia-repl
-julia> fsm = LinearFSM(["a", "b", "c"], Dict("a" => 1, "b" => 2))
-julia> addselfloop!(fsm, log(1/4))
+julia> fsm1 = LinearFSM(["a", "b", "c"], Dict("a"=>1))
+julia> fsm2 = LinearFSM(["a", "d", "c"], Dict("a"=>1))
+julia> union(fsm1, fsm2)
 ```
 Input:
 
-![See the online documentation to visualize the image](images/addselfloop_input.svg)
+  * `fsm1`
+
+    ![See the online documentation to visualize the image](images/union_input1.svg)
+  * `fsm2`
+
+    ![See the online documentation to visualize the image](images/union_input2.svg)
 
 Output:
 
-![See the online documentation to visualize the image](images/addselfloop_output.svg)
+![See the online documentation to visualize the image](images/union_output.svg)
 
-```julia-repl
-julia> fsm = LinearFSM(["a", "b", "c"], Dict("a" => 1, "b" => 2))
-julia> fsm |> addselfloop!
-```
-Input:
-
-![See the online documentation to visualize the image](images/addselfloop_input.svg)
-
-Output:
-
-![See the online documentation to visualize the image](images/addselfloop_output2.svg)
 """
-function addselfloop!(fsm::FSM, looplogprob = log(1/2))
-    for s in states(fsm)
-        if isemitting(s)
-            links = [l for l in links(fsm, s)]
-            for l in links unlink!(fsm, l.src, l.dest) end
-            for l in links
-                link!(fsm, l.src, l.dest, l.weight + log(1 - exp(looplogprob)))
-            end
-            link!(fsm, s, s, looplogprob)
-        end
+function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
+    fsm = FSM{T}()
+
+    smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
+                              finalstate(fsm1) => finalstate(fsm))
+    for s in states(fsm1)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
+    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    smap = Dict{State, State}(initstate(fsm2) => initstate(fsm),
+                              finalstate(fsm2) => finalstate(fsm))
+    for s in states(fsm2)
+        if s.id == finalstateid || s.id == initstateid continue end
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
+
     fsm
 end
-
-"""
-    determinize!(fsm)
-
-Transform `fsm` such that each state has at most one link to any other
-states.
-"""
-function determinize!(fsm::FSM)
-    toremove = Link[]
-    for s in states(fsm)
-        empty!(toremove)
-        dests = Dict()
-        for l in links(fsm, s)
-            w = get(dests, l.dest, -Inf)
-            dests[l.dest] = logaddexp(w, l.weight)
-        end
-
-        for (d, w) in dests
-            unlink!(fsm, s, d)
-            link!(fsm, s, d)
-        end
-    end
-    fsm
-end
+Base.union(fsm::FSM, rest::FSM...) = foldl(union, rest, init=fsm)
 
 """
     weightnormalize(fsm)
@@ -135,52 +120,28 @@ function weightnormalize(fsm::FSM{T}) where T
 end
 
 """
-    union(fsm1, fsm2, ...)
+    determinize!(fsm)
 
-Merge several FSMs into a single one.
-
-# Examples
-```julia-repl
-julia> fsm1 = LinearFSM(["a", "b", "c"], Dict("a"=>1))
-julia> fsm2 = LinearFSM(["a", "d", "c"], Dict("a"=>1))
-julia> union(fsm1, fsm2)
-```
-Input:
-
-  * `fsm1`
-
-    ![See the online documentation to visualize the image](images/union_input1.svg)
-  * `fsm2`
-
-    ![See the online documentation to visualize the image](images/union_input2.svg)
-
-Output:
-
-![See the online documentation to visualize the image](images/union_output.svg)
-
+Transform `fsm` such that each state has at most one link to any other
+states.
 """
-function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
-    fsm = FSM{T}()
+function determinize!(fsm::FSM)
+    toremove = Link[]
+    for s in states(fsm)
+        empty!(toremove)
+        dests = Dict()
+        for l in links(fsm, s)
+            w = get(dests, l.dest, -Inf)
+            dests[l.dest] = logaddexp(w, l.weight)
+        end
 
-    smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
-                              finalstate(fsm1) => finalstate(fsm))
-    for s in states(fsm1)
-        if s.id == finalstateid || s.id == initstateid continue end
-        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+        for (d, w) in dests
+            unlink!(fsm, s, d)
+            link!(fsm, s, d)
+        end
     end
-    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
-
-    smap = Dict{State, State}(initstate(fsm2) => initstate(fsm),
-                              finalstate(fsm2) => finalstate(fsm))
-    for s in states(fsm2)
-        if s.id == finalstateid || s.id == initstateid continue end
-        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
-    end
-    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
-
     fsm
 end
-Base.union(fsm::FSM, rest::FSM...) = foldl(union, rest, init=fsm)
 
 """
     concat(fsm1, fsm2, ...)
@@ -313,6 +274,56 @@ function distribute!(fsm::FSM)
         end
     end
     fsm
+end
+
+function leftminimize(fsm::AbstractFSM{T}) where T
+    # 1. Build the tree of string generated by the FSM
+    tree = Dict()
+    stack = [(initstate(fsm), tree)]
+
+    while ! isempty(stack)
+        state, node = popfirst!(stack)
+        statepool = Dict()
+        for link in links(state)
+            key = (link.dest.pdfindex, link.dest.label)
+            pstate = get(statepool, key, link.dest)
+            statepool[key] = pstate
+            s = (link.dest.pdfindex, link.dest.label, pstate)
+            weight, nextlvl = get(node, s, (-Inf, Dict()))
+            node[s] = (logaddexp(link.weight, weight), nextlvl)
+            push!(stack, (link.dest, node[s][2]))
+        end
+    end
+
+    # 2. Build the new fsm from the tree
+    nfsm = FSM{T}()
+    stack = [(initstate(nfsm), tree)]
+    newstates = Dict()
+    while ! isempty(stack)
+        src, node = popfirst!(stack)
+
+        for key in keys(node)
+            (pdfindex, label, state) = key
+            weight, nextlvl = node[key]
+
+            if state ∉ keys(newstates)
+                if isfinal(state)
+                    newstates[state] = finalstate(nfsm)
+                else
+                    newstates[state] = addstate!(nfsm, pdfindex = pdfindex, label = label)
+                end
+            end
+
+            dest = newstates[state]
+            link!(src, dest, weight)
+
+            if ! isfinal(state)
+                push!(stack, (dest, nextlvl))
+            end
+        end
+    end
+
+    nfsm
 end
 
 """

@@ -205,13 +205,13 @@ function ωrecursion(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = n
     end
 
     # Remove emiting states with no direct connection with the final state
-    fes = finalemittingstates(g)
-    filter!(ψ[end]) do p
-        haskey(fes, p.first)
-    end
-    filter!(ω[end]) do p
-        haskey(fes, p.first)
-    end
+    #fes = finalemittingstates(g)
+    #filter!(ψ[end]) do p
+    #    haskey(fes, p.first)
+    #end
+    #filter!(ω[end]) do p
+    #    haskey(fes, p.first)
+    #end
 
     # Add path from last emiting state to FSM's final state
     for s in keys(ψ[end])

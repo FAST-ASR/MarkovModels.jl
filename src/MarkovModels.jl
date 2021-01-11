@@ -7,17 +7,30 @@ import Base: union
 #######################################################################
 # FSM definition
 
+# Forward definition of the Abs. state/link to avoid issue with
+# circular dependencies.
+abstract type AbstractState end
+abstract type AbstractLink{T} end
+
+export AbstractLink
 export Link
-export State
+
+include("link.jl")
+
 export PdfIndex
 export Label
-
+export State
+export InitStateID
 export initstateid
+export FinalStateID
 export finalstateid
+
 export isemitting
 export isinit
 export isfinal
 export islabeled
+
+include("state.jl")
 
 export FSM
 export LinearFSM
@@ -28,14 +41,8 @@ export unlink!
 
 export initstate
 export finalstate
-export name
-
-export backward
-export children
 export emittingstates
-export forward
 export links
-export parents
 export states
 
 include("fsm.jl")
@@ -43,6 +50,7 @@ include("fsm.jl")
 #######################################################################
 # FSM algorithms
 
+export leftminimize
 export addselfloop!
 export compose!
 export concat
