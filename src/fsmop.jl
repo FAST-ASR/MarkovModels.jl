@@ -1,5 +1,8 @@
 # Implementation of common FSM operations.
 
+#######################################################################
+# FSM transpose
+
 """
     Base.transpose(fsm)
 
@@ -19,6 +22,9 @@ function Base.transpose(fsm::FSM{T}) where T
     end
     nfsm
 end
+
+#######################################################################
+# Union of FSMs
 
 """
     union(fsm1, fsm2, ...)
@@ -45,7 +51,7 @@ Output:
 ![See the online documentation to visualize the image](images/union_output.svg)
 
 """
-function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
+function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
     fsm = FSM{T}()
 
     smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
@@ -66,7 +72,58 @@ function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
 
     fsm
 end
-Base.union(fsm::FSM, rest::FSM...) = foldl(union, rest, init=fsm)
+Base.union(fsm::AbstractFSM, rest::AbstractFSM...) = foldl(union, rest, init=fsm)
+
+#######################################################################
+# Concatenation
+
+"""
+    concat(fsm1, fsm2, ...)
+
+Concatenate several FSMs into single FSM.
+
+# Examples
+```julia-repl
+julia> fsm1 = LinearFSM(["a", "b"])
+julia> fsm2 = LinearFSM(["c", "d"])
+julia> fsm3 = LinearFSM(["e"])
+julia> concat(fsm1, fsm2, fsm3)
+```
+Input:
+  * `fsm1`
+  ![See the online documentation to visualize the image](images/concat_input1.svg)
+  * `fsm2`
+  ![See the online documentation to visualize the image](images/concat_input2.svg)
+  * `fsm3`
+  ![See the online documentation to visualize the image](images/concat_input3.svg)
+
+Output:
+  ![See the online documentation to visualize the image](images/concat_output.svg)
+"""
+function concat(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
+    fsm = FSM{T}()
+
+    cs = addstate!(fsm) # special non-emitting state for concatenaton
+    smap = Dict(initstate(fsm1) => initstate(fsm), finalstate(fsm1) => cs)
+    for s in states(fsm1)
+        (isinit(s) || isfinal(s)) && continue
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    smap = Dict(initstate(fsm2) => cs, finalstate(fsm2) => finalstate(fsm))
+    for s in states(fsm2)
+        (isinit(s) || isfinal(s)) && continue
+        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
+    end
+    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    fsm
+end
+concat(fsm1::AbstractFSM, rest::AbstractFSM...) = foldl(concat, rest, init=fsm1)
+
+#######################################################################
+# Weight normalization
 
 """
     weightnormalize(fsm)
@@ -98,7 +155,7 @@ Output:
     node.
 
 """
-function weightnormalize(fsm::FSM{T}) where T
+function weightnormalize(fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
     smap = Dict(
         initstateid => initstate(nfsm),
@@ -119,74 +176,151 @@ function weightnormalize(fsm::FSM{T}) where T
     nfsm
 end
 
+#######################################################################
+# FSM determinization
+
 """
     determinize!(fsm)
 
 Transform `fsm` such that each state has at most one link to any other
 states.
 """
-function determinize!(fsm::FSM)
-    toremove = Link[]
-    for s in states(fsm)
-        empty!(toremove)
-        dests = Dict()
-        for l in links(fsm, s)
-            w = get(dests, l.dest, -Inf)
-            dests[l.dest] = logaddexp(w, l.weight)
-        end
+function determinize(fsm::AbstractFSM{T}) where T
+    nfsm = FSM{T}()
+    newstates = Dict(
+        initstate(fsm) => initstate(nfsm),
+        finalstate(fsm) => finalstate(nfsm)
+    )
+    for state in states(fsm)
+        (isfinal(state) || isinit(state)) && continue
+        newstates[state] = addstate!(nfsm, pdfindex = state.pdfindex, label = state.label)
+    end
 
-        for (d, w) in dests
-            unlink!(fsm, s, d)
-            link!(fsm, s, d)
+    newlinks = Dict()
+    for link in links(fsm)
+        key = (link.src, link.dest)
+        w₀ = get(newlinks, key, -Inf)
+        newlinks[key] = logaddexp(w₀, link.weight)
+    end
+
+    for key in keys(newlinks)
+        src, dest = key
+        weight = newlinks[key]
+        link!(newstates[src], newstates[dest], weight)
+    end
+
+    nfsm
+end
+
+#######################################################################
+# FSM minimization
+
+# propagate the weight of each link through the graph
+function _distribute(fsm::AbstractFSM{T}) where T
+    nfsm = FSM{T}()
+
+    newstates = Dict(initstate(fsm) => initstate(nfsm),
+                     finalstate(fsm) => finalstate(nfsm))
+    for state in states(fsm)
+        (isinit(state) || isfinal(state)) && continue
+        newstates[state] = addstate!(nfsm, pdfindex = state.pdfindex, label = state.label)
+    end
+
+    stack = [(initstate(fsm), 0.0)]
+    while ! isempty(stack)
+        state, weight = popfirst!(stack)
+
+        for link in links(state)
+            link!(newstates[state], newstates[link.dest], weight + link.weight)
+            push!(stack, (link.dest, weight + link.weight))
         end
     end
-    fsm
+
+    nfsm
+end
+
+function _leftminimize(fsm::AbstractFSM{T}) where T
+    # 1. Build the tree of string generated by the FSM
+    tree = Dict()
+    stack = [(initstate(fsm), tree)]
+    visited = Set([initstate(fsm)])
+    while ! isempty(stack)
+        state, node = popfirst!(stack)
+        statepool = Dict()
+        for link in links(state)
+            key = (link.dest.pdfindex, link.dest.label)
+            pstate = get(statepool, key, link.dest)
+            statepool[key] = pstate
+            s = (link.dest.pdfindex, link.dest.label)
+            weight, nextlvl = get(node, s, (-Inf, Dict()))
+            node[s] = (logaddexp(link.weight, weight), nextlvl, pstate)
+            if link.dest ∉ visited
+                push!(stack, (link.dest, node[s][2]))
+                push!(visited, link.dest)
+            end
+        end
+    end
+
+    # 2. Build the new fsm from the tree
+    nfsm = FSM{T}()
+    stack = [(initstate(nfsm), tree)]
+    newstates = Dict()
+    while ! isempty(stack)
+        src, node = popfirst!(stack)
+
+        for key in keys(node)
+            (pdfindex, label) = key
+            weight, nextlvl, state = node[key]
+
+            if state ∉ keys(newstates)
+                if isfinal(state)
+                    newstates[state] = finalstate(nfsm)
+                else
+                    newstates[state] = addstate!(nfsm, pdfindex = pdfindex, label = label)
+                end
+            end
+
+            dest = newstates[state]
+            link!(src, dest, weight)
+
+            if ! isfinal(state)
+                push!(stack, (dest, nextlvl))
+            end
+        end
+    end
+
+    nfsm
 end
 
 """
-    concat(fsm1, fsm2, ...)
+    minimize(fsm)
 
-Concatenate several FSMs into single FSM.
+Merge equivalent states such to reduce the size of the FSM. Only
+the states that have the same `pdfindex` and the same `label` can be
+potentially merged.
+
+!!! warning
+    The input FSM should not contain cycles otherwise the algorithm
+    will never end.
 
 # Examples
 ```julia-repl
-julia> fsm1 = LinearFSM(["a", "b"])
-julia> fsm2 = LinearFSM(["c", "d"])
-julia> fsm3 = LinearFSM(["e"])
-julia> concat(fsm1, fsm2, fsm3)
+julia> fsm = union(LinearFSM(["a", "b", "c"], Dict("a"=>1)), LinearFSM(["a", "d", "c"], Dict("a"=>1)))
+julia> fsm |> minimize!
 ```
+
 Input:
-  * `fsm1`
-  ![See the online documentation to visualize the image](images/concat_input1.svg)
-  * `fsm2`
-  ![See the online documentation to visualize the image](images/concat_input2.svg)
-  * `fsm3`
-  ![See the online documentation to visualize the image](images/concat_input3.svg)
+
+![See the online documentation to visualize the image](images/minimize_input.svg)
 
 Output:
-  ![See the online documentation to visualize the image](images/concat_output.svg)
+
+![See the online documentation to visualize the image](images/minimize_output.svg)
 """
-function concat(fsm1::FSM{T}, fsm2::FSM{T}) where T
-    fsm = FSM{T}()
+minimize(fsm::AbstractFSM) = (weightnormalize ∘ transpose ∘ _leftminimize ∘ transpose ∘ _leftminimize ∘ _distribute)(fsm)
 
-    cs = addstate!(fsm) # special non-emitting state for concatenaton
-    smap = Dict(initstate(fsm1) => initstate(fsm), finalstate(fsm1) => cs)
-    for s in states(fsm1)
-        (isinit(s) || isfinal(s)) && continue
-        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
-    end
-    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
-
-    smap = Dict(initstate(fsm2) => cs, finalstate(fsm2) => finalstate(fsm))
-    for s in states(fsm2)
-        (isinit(s) || isfinal(s)) && continue
-        smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
-    end
-    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
-
-    fsm
-end
-concat(fsm1::FSM, rest::FSM...) = foldl(concat, rest, init=fsm1)
+#######################################################################
+# NIL state removal
 
 """
     removenilstates!(fsm)
@@ -212,212 +346,39 @@ Ouput:
 ![See the online documentation to visualize the image](images/rmnil_output.svg)
 
 """
-function removenilstates!(fsm::FSM)
-    toremove = State[]
-    for state in states(fsm)
-        if (state.id == initstateid || state.id == finalstateid) continue end
-
-        # As "nil state" is a non-emitting state with no label
-        if ! isemitting(state) && ! islabeled(state)
-            push!(toremove, state)
-
-            # Reconnect the states
-            for l1 in parents(fsm, state)
-                for l2 in children(fsm, state)
-                    link!(fsm, l1.dest, l2.dest, l1.weight + l2.weight)
-                end
-            end
-        end
-    end
-
-    for state in toremove removestate!(fsm, state) end
-    fsm
-end
-
-# Returns the list of the unreachable states
-function unreachablestates(
-    fsm::FSM,
-    start::State,
-    nextlinks::Function
-)
-    reachable = Set{StateID}()
-    tovisit = StateID[start.id]
-    visited = Set{StateID}()
-    while length(tovisit) > 0
-        stateid = pop!(tovisit)
-        push!(reachable, stateid)
-        push!(visited, stateid)
-        for link in nextlinks(fsm, fsm.states[stateid])
-            if link.dest.id ∉ tovisit && link.dest.id ∉ visited
-                push!(tovisit, link.dest.id)
-            end
-        end
-    end
-    [fsm.states[id] for id in filter(s -> s ∉ reachable, keys(fsm.states))]
-end
-#unreachablestates(fsm::FSM, ::Forward) = unreachablestates(fsm, initstate(fsm), children)
-#unreachablestates(fsm::FSM, ::Backward) = unreachablestates(fsm, finalstate(fsm), parents)
-
-# propagate the weight of each link through the graph
-function distribute!(fsm::FSM)
-    visited = Set{StateID}()
-    queue = Tuple{State, Float64}[(initstate(fsm), 0.0)]
-    while ! isempty(queue)
-        state, weightpath = pop!(queue)
-        push!(visited, state.id)
-        links = [l for l in children(fsm, state)]
-        for l in links
-            unlink!(fsm, state, l.dest)
-            w = l.weight + weightpath
-            link!(fsm, state, l.dest, w)
-            if l.dest.id ∉ visited push!(queue, (l.dest, w)) end
-        end
-    end
-    fsm
-end
-
-function leftminimize(fsm::AbstractFSM{T}) where T
-    # 1. Build the tree of string generated by the FSM
-    tree = Dict()
-    stack = [(initstate(fsm), tree)]
-
-    while ! isempty(stack)
-        state, node = popfirst!(stack)
-        statepool = Dict()
-        for link in links(state)
-            key = (link.dest.pdfindex, link.dest.label)
-            pstate = get(statepool, key, link.dest)
-            statepool[key] = pstate
-            s = (link.dest.pdfindex, link.dest.label, pstate)
-            weight, nextlvl = get(node, s, (-Inf, Dict()))
-            node[s] = (logaddexp(link.weight, weight), nextlvl)
-            push!(stack, (link.dest, node[s][2]))
-        end
-    end
-
-    # 2. Build the new fsm from the tree
+function removenilstates(fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
-    stack = [(initstate(nfsm), tree)]
-    newstates = Dict()
+
+    newstates = Dict(initstate(fsm) => initstate(nfsm),
+                     finalstate(fsm) => finalstate(nfsm))
+    for state in states(fsm)
+        (! islabeled(state) && ! isemitting(state)) && continue
+        newstates[state] = addstate!(nfsm, pdfindex = state.pdfindex,
+                                     label = state.label)
+    end
+
+    newlinks = Dict()
+    stack = [(initstate(fsm), initstate(fsm), 0.0)]
+    visited = Set([initstate(fsm)])
     while ! isempty(stack)
-        src, node = popfirst!(stack)
-
-        for key in keys(node)
-            (pdfindex, label, state) = key
-            weight, nextlvl = node[key]
-
-            if state ∉ keys(newstates)
-                if isfinal(state)
-                    newstates[state] = finalstate(nfsm)
-                else
-                    newstates[state] = addstate!(nfsm, pdfindex = pdfindex, label = label)
+        src, state, weight = popfirst!(stack)
+        for link in links(state)
+            #if isemitting(link.dest) || islabeled(link.dest) || isinit(state) || isfinal(link.dest)
+            if link.dest ∈ keys(newstates)
+                link!(newstates[src], newstates[link.dest], weight + link.weight)
+                if link.dest ∉ visited
+                    push!(visited, link.dest)
+                    push!(stack, (link.dest, link.dest, 0.0))
                 end
-            end
-
-            dest = newstates[state]
-            link!(src, dest, weight)
-
-            if ! isfinal(state)
-                push!(stack, (dest, nextlvl))
+            elseif link.dest ∉ visited
+                push!(visited, link.dest)
+                push!(stack, (src, link.dest, weight + link.weight))
             end
         end
     end
 
     nfsm
 end
-
-"""
-    minimize!(fsm)
-
-Merge equivalent states such to reduce the size of the FSM. Only
-the states that have the same `pdfindex` and the same `label` can be
-potentially merged.
-
-!!! warning
-    The input FSM should not contain cycles otherwise the algorithm
-    will never end.
-
-# Examples
-```julia-repl
-julia> fsm = union(LinearFSM(["a", "b", "c"], Dict("a"=>1)), LinearFSM(["a", "d", "c"], Dict("a"=>1)))
-julia> fsm |> minimize!
-```
-
-Input:
-
-![See the online documentation to visualize the image](images/minimize_input.svg)
-
-Output:
-
-![See the online documentation to visualize the image](images/minimize_output.svg)
-"""
-function minimize!(fsm::FSM)
-    # Remove states that are not reachabe from the initial/final state
-    for state in unreachablestates(fsm, forward) removestate!(fsm, state) end
-    for state in unreachablestates(fsm, backward) removestate!(fsm, state) end
-
-    removenilstates!(fsm)
-
-    # Distribute the weights of each link through the graph to preserve
-    # the proper weighting of the graph
-    # I haven't thoroughly check this method so this may not be very
-    # reliable
-    fsm = distribute!(fsm)
-
-    # Merge states that are "equivalent"
-    minimize!(fsm, forward)
-    minimize!(fsm, backward)
-
-    fsm |> weightnormalize!
-end
-
-function minimize!(
-    fsm::FSM,
-    s::State,
-    nextlinks::Function,
-    prevlinks::Function
-)
-    leaves = Dict()
-    for l in nextlinks(fsm, s)
-        if (isinit(l.dest) || isfinal(l.dest)) continue end
-
-        context = Set([nl.dest for nl in prevlinks(fsm, l.dest)])
-        key = (l.dest.pdfindex, l.dest.label, context)
-        leaf, weight = get(leaves, key, (Set(), -Inf))
-        push!(leaf, l.dest)
-        leaves[key] = (leaf, logaddexp(weight, l.weight))
-    end
-
-    olds = State[]
-    for (key, value) in leaves
-        ns = addstate!(fsm, pdfindex = key[1], label = key[2])
-        dests1 = Dict{State, Real}()
-        dests2 = Dict{State, Real}()
-        for old in value[1]
-            push!(olds, old)
-
-            for l in links(old)
-                w = get(dests1, l.dest, -Inf)
-                dests1[l.dest] = logaddexp(w, l.weight)
-            end
-
-            for l in parents(fsm, old)
-                w = get(dests2, l.dest, -Inf)
-                dests2[l.dest] = logaddexp(w, l.weight)
-            end
-        end
-        for (d, w) in dests1 link!(fsm, ns, d, w) end
-        for (d, w) in dests2 link!(fsm, d, ns, w) end
-    end
-    for old in olds removestate!(fsm, old) end
-
-    for l in nextlinks(fsm, s)
-        minimize!(fsm, l.dest, nextlinks, prevlinks)
-    end
-    fsm
-end
-#minimize!(f::FSM, ::Forward) = minimize!(f, initstate(f), children, parents)
-#minimize!(f::FSM, ::Backward) = minimize!(f, finalstate(f), parents, children)
 
 function Base.replace!(
     fsm::FSM,
@@ -479,13 +440,47 @@ julia> fsm ∘ sufsms
 When using the `∘` operator, the composition is not
 performed in place.
 """
-function compose!(fsm::FSM, subfsms::Dict{<:Label, FSM})
-    toreplace = State[]
+function compose(fsm::AbstractFSM{T}, subfsms::Dict) where T
+    nfsm = FSM{T}()
+
+    newsrcs = Dict(initstate(fsm) => initstate(nfsm),
+                   finalstate(fsm) => finalstate(nfsm))
+    newdests = Dict(initstate(fsm) => initstate(nfsm),
+                    finalstate(fsm) => finalstate(nfsm))
+
     for state in states(fsm)
-        if state.label ∈ keys(subfsms) push!(toreplace, state) end
+        (isinit(state) || isfinal(state)) && continue
+        if state.label ∈ keys(subfsms)
+            s_fsm = subfsms[state.label]
+
+            newstates = Dict(initstate(s_fsm) => addstate!(nfsm, label = state.label),
+                             finalstate(s_fsm) => addstate!(nfsm))
+            for state2 in states(s_fsm)
+                (isinit(state2) || isfinal(state2)) && continue
+                newstates[state2] = addstate!(nfsm, pdfindex = state2.pdfindex,
+                                              label = state2.label)
+            end
+
+            for link in links(s_fsm)
+                link!(newstates[link.src], newstates[link.dest], link.weight)
+            end
+
+            newdests[state] = newstates[initstate(s_fsm)]
+            newsrcs[state] = newstates[finalstate(s_fsm)]
+        else
+            nstate = addstate!(nfsm, pdfindex = state.pdfindex,
+                               label = state.label)
+            newsrcs[state] = nstate
+            newdests[state] = nstate
+        end
     end
-    for state in toreplace replace!(fsm, state, subfsms[state.label]) end
-    fsm
+
+    for link in links(fsm)
+        link!(newsrcs[link.src], newdests[link.dest], link.weight)
+    end
+
+    nfsm
 end
-Base.:∘(fsm::FSM, subfsms::Dict{<:Label, FSM}) = compose!(deepcopy(fsm), deepcopy(subfsms))
+
+Base.:∘(subfsms::Dict, fsm::AbstractFSM) = compose(fsm, subfsms)
 

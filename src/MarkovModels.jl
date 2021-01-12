@@ -50,14 +50,13 @@ include("fsm.jl")
 #######################################################################
 # FSM algorithms
 
-export leftminimize
-export addselfloop!
-export compose!
+export compose
 export concat
-export determinize!
-export minimize!
-export removenilstates!
+export determinize
+export minimize
+export removenilstates
 export weightnormalize
+
 
 include("fsmop.jl")
 
