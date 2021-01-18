@@ -36,28 +36,11 @@ Iterator over the links of the FSM.
 links(fsm::AbstractFSM)
 
 """
-    links(state)
-
-Iterator over the links to the children (i.e. next states) of `state`.
-"""
-links(state::State)
-
-"""
     emittingstates(fsm)
 
 Returns an iterator over all the emitting states of the FSM.
 """
 emittingstates(fsm::AbstractFSM)
-
-"""
-    emittingstates(fsm, state)
-
-Iterator over the next emitting states. For each value, the iterator
-return a tuple `(nextstate, weightpath, path)`. The weight path is the
-sum of the weights for all the link to reach `nextstate`. Path is a
-vector of links between `state` and `nextstate`.
-"""
-emittingstates(fsm::AbstractFSM, s::State)
 
 #######################################################################
 # FSM
@@ -88,8 +71,13 @@ end
 Add `state` to `fsm` and return it.
 """
 function addstate!(fsm; id = nothing, pdfindex = nothing, label = nothing)
-    fsm.idcounter.count += 1
-    s = State(fsm.idcounter.count, pdfindex, label, Vector{Link}())
+    if isnothing(id)
+        fsm.idcounter.count += 1
+        id = fsm.idcounter.count
+    else
+        fsm.idcounter.count = max(fsm.idcounter.count, id)
+    end
+    s = State(id, pdfindex, label, Vector{Link}())
     fsm.states[s.id] = s
 end
 
@@ -164,37 +152,6 @@ function Base.iterate(iter::LinkIterator, iterstate = nothing)
 end
 
 links(fsm::FSM) = LinkIterator(fsm, states(fsm))
-links(state::State) = state.links
-
-struct EmittingStatesIterator{T}
-    state::T
-end
-
-function Base.iterate(iter::EmittingStatesIterator, iterstate = nothing)
-    if iterstate == nothing
-        T = typeof(iter.state)
-        iterstate = iter.state, 1, Set(T[]), Set(T[iter.state])
-    end
-
-    curstate, idx, tovisit, visited = iterstate
-    while idx <= length(curstate.links)
-        dest = curstate.links[idx].dest
-        if isemitting(dest) || isfinal(dest)
-            return dest, (curstate, idx+1, tovisit, visited)
-        elseif dest ∉ visited
-            push!(tovisit, dest)
-        end
-        idx += 1
-    end
-
-    if isempty(tovisit) return nothing end
-
-    curstate = pop!(tovisit)
-    push!(visited, curstate)
-    iterate(iter, (curstate, 1, tovisit, visited))
-end
-
-emittingstates(s::State) = EmittingStatesIterator(s)
 
 function emittingstates(fsm::FSM)
     values(filter(p -> isemitting(p.second), fsm.states))

@@ -1,62 +1,32 @@
 # Implementation of generic graph algorithms.
 
-using StatsFuns: logaddexp, logsumexp
-import Base: union
-
-#######################################################################
-# Different strategy to prune the graph during inference.
-
-abstract type PruningStrategy end
-
-# No pruning strategy for the αβ recursion
-struct NoPruning <: PruningStrategy end
-const nopruning = NoPruning()
-(::NoPruning)(candidates::Dict{State, T}) where T <: AbstractFloat = candidates
-
-# Pruning strategy which retain all the hypotheses highger than a
-# given threshold
-struct ThresholdPruning <: PruningStrategy
-    Δ::Real
-end
-
-function (pruning::ThresholdPruning)(
-    candidates::Dict{State, T}
-) where T <: AbstractFloat
-    maxval = maximum(p -> p.second, candidates)
-    filter!(p -> maxval - p.second ≤ pruning.Δ, candidates)
-end
-
-#######################################################################
-# Baum-Welch (forward-backward) algorithm
-
 """
     αrecursion(graph, llh[, pruning = ...])
 
 Forward step of the Baum-Welch algorithm in the log-domain.
 """
-function αrecursion(
-    fsm::FSM,
-    llh::Matrix{T};
-    pruning::Union{Real, NoPruning} = nopruning
-) where T <: AbstractFloat
-    pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
+function αrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
+                    pruning::PruningStrategy = nopruning) where T <: AbstractFloat
 
+    N = size(llh, 2) # Number of observations
+    α = Vector{Dict{State,T}}()
     activestates = Dict{State, T}(initstate(fsm) => T(0.0))
-    α = Vector{Dict{State, T}}()
-    for n in 1:size(llh, 2)
+    for n in 1:N
         push!(α, Dict{State,T}())
         for (state, weightpath) in activestates
-            for (nstate, linkweight) in emittingstates(fsm, state, forward)
+            for (nstate, linkweight, _) in nextemittingstates(state)
                 nweightpath = weightpath + linkweight
                 α[n][nstate] = logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
         end
 
         # Add the log-likelihood outside the loop to add it only once
-        for s in keys(α[n]) α[n][s] += llh[s.pdfindex, n] end
+        for s in keys(α[n])
+            α[n][s] += llh[s.pdfindex, n]
+        end
 
         empty!(activestates)
-        merge!(activestates, pruning!(α[n]))
+        merge!(activestates, pruning(α[n], n, N))
     end
     α
 end
@@ -66,28 +36,25 @@ end
 
 Backward step of the Baum-Welch algorithm in the log domain.
 """
-function βrecursion(
-    fsm::FSM,
-    llh::Matrix{T};
-    pruning::Union{Real, NoPruning} = nopruning
-) where T <: AbstractFloat
+function βrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
+                    pruning!::PruningStrategy = nopruning) where T <: AbstractFloat
 
-    pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
+    N = size(llh, 2)
+
+    fsmᵀ = fsm |> transpose
 
     activestates = Dict{State, T}()
     β = Vector{Dict{State, T}}()
-    push!(β, Dict(s => T(0.0)
-         for (s, w) in emittingstates(fsm, finalstate(fsm), backward)))
-
-    for n in size(llh, 2)-1:-1:1
+    push!(β, Dict(s => T(0.0) for (s, w) in nextemittingstates(initstate(fsmᵀ))))
+    for n in N-1:-1:1
         # Update the active tokens
         empty!(activestates)
-        merge!(activestates, pruning!(β[1]))
+        merge!(activestates, pruning!(β[1], n, N))
 
         pushfirst!(β, Dict{State,T}())
         for (state, weightpath) in activestates
             prev_llh = llh[state.pdfindex, n+1]
-            for (nstate, linkweight) in emittingstates(fsm, state, backward)
+            for (nstate, linkweight, _) in nextemittingstates(state)
                 nweightpath = weightpath + linkweight + prev_llh
                 β[1][nstate] = logaddexp(get(β[1], nstate, T(-Inf)), nweightpath)
             end
@@ -101,13 +68,11 @@ end
 
 Baum-Welch algorithm per state in the log domain.
 """
-function αβrecursion(
-    fsm::FSM, llh::Matrix{T};
-    pruning::Union{Real, NoPruning} = nopruning
-) where T <: AbstractFloat
+function αβrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
+                     pruning!::PruningStrategy = nopruning) where T <: AbstractFloat
 
-    lnα = αrecursion(fsm, llh, pruning = pruning)
-    lnβ = βrecursion(fsm, llh, pruning = pruning)
+    lnα = αrecursion(fsm, llh, pruning = pruning!)
+    lnβ = βrecursion(fsm, llh, pruning! = pruning!)
 
     lnγ = Vector{Dict{State,T}}()
 
@@ -138,14 +103,10 @@ responsibilities. When `dense = false` (default) the function returns
 a `Dict{Pdfindex, Vector}. If `dense = true`, the function returns
 a matrix of size SxN where S is the number of unique pdfs.
 """
-function resps(
-    fsm::FSM,
-    lnαβ::Vector{Dict{State, T}};
-    dense = false,
-) where T <: AbstractFloat
+function resps(fsm::AbstractFSM, lnαβ)
     N = length(lnαβ)
 
-    γ = Dict{Pdfindex, Vector}()
+    γ = Dict{PdfIndex, Vector}()
     for n in 1:N
         for (s, w) in lnαβ[n]
             γ_s = get(γ, s.pdfindex, zeros(N))
@@ -153,103 +114,7 @@ function resps(
             γ[s.pdfindex] = γ_s
         end
     end
-
-    if ! dense
-        return γ
-    end
-
-    # Build the dense matrix
-    S = length(Set([s.pdfindex for s in emittingstates(fsm)]))
-    denseγ = zeros(T, S, N)
-    for idx in keys(γ)
-        denseγ[idx, :] = γ[idx]
-    end
-    denseγ
-end
-
-"""
-    ωrecursion(fsm, llh [, pruning = nopruning]}
-
-Max-sum algorithm for finding the most probable path in the `fsm`
-based on the log-likelihoods `llh`.
-
-Returns the maximum weigths for each state per frame and the corresponding path.
-"""
-function ωrecursion(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
-    pruning! = pruning ≠ nopruning ? ThresholdPruning(pruning) : pruning
-
-    activestates = Dict{State, T}(initstate(g) => T(0.0))
-    # Weights per state and per frame
-    ω = Vector{Dict{State, T}}()
-    # Partial path how we reach the state in each frame
-    ψ = Vector{Dict{State, Tuple{State, Vector}}}()
-
-    for n in 1:size(llh, 2)
-        push!(ω, Dict{State, T}())
-        push!(ψ, Dict{State, Tuple{State, Vector}}())
-        for (state, weightpath) in activestates
-            for(nstate, linkweight, path) in emittingstates(g, state, forward)
-                nweightpath = weightpath + linkweight
-                m = max(get(ω[n], nstate, T(-Inf)), nweightpath)
-                ω[n][nstate] = m
-                if m === nweightpath
-                    # Update the best path for nstate
-                    ψ[n][nstate] = (state, path) # path: state -> nstate
-                end
-            end
-        end
-        for s in keys(ω[n]) ω[n][s] += llh[s.pdfindex, n] end
-
-        empty!(activestates)
-        merge!(activestates, pruning!(ω[n]))
-    end
-
-    # Remove emiting states with no direct connection with the final state
-    #fes = finalemittingstates(g)
-    #filter!(ψ[end]) do p
-    #    haskey(fes, p.first)
-    #end
-    #filter!(ω[end]) do p
-    #    haskey(fes, p.first)
-    #end
-
-    # Add path from last emiting state to FSM's final state
-    for s in keys(ψ[end])
-        (_, path) = ψ[end][s]
-        append!(path, fes[s])
-    end
-
-    ω,ψ
-end
-
-"""
-    viterbi(fsm, llh [, pruning = nopruning])
-
-Viterbi algorithm for finding the best path.
-"""
-function viterbi(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
-
-    @warn "viterbi is depracated! Use bestpath instead."
-    lnω, ψ = ωrecursion(g, llh; pruning = pruning)
-
-    bestpath = Vector{Link}()
-    _, state = findmax(lnω[end])
-    for n in length(ψ):-1:1
-        state, path = ψ[n][state]
-        prepend!(bestpath, path)
-    end
-
-    ng = FSM()
-    prevs = initstate(ng)
-    for l in bestpath
-        s = addstate!(ng, pdfindex = l.dest.pdfindex, label = l.dest.label)
-        #link!(ng, prevs, s, l.weight)
-        link!(ng, prevs, s)
-        prevs = s
-    end
-    link!(ng, prevs, finalstate(ng))
-
-    ng |> removenilstates!
+    γ
 end
 
 """
@@ -257,36 +122,51 @@ end
 
 Compute bestpath using forward pass.
 """
-function maxβrecursion(
-    g::FSM,
-    lnα::Vector{Dict{State, T}}) where T <: AbstractFloat
+function maxβrecursion(fsm::AbstractFSM{T}, lnα, draw, statefilter) where T <: AbstractFloat
+    π = FSM{T}()
 
-    π = FSM()
-    prevs = finalstate(g)
-    lasts = finalstate(π)
+    fsmᵀ = fsm |> transpose
+
+    prevstate = initstate(fsmᵀ)
+    laststate = finalstate(π)
 
     for n in length(lnα):-1:1
         m = T(-Inf)
-        bests = nothing
-        bestp = nothing
-        for (state, weight, path) in emittingstates(g, prevs, backward)
-            hyp = weight + get(lnα[n], state, T(-Inf))
-            if (hyp > m)
-                m = hyp
-                bests = state
-                bestp = path
-            end
-        end
-        prevs = bests
 
-        for l in bestp
-            s = addstate!(π, pdfindex = l.dest.pdfindex, label = l.dest.label)
-            link!(π, s, lasts)
-            lasts = s
+        weights = T[]
+        candidates = []
+        norm =
+        for (state, weight, path) in nextemittingstates(prevstate)
+            hyp = weight + get(lnα[n], state, -Inf)
+            push!(weights, weight + get(lnα[n], state, -Inf))
+            push!(candidates, (state, path))
         end
+        norm = logsumexp(weights)
+        weights = exp.(weights .- norm)
+
+        if ! draw
+            _, i = findmax(weights)
+            beststate, bestpath = candidates[i]
+        else
+            beststate, bestpath = sample(candidates, Weights(weights))
+        end
+        prevstate = beststate
+
+        for state in bestpath
+            statefilter(state) || continue
+            nstate = addstate!(π, pdfindex = state.pdfindex, label = state.label)
+            link!(nstate, laststate)
+            laststate = nstate
+        end
+
+        if statefilter(beststate)
+            nstate = addstate!(π, pdfindex = beststate.pdfindex, label = beststate.label)
+            link!(nstate, laststate)
+            laststate = nstate
+        end
+
     end
-
-    link!(π, initstate(π), lasts)
+    link!(initstate(π), laststate)
 
     π
 end
@@ -298,9 +178,21 @@ Lucas's algorithm for finding the best path.
 
 It uses forward pass from forward-backward.
 """
-function bestpath(g::FSM, llh::Matrix{T}; pruning::Union{Real, NoPruning} = nopruning) where T <: AbstractFloat
-    lnα = αrecursion(g, llh, pruning = pruning)
-    maxβrecursion(g, lnα)
+function bestpath(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
+                  statefilter = x -> true)
+    lnα = αrecursion(fsm, llh, pruning = pruning)
+    maxβrecursion(fsm, lnα, false, statefilter)
+end
+
+"""
+    samplepath(fsm, llh [, pruning = nopruning])
+
+Sample a state path.
+"""
+function samplepath(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
+                    size = 1, statefilter = x -> true)
+    lnα = αrecursion(fsm, llh, pruning = pruning)
+    [maxβrecursion(fsm, lnα, true, statefilter) for i in 1:size]
 end
 
 

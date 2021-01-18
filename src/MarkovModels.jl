@@ -1,6 +1,7 @@
 
 module MarkovModels
 
+using StatsBase: sample, Weights
 using StatsFuns: logaddexp, logsumexp
 import Base: union
 
@@ -29,6 +30,7 @@ export isemitting
 export isinit
 export isfinal
 export islabeled
+export nextemittingstates
 
 include("state.jl")
 
@@ -53,6 +55,8 @@ include("fsm.jl")
 export compose
 export concat
 export determinize
+export _distribute
+export _leftminimize
 export minimize
 export removenilstates
 export weightnormalize
@@ -61,20 +65,24 @@ export weightnormalize
 include("fsmop.jl")
 
 #######################################################################
-# Algorthms for inference with Markov chains
+# Pruning strategies
 
 export PruningStrategy
+export DistancePruning
 export ThresholdPruning
 export nopruning
 
-# Baum-Welch algorithm
+include("pruning.jl")
+
+#######################################################################
+# Algorthms for inference with Markov chains
+
 export αrecursion
 export αβrecursion
 export βrecursion
-export ωrecursion
-export bestpath
 export resps
-export viterbi
+export bestpath
+export samplepath
 
 include("inference.jl")
 
@@ -158,7 +166,7 @@ function Base.show(
 
     for n in 1:length(a)
         write(io, "[n = $n]  \t")
-        max = foldl(((sa,wa), (s,w)) -> wa < w ? (s,w) : (sa,wa), a[n]; init=first(a[n]))
+        max = first(sort(collect(a[n]), by = x -> x[2], rev = true))
         write(io, "$(first(max).id)")
         for (s, w) in sort(a[n]; by = x -> x.id)
             write(io, "\t$(s.id) = $(@sprintf("%.3f", w))  ")
