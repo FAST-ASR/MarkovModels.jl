@@ -49,6 +49,14 @@ mutable struct StateIDCounter
     count::UInt64
 end
 
+"""
+    struct FSM{T}
+        ...
+    end
+
+Structure of a FSM. The type `T` indicates the type of the arcs'
+weight.
+"""
 struct FSM{T} <: AbstractFSM{T}
     idcounter::StateIDCounter
     states::Dict{StateID, State}
@@ -89,14 +97,16 @@ Add a weighted connection between `state1` and `state2`. By default,
 """
 link!(src, dest, weight = 0) = push!(src.links, Link(src, dest, weight))
 
-"""
-    LinearFSM(seq[, emissionsmap::Dict{<:Label, <:PdfIndex}])
 
-Create a linear FSM from a sequence of labels `seq`. If
+"""
+    LinearFSM([T, ]seq[, emissionsmap::Dict{<:Label, <:PdfIndex}])
+
+Create a linear FSM of type `T` from a sequence of labels `seq`. If
 `emissionsmap` is provided, every item `l` of `seq` with a matching entry
 in `emissionsmap` will be assigned the pdf index `emissionsmap[l]`.
+`PdfIndex` can be any integer type and `Label` any string type.
 """
-function LinearFSM(T, sequence::AbstractVector,
+function LinearFSM(T, sequence::AbstractVector{<:Label},
                    emissionsmap = Dict{Label, PdfIndex}())
     fsm = FSM{T}()
     prevstate = initstate(fsm)
@@ -109,7 +119,7 @@ function LinearFSM(T, sequence::AbstractVector,
     link!(prevstate, finalstate(fsm))
     fsm
 end
-function LinearFSM(sequence::AbstractVector,
+function LinearFSM(sequence::AbstractVector{<:Label},
                    emissionsmap = Dict{Label, PdfIndex}())
     LinearFSM(Float64, sequence, emissionsmap)
 end
@@ -119,39 +129,17 @@ end
 
 initstate(fsm::FSM) = fsm.states[initstateid]
 finalstate(fsm::FSM) = fsm.states[finalstateid]
-
 states(fsm::FSM) = values(fsm.states)
 
-struct LinkIterator
-    fsm::FSM
-    siter
-end
-
-function Base.iterate(iter::LinkIterator, iterstate = nothing)
-    if iterstate == nothing
-        init = initstate(iter.fsm)
-        iterstate = init, 1, Set{typeof(init)}(), Set([init])
-    end
-    curstate, idx, tovisit, visited = iterstate
-
-    if idx <= length(curstate.links)
-        link = curstate.links[idx]
-        push!(tovisit, link.dest)
-        return link, (curstate, idx+1, tovisit, visited)
-    end
-
-    while curstate ∈ visited
-        if isempty(tovisit)
-            return nothing
+function links(fsm::FSM)
+    retval = []
+    for s in states(fsm)
+        for l in links(s)
+            push!(retval, l)
         end
-        curstate = pop!(tovisit)
     end
-
-    push!(visited, curstate)
-    iterate(iter, (curstate, 1, tovisit, visited))
+    retval
 end
-
-links(fsm::FSM) = LinkIterator(fsm, states(fsm))
 
 function emittingstates(fsm::FSM)
     values(filter(p -> isemitting(p.second), fsm.states))

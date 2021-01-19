@@ -4,12 +4,12 @@
 # FSM transpose
 
 """
-    Base.transpose(fsm)
+    transpose(fsm)
 
 Transpose the fsm, i.e. reverse all it's arcs. The final state becomes
 the initial state.
 """
-function Base.transpose(fsm::FSM{T}) where T
+function Base.transpose(fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
     smap = Dict(initstateid => finalstate(nfsm), finalstateid => initstate(nfsm))
     for s in states(fsm)
@@ -28,28 +28,9 @@ end
 
 """
     union(fsm1, fsm2, ...)
+    ∪(fsm1, fsm2, ...)
 
 Merge several FSMs into a single one.
-
-# Examples
-```julia-repl
-julia> fsm1 = LinearFSM(["a", "b", "c"], Dict("a"=>1))
-julia> fsm2 = LinearFSM(["a", "d", "c"], Dict("a"=>1))
-julia> union(fsm1, fsm2)
-```
-Input:
-
-  * `fsm1`
-
-    ![See the online documentation to visualize the image](images/union_input1.svg)
-  * `fsm2`
-
-    ![See the online documentation to visualize the image](images/union_input2.svg)
-
-Output:
-
-![See the online documentation to visualize the image](images/union_output.svg)
-
 """
 function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
     fsm = FSM{T}()
@@ -81,24 +62,6 @@ Base.union(fsm::AbstractFSM, rest::AbstractFSM...) = foldl(union, rest, init=fsm
     concat(fsm1, fsm2, ...)
 
 Concatenate several FSMs into single FSM.
-
-# Examples
-```julia-repl
-julia> fsm1 = LinearFSM(["a", "b"])
-julia> fsm2 = LinearFSM(["c", "d"])
-julia> fsm3 = LinearFSM(["e"])
-julia> concat(fsm1, fsm2, fsm3)
-```
-Input:
-  * `fsm1`
-  ![See the online documentation to visualize the image](images/concat_input1.svg)
-  * `fsm2`
-  ![See the online documentation to visualize the image](images/concat_input2.svg)
-  * `fsm3`
-  ![See the online documentation to visualize the image](images/concat_input3.svg)
-
-Output:
-  ![See the online documentation to visualize the image](images/concat_output.svg)
 """
 function concat(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
     fsm = FSM{T}()
@@ -130,30 +93,6 @@ concat(fsm1::AbstractFSM, rest::AbstractFSM...) = foldl(concat, rest, init=fsm1)
 
 Change the weight of the links such that the sum of the exponentiated
 weights of the outgoing links from one state will sum up to one.
-
-# Examples
-```julia-repl
-julia> fsm = union(LinearFSM(["a", "b"]), LinearFSM(["c", "d"]))
-julia> for s in states(fsm)
-    if ! isinit(s) && ! isfinal(s)
-        link!(fsm, s, s)
-    end
-end
-julia> fsm |> weightnormalize!
-```
-Input:
-
-![See the online documentation to visualize the image](images/wnorm_input.svg)
-
-Output:
-
-![See the online documentation to visualize the image](images/wnorm_output.svg)
-
-!!! note
-    This function has the side effect to "determinize" the FSM, that is,
-    the resulting FSM will have at most one arc between each pair of
-    node.
-
 """
 function weightnormalize(fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
@@ -180,7 +119,7 @@ end
 # FSM determinization
 
 """
-    determinize!(fsm)
+    determinize(fsm)
 
 Transform `fsm` such that each state has at most one link to any other
 states.
@@ -295,27 +234,13 @@ end
 """
     minimize(fsm)
 
-Merge equivalent states such to reduce the size of the FSM. Only
+Merge equivalent states to reduce the size of the FSM. Only
 the states that have the same `pdfindex` and the same `label` can be
 potentially merged.
 
 !!! warning
     The input FSM should not contain cycles otherwise the algorithm
     will never end.
-
-# Examples
-```julia-repl
-julia> fsm = union(LinearFSM(["a", "b", "c"], Dict("a"=>1)), LinearFSM(["a", "d", "c"], Dict("a"=>1)))
-julia> fsm |> minimize!
-```
-
-Input:
-
-![See the online documentation to visualize the image](images/minimize_input.svg)
-
-Output:
-
-![See the online documentation to visualize the image](images/minimize_output.svg)
 """
 minimize(fsm::AbstractFSM) = (weightnormalize ∘ transpose ∘ _leftminimize ∘ transpose ∘ _leftminimize ∘ _distribute)(fsm)
 
@@ -323,28 +248,10 @@ minimize(fsm::AbstractFSM) = (weightnormalize ∘ transpose ∘ _leftminimize �
 # NIL state removal
 
 """
-    removenilstates!(fsm)
+    removenilstates(fsm)
 
 Remove all states that are non-emitting and have no labels (except the
 the initial and final states)
-
-# Examples
-```julia-repl
-julia> fsm = LinearFSM(["a", "b"], Dict("a" => 1))
-julia> nil = addstate!(fsm)
-julia> link!(fsm, initstate(fsm), nil)
-julia> link!(fsm, nil, finalstate(fsm))
-julia> fsm = fsm |> weightnormalize!
-julia> fsm |> removenilstates!
-```
-Input:
-
-![See the online documentation to visualize the image](images/rmnil_input.svg)
-
-Ouput:
-
-![See the online documentation to visualize the image](images/rmnil_output.svg)
-
 """
 function removenilstates(fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
@@ -378,67 +285,18 @@ function removenilstates(fsm::AbstractFSM{T}) where T
     nfsm
 end
 
-function Base.replace!(
-    fsm::FSM,
-    state::State,
-    subfsm::FSM
-)
-    incoming = [link for link in parents(fsm, state)]
-    outgoing = [link for link in links(fsm, state)]
-    removestate!(fsm, state)
-    idmap = Dict{StateID, State}()
-    for s in states(subfsm)
-        label = s.id == finalstateid ? "$(state.label)" : s.label
-        ns = addstate!(fsm, pdfindex = s.pdfindex, label = label)
-        idmap[s.id] = ns
-    end
-
-    for link in links(subfsm)
-        link!(fsm, idmap[link.src.id], idmap[link.dest.id], link.weight)
-    end
-
-    for l in incoming link!(fsm, l.dest, idmap[initstateid], l.weight) end
-    for l in outgoing link!(fsm, idmap[finalstateid], l.dest, l.weight) end
-    fsm
-end
+#######################################################################
+# Composition
 
 """
-    compose!(fsm, subfsms)
+    compose(subfsms::Dict{Label, FSM}, fsm)
+    Base.:∘(subfsms::Dict{Label, FSM}, fsm)
 
 Replace each state `s` in `fsm` by a "subfsms" from `subfsms` with
 associated label `s.label`. `subfsms` should be a Dict{<:Label, FSM}`.
-
-# Examples
-```julia-repl
-julia> fsm = union(LinearFSM(["a", "b"]), LinearFSM(["c"])) |> weightnormalize!
-julia> subfsms = subfsms = Dict(
-    "a" => LinearFSM(["a1", "a2", "a3"], Dict("a1"=>1, "a2"=>2, "a3"=>3)) |> addselfloop!,
-    "b" => LinearFSM(["b1", "b2"], Dict("b1"=>4, "b2"=>5)) |> addselfloop!,
-    "c" => LinearFSM(["c1", "c2"], Dict("c1"=>6, "c2"=>1)) |> addselfloop!
-)
-julia> compose!(fsm, sufsms)
-```
-
-Input :
-  * `fsm`
-  ![See the online documentation to visualize the image](images/compose_input1.svg)
-  * `subfsms["a"]`
-  ![See the online documentation to visualize the image](images/compose_input2.svg)
-  * `subfsms["b"]`
-  ![See the online documentation to visualize the image](images/compose_input3.svg)
-  * `subfsms["c"]`
-  ![See the online documentation to visualize the image](images/compose_input4.svg)
-Output:
-  ![See the online documentation to visualize the image](images/compose_output.svg)
-
-Alternatively, FSMs can be composed with the `∘` operator:
-```julia-replp
-julia> fsm ∘ sufsms
-```
-When using the `∘` operator, the composition is not
-performed in place.
 """
-function compose(fsm::AbstractFSM{T}, subfsms::Dict) where T
+function compose(subfsms::Dict{<:Label, <:AbstractFSM{T}},
+                 fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
 
     newsrcs = Dict(initstate(fsm) => initstate(nfsm),
@@ -480,5 +338,5 @@ function compose(fsm::AbstractFSM{T}, subfsms::Dict) where T
     nfsm
 end
 
-Base.:∘(subfsms::Dict, fsm::AbstractFSM) = compose(fsm, subfsms)
+Base.:∘(subfsms::Dict, fsm::AbstractFSM) = compose(subfsms, fsm)
 
