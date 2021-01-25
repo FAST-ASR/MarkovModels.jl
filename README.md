@@ -1,6 +1,6 @@
 # MarkovModels
 
-*Julia package to use (Hidden) Markov Models in Bayesian inference.*
+*Julia package for inference with (Hidden) Markov Models.*
 
 | **Documentation**  |
 |:------------------:|
