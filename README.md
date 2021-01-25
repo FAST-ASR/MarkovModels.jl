@@ -4,7 +4,7 @@
 
 | **Documentation**  |
 |:------------------:|
-|[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://butspeechfit.github.io/MarkovModels/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://butspeechfit.github.io/MarkovModels/dev)|
+|[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://butspeechfit.github.io/MarkovModels/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://butspeechfit.github.io/MarkovModels/dev)|
 
 ## Installation
 
