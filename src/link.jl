@@ -13,7 +13,7 @@
     end
 
 Weighted link pointing from a state `src` to a state `dest` with
-weight `weight`.  `T` is the type of the weight value .
+weight `weight`.  `T` is the type of the weight value.
 The weight represents the log-probability of going through this link.
 """
 struct Link{T} <: AbstractLink{T}

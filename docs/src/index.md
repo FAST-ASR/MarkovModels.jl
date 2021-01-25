@@ -9,12 +9,17 @@ for probabilistic inference.
 * Lucas Ondel, Brno University of Technology
 * Martin Kocour, Brno University of Technology
 
-## Reference
+## Installation
 
-TODO: Add DOI
+The package can be installed with the Julia package manager. From the
+Julia REPL, type `]` to enter the Pkg REPL mode and run:
+```julia
+pkg> add MarkovModels
+```
 
 ## Manual Outline
 
 ```@contents
-Pages = ["install.md", "fsm.md"]
+Pages = ["fsm.md", "inference.md"]
 ```
+

@@ -289,14 +289,13 @@ end
 # Composition
 
 """
-    compose(subfsms::Dict{Label, FSM}, fsm)
-    Base.:∘(subfsms::Dict{Label, FSM}, fsm)
+    compose(subfsms::Dict, fsm)
+    Base.:∘(subfsms::Dict, fsm)
 
 Replace each state `s` in `fsm` by a "subfsms" from `subfsms` with
 associated label `s.label`. `subfsms` should be a Dict{<:Label, FSM}`.
 """
-function compose(subfsms::Dict{<:Label, <:AbstractFSM{T}},
-                 fsm::AbstractFSM{T}) where T
+function compose(subfsms::Dict, fsm::AbstractFSM{T}) where T
     nfsm = FSM{T}()
 
     newsrcs = Dict(initstate(fsm) => initstate(nfsm),

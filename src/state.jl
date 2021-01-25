@@ -42,7 +42,7 @@ islabeled
 
 Iterator over the links to the children (i.e. next states) of `state`.
 """
-links
+links(::AbstractState)
 
 """
     nextemittingstates(fsm, state)
@@ -174,19 +174,84 @@ isfinal(s::State) = s.id == finalstateid
 islabeled(s::State) = ! isnothing(s.label)
 links(state::State) = state.links
 
-function nextemittingstates(start_state::AbstractState; return_finalstate = false)
-    retval = []
-    stack = [(start_state, 0.0, State[])]
-    while ! isempty(stack)
-        state, weight, path = popfirst!(stack)
-        for link in links(state)
-            if isemitting(link.dest) || (return_finalstate && isfinal(link.dest))
-                push!(retval, (link.dest, weight + link.weight, [path..., state]))
-            else
-                push!(stack, (link.dest, weight + link.weight, [path..., state]))
-            end
+struct EmittingStatesIterator
+    state::State
+end
+
+function Base.iterate(iter::EmittingStatesIterator, itstate = nothing)
+    if isnothing(itstate)
+        visited = Set{State}([iter.state])
+        stack = Tuple{State, Float64}[(iter.state, 0.0)]
+        estates = Tuple{State, Float64}[]
+        itstate  = (stack, estates, visited)
+    end
+
+    stack, estates, visited = itstate
+
+    if ! isempty(estates) return (popfirst!(estates), (stack, estates, visited)) end
+    if isempty(stack) return nothing end
+
+    state, weight = popfirst!(stack)
+    for link in links(state)
+        if isemitting(link.dest)
+            push!(estates, (link.dest, weight + link.weight))
+        elseif link.dest ∉ visited
+            push!(stack, (link.dest, weight + link.weight))
+            push!(visited, link.dest)
         end
     end
-    retval
+    iterate(iter, (stack, estates, visited))
 end
+
+struct EmittingStatesPathIterator
+    state::State
+end
+
+function Base.iterate(iter::EmittingStatesPathIterator, itstate = nothing)
+    if isnothing(itstate)
+        visited = Set{State}([iter.state])
+        stack = Tuple{State, Float64, Vector{State}}[(iter.state, 0.0, State[])]
+        estates = Tuple{State, Float64, Vector{State}}[]
+        itstate  = (stack, estates, visited)
+    end
+
+    stack, estates, visited = itstate
+
+    if ! isempty(estates) return (popfirst!(estates), (stack, estates, visited)) end
+    if isempty(stack) return nothing end
+
+    state, weight, path = popfirst!(stack)
+    for link in links(state)
+        if isemitting(link.dest)
+            push!(estates, (link.dest, weight + link.weight, path))
+        elseif link.dest ∉ visited
+            push!(stack, (link.dest, weight + link.weight, [path..., link.dest]))
+            push!(visited, link.dest)
+        end
+    end
+    iterate(iter, (stack, estates, visited))
+end
+
+function nextemittingstates(state::AbstractState; return_path = false)
+    if ! return_path
+        return EmittingStatesIterator(state)
+    end
+    EmittingStatesPathIterator(state)
+end
+
+#function nextemittingstates(start_state::AbstractState)
+#    retval = []
+#    stack = [(start_state, 0.0, State[])]
+#    while ! isempty(stack)
+#        state, weight, path = popfirst!(stack)
+#        for link in links(state)
+#            if isemitting(link.dest)
+#                push!(retval, (link.dest, weight + link.weight, [path..., state]))
+#            else
+#                push!(stack, (link.dest, weight + link.weight, [path..., state]))
+#            end
+#        end
+#    end
+#    retval
+#end
 

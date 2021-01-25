@@ -9,8 +9,8 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Manual" => Any[
-            "Installation" => "install.md",
-            "Finite State Machines" => "fsm.md"
+            "Finite State Machines" => "fsm.md",
+            "Inference" => "inference.md"
         ]
     ]
 )

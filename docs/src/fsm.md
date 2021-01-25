@@ -1,10 +1,14 @@
 # Finite State Machines
 
+```@meta
+CurrentModule = MarkovModels
+```
+
 The MarkovModels package represents Markov chains as probabilistic a
 Finite State Machine (FSM).  Here is an example of FSM as used by the
 package:
 
-![alternative text](images/examplefsm.svg)
+![](images/examplefsm.svg)
 
 The double edge circle node with the label "<s>" (respectively "</s>")
 is the initial (respectively final) state of the FSM. States with light
@@ -82,11 +86,34 @@ fsm = LinearFSM(Float32, ["a", "b", "c"], Dict("a" => 1, "b" => 2, "c" => 3))
 ```
 ![](images/linearfsm.svg)
 
-## FSM operations
+## States
 
-```@meta
-CurrentModule = MarkovModels
+```@docs
+State
+isemitting
+isinit
+isfinal
+islabeled
+links(::AbstractState)
+nextemittingstates
 ```
+
+## Links
+
+```@docs
+Link
+```
+
+## Iterating over states and links
+
+```@docs
+    initstate
+    finalstate
+    links
+    states
+```
+
+## FSM operations
 
 ### Composition
 
@@ -261,7 +288,7 @@ Output:
 ![](images/union_output.svg)
 
 
-### Weight normalization
+### Weights normalization
 
 ```@docs
 weightnormalize

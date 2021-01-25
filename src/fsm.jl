@@ -31,16 +31,9 @@ states
 """
     links(fsm)
 
-Iterator over the links of the FSM.
+Returns the list of the links of the FSM.
 """
 links(fsm::AbstractFSM)
-
-"""
-    emittingstates(fsm)
-
-Returns an iterator over all the emitting states of the FSM.
-"""
-emittingstates(fsm::AbstractFSM)
 
 #######################################################################
 # FSM
@@ -140,17 +133,4 @@ function links(fsm::FSM)
     end
     retval
 end
-
-function emittingstates(fsm::FSM)
-    values(filter(p -> isemitting(p.second), fsm.states))
-end
-
-#function finalemittingstates(fsm::FSM)
-#    states = Dict{State, Vector}()
-#    for (s,_,p) in emittingstates(fsm, finalstate(fsm), backward)
-#        # Need to reverse the links, cause it was created in backward way
-#        states[s] = map(reverse!(p)) do l Link(l.dest, l.src, l.weight) end
-#    end
-#    states
-#end
 

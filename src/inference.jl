@@ -14,7 +14,7 @@ function αrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
     for n in 1:N
         push!(α, Dict{State,T}())
         for (state, weightpath) in activestates
-            for (nstate, linkweight, _) in nextemittingstates(state)
+            for (nstate, linkweight) in nextemittingstates(state)
                 nweightpath = weightpath + linkweight
                 α[n][nstate] = logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
             end
@@ -37,8 +37,7 @@ end
 Backward step of the Baum-Welch algorithm in the log domain.
 """
 function βrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
-                    pruning!::PruningStrategy = nopruning) where T <: AbstractFloat
-
+                    pruning::PruningStrategy = nopruning) where T <: AbstractFloat
     N = size(llh, 2)
 
     fsmᵀ = fsm |> transpose
@@ -47,14 +46,15 @@ function βrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
     β = Vector{Dict{State, T}}()
     push!(β, Dict(s => T(0.0) for (s, w) in nextemittingstates(initstate(fsmᵀ))))
     for n in N-1:-1:1
+
         # Update the active tokens
         empty!(activestates)
-        merge!(activestates, pruning!(β[1], n, N))
+        merge!(activestates, pruning(β[1], n+1, N))
 
         pushfirst!(β, Dict{State,T}())
         for (state, weightpath) in activestates
             prev_llh = llh[state.pdfindex, n+1]
-            for (nstate, linkweight, _) in nextemittingstates(state)
+            for (nstate, linkweight) in nextemittingstates(state)
                 nweightpath = weightpath + linkweight + prev_llh
                 β[1][nstate] = logaddexp(get(β[1], nstate, T(-Inf)), nweightpath)
             end
@@ -64,15 +64,18 @@ function βrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
 end
 
 """
-    αβrecursion(graph, llh[, pruning = ...])
+    αβrecursion(fsm, llh[, pruning = nopruning])
 
-Baum-Welch algorithm per state in the log domain.
+Baum-Welch algorithm per state in the log domain. This function returns
+a tuple `(lnαβ, ttl)` where `lnαβ` is a sparse representation of the
+responsibilities and `ttl` is the log-likelihood of the sequence given
+the inference `fsm`.
 """
 function αβrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
-                     pruning!::PruningStrategy = nopruning) where T <: AbstractFloat
+                     pruning::PruningStrategy = nopruning) where T <: AbstractFloat
 
-    lnα = αrecursion(fsm, llh, pruning = pruning!)
-    lnβ = βrecursion(fsm, llh, pruning! = pruning!)
+    lnα = αrecursion(fsm, llh, pruning = pruning)
+    lnβ = βrecursion(fsm, llh, pruning = BackwardPruning(lnα))
 
     lnγ = Vector{Dict{State,T}}()
 
@@ -95,13 +98,19 @@ function αβrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
     lnγ, ttl
 end
 
+struct Responsibilities
+    N::Int64
+    sparseresps::Dict{PdfIndex, Vector{<:AbstractFloat}}
+end
+
+Base.getindex(r::Responsibilities, i) = get(r.sparseresps, i, zeros(r.N))
+
 """
     resps(fsm, lnαβ[, dense = false])
 
 Convert the output of the `αβrecursion` to the per-frame pdf
-responsibilities. When `dense = false` (default) the function returns
-a `Dict{Pdfindex, Vector}. If `dense = true`, the function returns
-a matrix of size SxN where S is the number of unique pdfs.
+responsibilities. The returned value is a dictionary whose keys are
+pdf indices.
 """
 function resps(fsm::AbstractFSM, lnαβ)
     N = length(lnαβ)
@@ -114,7 +123,7 @@ function resps(fsm::AbstractFSM, lnαβ)
             γ[s.pdfindex] = γ_s
         end
     end
-    γ
+    Responsibilities(N, γ)
 end
 
 """
@@ -122,21 +131,16 @@ end
 
 Compute bestpath using forward pass.
 """
-function maxβrecursion(fsm::AbstractFSM{T}, lnα, draw, statefilter) where T <: AbstractFloat
-    π = FSM{T}()
-
+function maxβrecursion(fsm::AbstractFSM{T}, lnα, draw, labelfilter) where T <: AbstractFloat
     fsmᵀ = fsm |> transpose
-
     prevstate = initstate(fsmᵀ)
-    laststate = finalstate(π)
-
+    labels = []
     for n in length(lnα):-1:1
         m = T(-Inf)
 
         weights = T[]
         candidates = []
-        norm =
-        for (state, weight, path) in nextemittingstates(prevstate)
+        for (state, weight, path) in nextemittingstates(prevstate, return_path = true)
             hyp = weight + get(lnα[n], state, -Inf)
             push!(weights, weight + get(lnα[n], state, -Inf))
             push!(candidates, (state, path))
@@ -150,49 +154,44 @@ function maxβrecursion(fsm::AbstractFSM{T}, lnα, draw, statefilter) where T <:
         else
             beststate, bestpath = sample(candidates, Weights(weights))
         end
+
         prevstate = beststate
 
+        # Extract the label sequence
         for state in bestpath
-            statefilter(state) || continue
-            nstate = addstate!(π, pdfindex = state.pdfindex, label = state.label)
-            link!(nstate, laststate)
-            laststate = nstate
+            (islabeled(state) && labelfilter(state.label)) || continue
+            push!(labels, state.label)
         end
 
-        if statefilter(beststate)
-            nstate = addstate!(π, pdfindex = beststate.pdfindex, label = beststate.label)
-            link!(nstate, laststate)
-            laststate = nstate
+        if (islabeled(beststate) && labelfilter(beststate.label)) || continue
+            push!(labels, beststate.label)
         end
 
     end
-    link!(initstate(π), laststate)
 
-    π
+    reverse(labels)
 end
 
 """
-    bestpath(fsm, llh [, pruning = nopruning])
+    beststring(fsm, llh[, pruning = nopruning, labelfilter = x -> true])
 
-Lucas's algorithm for finding the best path.
-
-It uses forward pass from forward-backward.
+Returns the best sequence of the labels given the log-likelihood `llh`.
 """
-function bestpath(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
-                  statefilter = x -> true)
+function beststring(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
+                  labelfilter = x -> true)
     lnα = αrecursion(fsm, llh, pruning = pruning)
-    maxβrecursion(fsm, lnα, false, statefilter)
+    maxβrecursion(fsm, lnα, false, labelfilter)
 end
 
 """
-    samplepath(fsm, llh [, pruning = nopruning])
+    samplestring(fsm, llh[, nsamples = 1, pruning = nopruning, labelfilter = x -> true])
 
-Sample a state path.
+Sample a sequence of labels given the log-likelihood `llh`.
+
 """
-function samplepath(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
-                    size = 1, statefilter = x -> true)
+function samplestring(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
+                    nsamples = 1, labelfilter = x -> true)
     lnα = αrecursion(fsm, llh, pruning = pruning)
-    [maxβrecursion(fsm, lnα, true, statefilter) for i in 1:size]
+    [maxβrecursion(fsm, lnα, true, labelfilter) for i in 1:nsamples]
 end
-
 

@@ -68,7 +68,10 @@ include("fsmop.jl")
 # Pruning strategies
 
 export PruningStrategy
-export DistancePruning
+
+export BackwardPruning
+export CompoundPruning
+export SafePruning
 export ThresholdPruning
 export nopruning
 
@@ -81,8 +84,8 @@ export αrecursion
 export αβrecursion
 export βrecursion
 export resps
-export bestpath
-export samplepath
+export beststring
+export samplestring
 
 include("inference.jl")
 
