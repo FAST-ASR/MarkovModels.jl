@@ -265,7 +265,7 @@ function maxβrecursion(
     prevs = finalstate(g)
     lasts = finalstate(π)
 
-    for n in size(llh, 2):-1:1
+    for n in size(lnα, 1):-1:1
         m = T(-Inf)
         bests = nothing
         bestp = nothing
