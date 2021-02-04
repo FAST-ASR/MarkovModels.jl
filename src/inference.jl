@@ -98,12 +98,15 @@ function αβrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
     lnγ, ttl
 end
 
-struct Responsibilities
+struct Responsibilities <: AbstractDict{PdfIndex, Vector{<:AbstractFloat}}
     N::Int64
     sparseresps::Dict{PdfIndex, Vector{<:AbstractFloat}}
 end
 
 Base.getindex(r::Responsibilities, i) = get(r.sparseresps, i, zeros(r.N))
+Base.iterate(r::Responsibilities, state) = Base.iterate(r.sparseresps, state)
+Base.iterate(r::Responsibilities) = Base.iterate(r.sparseresps)
+Base.length(r::Responsibilities) = Base.length(r.sparseresps)
 
 """
     resps(fsm, lnαβ[, dense = false])
