@@ -1,25 +1,38 @@
 
 module MarkovModels
 
+using StatsBase: sample, Weights
 using StatsFuns: logaddexp, logsumexp
 import Base: union
 
 #######################################################################
 # FSM definition
 
-export StateID
-export initstateid
-export finalstateid
+# Forward definition of the Abs. state/link to avoid issue with
+# circular dependencies.
+abstract type AbstractState end
+abstract type AbstractLink{T} end
 
-export Label
-export Pdfindex
-
+export AbstractLink
 export Link
 
+include("link.jl")
+
+export PdfIndex
+export Label
 export State
+export InitStateID
+export initstateid
+export FinalStateID
+export finalstateid
+
 export isemitting
 export isinit
 export isfinal
+export islabeled
+export nextemittingstates
+
+include("state.jl")
 
 export FSM
 export LinearFSM
@@ -30,14 +43,8 @@ export unlink!
 
 export initstate
 export finalstate
-export name
-
-export backward
-export children
 export emittingstates
-export forward
 export links
-export parents
 export states
 
 include("fsm.jl")
@@ -45,31 +52,40 @@ include("fsm.jl")
 #######################################################################
 # FSM algorithms
 
-export addselfloop!
-export compose!
+export compose
 export concat
-export determinize!
-export minimize!
-export removenilstates!
-export weightnormalize!
+export determinize
+export _distribute
+export _leftminimize
+export minimize
+export removenilstates
+export weightnormalize
+
 
 include("fsmop.jl")
 
 #######################################################################
-# Algorthms for inference with Markov chains
+# Pruning strategies
 
 export PruningStrategy
+
+export BackwardPruning
+export CompoundPruning
+export SafePruning
 export ThresholdPruning
 export nopruning
 
-# Baum-Welch algorithm
+include("pruning.jl")
+
+#######################################################################
+# Algorthms for inference with Markov chains
+
 export αrecursion
 export αβrecursion
 export βrecursion
-export ωrecursion
-export bestpath
 export resps
-export viterbi
+export beststring
+export samplestring
 
 include("inference.jl")
 
@@ -94,7 +110,7 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
             attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
         elseif isfinal(s) || isinit(s)
             name = isinit(s) ? "s" : "e"
-            attrs *= "shape=" * (isfinal(s) ? "doublecircle" : "circle")
+            attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
             attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
             attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
             attrs *= " fixedsize=true width=0.6"
@@ -125,8 +141,11 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         else
             destname = "$(link.dest.id)"
         end
+
+
         write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
+
     write(dotfile, "}\n")
     close(dotfile)
     run(`dot -Tsvg $(dotpath) -o $(svgpath)`)
@@ -150,7 +169,7 @@ function Base.show(
 
     for n in 1:length(a)
         write(io, "[n = $n]  \t")
-        max = foldl(((sa,wa), (s,w)) -> wa < w ? (s,w) : (sa,wa), a[n]; init=first(a[n]))
+        max = first(sort(collect(a[n]), by = x -> x[2], rev = true))
         write(io, "$(first(max).id)")
         for (s, w) in sort(a[n]; by = x -> x.id)
             write(io, "\t$(s.id) = $(@sprintf("%.3f", w))  ")
@@ -158,10 +177,5 @@ function Base.show(
         write(io, "\n")
     end
 end
-
-#######################################################################
-# Other
-
-#include("../src/misc.jl")
 
 end
