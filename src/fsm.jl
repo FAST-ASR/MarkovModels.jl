@@ -62,6 +62,7 @@ struct FSM{T} <: AbstractFSM{T}
         ),
     )
 end
+FSM() = FSM{Float64}()
 
 #######################################################################
 # Methods to construct the FSM
