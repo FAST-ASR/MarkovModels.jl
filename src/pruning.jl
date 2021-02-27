@@ -56,8 +56,7 @@ function (pruning::SafePruning)(candidates, n, N)
     function filt(p)
         if isfinal(p.first) return true end
         dist = get(pruning.distances, p.first, 1)
-        if dist - 1 ≤ N-n return true end
-        return false
+        return dist - 1 ≤ N-n
     end
     filter!(filt, candidates)
 end
