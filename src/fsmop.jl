@@ -1,15 +1,12 @@
 # Implementation of common FSM operations.
 
-#######################################################################
-# FSM transpose
-
 """
     transpose(fsm)
 
 Transpose the fsm, i.e. reverse all it's arcs. The final state becomes
 the initial state.
 """
-function Base.transpose(fsm::AbstractFSM{T}) where T
+function Base.transpose(fsm::FSM{T}) where T<:SemiField
     nfsm = FSM{T}()
     smap = Dict(initstateid => finalstate(nfsm), finalstateid => initstate(nfsm))
     for s in states(fsm)
@@ -17,22 +14,21 @@ function Base.transpose(fsm::AbstractFSM{T}) where T
         smap[s.id] = addstate!(nfsm, id = s.id, pdfindex = s.pdfindex, label = s.label)
     end
 
-    for l in links(fsm)
-        link!(smap[l.dest.id], smap[l.src.id], l.weight)
+    for src in states(fsm)
+        for l in links(src)
+            link!(smap[l.dest.id], smap[src.id], l.weight)
+        end
     end
     nfsm
 end
-
-#######################################################################
-# Union of FSMs
 
 """
     union(fsm1, fsm2, ...)
     ∪(fsm1, fsm2, ...)
 
-Merge several FSMs into a single one.
+Append severall FSMs to form a single one.
 """
-function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
+function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T<:SemiField
     fsm = FSM{T}()
 
     smap = Dict{State, State}(initstate(fsm1) => initstate(fsm),
@@ -41,7 +37,12 @@ function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
         if s.id == finalstateid || s.id == initstateid continue end
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    for src in states(fsm1)
+        for l in links(src)
+            link!(smap[src], smap[l.dest], l.weight)
+        end
+    end
 
     smap = Dict{State, State}(initstate(fsm2) => initstate(fsm),
                               finalstate(fsm2) => finalstate(fsm))
@@ -49,21 +50,23 @@ function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
         if s.id == finalstateid || s.id == initstateid continue end
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    for src in states(fsm2)
+        for l in links(src)
+                link!(smap[src], smap[l.dest], l.weight)
+        end
+    end
 
     fsm
 end
-Base.union(fsm::AbstractFSM, rest::AbstractFSM...) = foldl(union, rest, init=fsm)
-
-#######################################################################
-# Concatenation
+Base.union(fsm::FSM{T}, rest::FSM{T}...) where T<:SemiField = foldl(union, rest, init=fsm)
 
 """
     concat(fsm1, fsm2, ...)
 
-Concatenate several FSMs into single FSM.
+Concatenate several FSMs together.
 """
-function concat(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
+function concat(fsm1::FSM{T}, fsm2::FSM{T}) where T<:SemiField
     fsm = FSM{T}()
 
     cs = addstate!(fsm) # special non-emitting state for concatenaton
@@ -72,21 +75,28 @@ function concat(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
         (isinit(s) || isfinal(s)) && continue
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm1) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    for src in states(fsm1)
+        for l in links(src)
+            link!(smap[src], smap[l.dest], l.weight)
+        end
+    end
 
     smap = Dict(initstate(fsm2) => cs, finalstate(fsm2) => finalstate(fsm))
     for s in states(fsm2)
         (isinit(s) || isfinal(s)) && continue
         smap[s] = addstate!(fsm, pdfindex = s.pdfindex, label = s.label)
     end
-    for l in links(fsm2) link!(smap[l.src], smap[l.dest], l.weight) end
+
+    for src in states(fsm2)
+        for l in links(src)
+            link!(smap[src], smap[l.dest], l.weight)
+        end
+    end
 
     fsm
 end
-concat(fsm1::AbstractFSM, rest::AbstractFSM...) = foldl(concat, rest, init=fsm1)
-
-#######################################################################
-# Weight normalization
+concat(fsm1::FSM{T}, rest::FSM{T}...) where T<:SemiField = foldl(concat, rest, init=fsm1)
 
 """
     weightnormalize(fsm)
@@ -94,7 +104,7 @@ concat(fsm1::AbstractFSM, rest::AbstractFSM...) = foldl(concat, rest, init=fsm1)
 Change the weight of the links such that the sum of the exponentiated
 weights of the outgoing links from one state will sum up to one.
 """
-function weightnormalize(fsm::AbstractFSM{T}) where T
+function weightnormalize(fsm::FSM{T}) where T<:SemiField
     nfsm = FSM{T}()
     smap = Dict(
         initstateid => initstate(nfsm),
@@ -105,11 +115,11 @@ function weightnormalize(fsm::AbstractFSM{T}) where T
         smap[s.id] = addstate!(nfsm, pdfindex = s.pdfindex, label = s.label)
     end
 
-    for s in states(fsm)
-        total = -Inf
-        for l in links(s) total = logaddexp(total, l.weight) end
-        for l in links(s)
-            link!(smap[l.src.id], smap[l.dest.id], l.weight - total)
+    for src in states(fsm)
+        total = zero(T)
+        for l in links(src) total += l.weight end
+        for l in links(src)
+            link!(smap[src.id], smap[l.dest.id], l.weight / total)
         end
     end
     nfsm
@@ -124,7 +134,7 @@ end
 Transform `fsm` such that each state has at most one link to any other
 states.
 """
-function determinize(fsm::AbstractFSM{T}) where T
+function determinize(fsm::FSM{T}) where T<:SemiField
     nfsm = FSM{T}()
     newstates = Dict(
         initstate(fsm) => initstate(nfsm),
@@ -136,10 +146,12 @@ function determinize(fsm::AbstractFSM{T}) where T
     end
 
     newlinks = Dict()
-    for link in links(fsm)
-        key = (link.src, link.dest)
-        w₀ = get(newlinks, key, -Inf)
-        newlinks[key] = logaddexp(w₀, link.weight)
+    for src in states(fsm)
+        for link in links(src)
+            key = (src, link.dest)
+            w₀ = get(newlinks, key, zero(T))
+            newlinks[key] = w₀ + link.weight
+        end
     end
 
     for key in keys(newlinks)
@@ -155,7 +167,7 @@ end
 # FSM minimization
 
 # propagate the weight of each link through the graph
-function _distribute(fsm::AbstractFSM{T}) where T
+function _distribute(fsm::FSM{T}) where T<:SemiField
     nfsm = FSM{T}()
 
     newstates = Dict(initstate(fsm) => initstate(nfsm),
@@ -165,21 +177,21 @@ function _distribute(fsm::AbstractFSM{T}) where T
         newstates[state] = addstate!(nfsm, pdfindex = state.pdfindex, label = state.label)
     end
 
-    stack = [(initstate(fsm), 0.0)]
+    stack = [(initstate(fsm), one(T))]
     while ! isempty(stack)
         state, weight = popfirst!(stack)
 
         for link in links(state)
-            link!(newstates[state], newstates[link.dest], weight + link.weight)
-            push!(stack, (link.dest, weight + link.weight))
+            link!(newstates[state], newstates[link.dest], weight * link.weight)
+            push!(stack, (link.dest, weight * link.weight))
         end
     end
 
     nfsm
 end
 
-function _leftminimize(fsm::AbstractFSM{T}) where T
-    # 1. Build the tree of string generated by the FSM
+function _leftminimize(fsm::FSM{T}) where T<:SemiField
+    # 1. Build the tree of the strings generated by the FSM
     tree = Dict()
     stack = [(initstate(fsm), tree)]
     while ! isempty(stack)
@@ -190,8 +202,8 @@ function _leftminimize(fsm::AbstractFSM{T}) where T
             pstate = get(statepool, key, link.dest)
             statepool[key] = pstate
             s = (link.dest.pdfindex, link.dest.label)
-            weight, nextlvl = get(node, s, (-Inf, Dict()))
-            node[s] = (logaddexp(link.weight, weight), nextlvl, pstate)
+            weight, nextlvl = get(node, s, (zero(T), Dict()))
+            node[s] = (link.weight + weight, nextlvl, pstate)
             push!(stack, (link.dest, node[s][2]))
         end
     end
@@ -242,7 +254,7 @@ potentially merged.
     The input FSM should not contain cycles otherwise the algorithm
     will never end.
 """
-minimize(fsm::AbstractFSM) = (weightnormalize ∘ transpose ∘ _leftminimize ∘ transpose ∘ _leftminimize ∘ _distribute)(fsm)
+minimize(fsm::FSM) = (weightnormalize ∘ transpose ∘ _leftminimize ∘ transpose ∘ _leftminimize ∘ _distribute)(fsm)
 
 #######################################################################
 # NIL state removal
@@ -253,7 +265,7 @@ minimize(fsm::AbstractFSM) = (weightnormalize ∘ transpose ∘ _leftminimize �
 Remove all states that are non-emitting and have no labels (except the
 the initial and final states)
 """
-function removenilstates(fsm::AbstractFSM{T}) where T
+function removenilstates(fsm::FSM{T}) where T<:SemiField
     nfsm = FSM{T}()
 
     newstates = Dict(initstate(fsm) => initstate(nfsm),
@@ -265,19 +277,19 @@ function removenilstates(fsm::AbstractFSM{T}) where T
     end
 
     newlinks = Dict()
-    stack = [(initstate(fsm), initstate(fsm), 0.0)]
+    stack = [(initstate(fsm), initstate(fsm), one(T))]
     visited = Set([initstate(fsm)])
     while ! isempty(stack)
         src, state, weight = popfirst!(stack)
         for link in links(state)
             if link.dest ∈ keys(newstates)
-                link!(newstates[src], newstates[link.dest], weight + link.weight)
+                link!(newstates[src], newstates[link.dest], weight * link.weight)
                 if link.dest ∉ visited
                     push!(visited, link.dest)
-                    push!(stack, (link.dest, link.dest, 0.0))
+                    push!(stack, (link.dest, link.dest, one(T)))
                 end
             else
-                push!(stack, (src, link.dest, weight + link.weight))
+                push!(stack, (src, link.dest, weight * link.weight))
             end
         end
     end
@@ -295,7 +307,7 @@ end
 Replace each state `s` in `fsm` by a "subfsms" from `subfsms` with
 associated label `s.label`. `subfsms` should be a Dict{<:Label, FSM}`.
 """
-function compose(subfsms::Dict, fsm::AbstractFSM{T}) where T
+function compose(subfsms::Dict, fsm::FSM{T}) where {N,T<:SemiField}
     nfsm = FSM{T}()
 
     newsrcs = Dict(initstate(fsm) => initstate(nfsm),
@@ -316,8 +328,10 @@ function compose(subfsms::Dict, fsm::AbstractFSM{T}) where T
                                               label = state2.label)
             end
 
-            for link in links(s_fsm)
-                link!(newstates[link.src], newstates[link.dest], link.weight)
+            for src in states(s_fsm)
+                for link in links(src)
+                    link!(newstates[src], newstates[link.dest], link.weight)
+                end
             end
 
             newdests[state] = newstates[initstate(s_fsm)]
@@ -330,12 +344,32 @@ function compose(subfsms::Dict, fsm::AbstractFSM{T}) where T
         end
     end
 
-    for link in links(fsm)
-        link!(newsrcs[link.src], newdests[link.dest], link.weight)
+    for src in states(fsm)
+        for link in links(src)
+            link!(newsrcs[src], newdests[link.dest], link.weight)
+        end
     end
 
     nfsm
 end
+Base.:∘(subfsms::Dict, fsm::FSM) = compose(subfsms, fsm)
 
-Base.:∘(subfsms::Dict, fsm::AbstractFSM) = compose(subfsms, fsm)
+function Base.convert(F::Type{FSM{T}}, fsm::FSM{T2}) where {T<:SemiField,T2<:SemiField}
+    nfsm = F()
+
+    smap = Dict(initstate(fsm) => initstate(nfsm), finalstate(fsm) => finalstate(nfsm))
+    for s in states(fsm)
+        (isinit(s) || isfinal(s)) && continue
+        newstate = addstate!(nfsm, id = s.id, pdfindex = s.pdfindex, label = s.label)
+        smap[s] = newstate
+    end
+
+    for src in states(fsm)
+        for l in links(src)
+            link!(smap[src], smap[l.dest], convert(T, l.weight))
+        end
+    end
+
+    nfsm
+end
 

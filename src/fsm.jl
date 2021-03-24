@@ -1,42 +1,6 @@
-# MarkovModels - Implementation of Finite State Machine (FSM)
+# MarkovModels.jl
 #
 # Lucas Ondel, 2020
-
-#######################################################################
-# AbstractFSM interface
-
-abstract type AbstractFSM{T} end
-
-"""
-    initstate(fsm)
-
-Returns the initial state of `fsm`.
-"""
-initstate
-
-"""
-    finalstate(fsm)
-
-Returns the final state of `fsm`.
-"""
-finalstate
-
-"""
-    states(fsm)
-
-Iterator over the state of `fsm`.
-"""
-states
-
-"""
-    links(fsm)
-
-Returns the list of the links of the FSM.
-"""
-links(fsm::AbstractFSM)
-
-#######################################################################
-# FSM
 
 mutable struct StateIDCounter
     count::UInt64
@@ -50,35 +14,32 @@ end
 Structure of a FSM. The type `T` indicates the type of the arcs'
 weight.
 """
-struct FSM{T} <: AbstractFSM{T}
+struct FSM{T<:SemiField}
     idcounter::StateIDCounter
-    states::Dict{StateID, State}
+    states::Dict{StateID, State{T}}
 
     FSM{T}() where T = new{T}(
         StateIDCounter(0),
-        Dict{StateID, State}(
-            initstateid => State(initstateid),
-            finalstateid => State(finalstateid)
+        Dict{StateID, State{T}}(
+            initstateid => State{T}(initstateid),
+            finalstateid => State{T}(finalstateid)
         ),
     )
 end
-
-#######################################################################
-# Methods to construct the FSM
 
 """
     addstate!(fsm[, pdfindex = ..., label = "..."])
 
 Add `state` to `fsm` and return it.
 """
-function addstate!(fsm; id = nothing, pdfindex = nothing, label = nothing)
+function addstate!(fsm::FSM{T}; id = nothing, pdfindex = nothing, label = nothing) where T
     if isnothing(id)
         fsm.idcounter.count += 1
         id = fsm.idcounter.count
     else
         fsm.idcounter.count = max(fsm.idcounter.count, id)
     end
-    s = State(id, pdfindex, label, Vector{Link}())
+    s = State{T}(id, pdfindex, label, Vector{Link{State{T},T}}())
     fsm.states[s.id] = s
 end
 
@@ -88,19 +49,18 @@ end
 Add a weighted connection between `state1` and `state2`. By default,
 `weight = 0`.
 """
-link!(src, dest, weight = 0) = push!(src.links, Link(src, dest, weight))
+link!(src::State{T}, dest::State{T}, weight::T = one(T)) where T =
+    push!(src.links, Link(dest, weight))
 
 
 """
-    LinearFSM([T, ]seq[, emissionsmap::Dict{<:Label, <:PdfIndex}])
+    LinearFSM([T = LogSemiField{Float64}, ]seq[, emissionsmap = Dict()])
 
 Create a linear FSM of type `T` from a sequence of labels `seq`. If
 `emissionsmap` is provided, every item `l` of `seq` with a matching entry
 in `emissionsmap` will be assigned the pdf index `emissionsmap[l]`.
-`PdfIndex` can be any integer type and `Label` any string type.
 """
-function LinearFSM(T, sequence::AbstractVector{<:Label},
-                   emissionsmap = Dict{Label, PdfIndex}())
+function LinearFSM(T::Type{<:SemiField}, sequence, emissionsmap = Dict())
     fsm = FSM{T}()
     prevstate = initstate(fsm)
     for token in sequence
@@ -112,25 +72,27 @@ function LinearFSM(T, sequence::AbstractVector{<:Label},
     link!(prevstate, finalstate(fsm))
     fsm
 end
-function LinearFSM(sequence::AbstractVector{<:Label},
-                   emissionsmap = Dict{Label, PdfIndex}())
-    LinearFSM(Float64, sequence, emissionsmap)
-end
+LinearFSM(sequence, emissionsmap = Dict()) =
+    LinearFSM(LogSemiField{Float64}, sequence, emissionsmap)
 
-#######################################################################
-# Implementation of the AbstractFSM interface
+"""
+    initstate(fsm)
 
+Returns the initial state of `fsm`.
+"""
 initstate(fsm::FSM) = fsm.states[initstateid]
-finalstate(fsm::FSM) = fsm.states[finalstateid]
-states(fsm::FSM) = values(fsm.states)
 
-function links(fsm::FSM)
-    retval = []
-    for s in states(fsm)
-        for l in links(s)
-            push!(retval, l)
-        end
-    end
-    retval
-end
+"""
+    finalstate(fsm)
+
+Returns the final state of `fsm`.
+"""
+finalstate(fsm::FSM) = fsm.states[finalstateid]
+
+"""
+    states(fsm)
+
+Iterator over the state of `fsm`.
+"""
+states(fsm::FSM) = values(fsm.states)
 

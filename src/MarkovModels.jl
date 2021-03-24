@@ -1,9 +1,16 @@
-
 module MarkovModels
 
+using LinearAlgebra
+using SparseArrays
 using StatsBase: sample, Weights
 using StatsFuns: logaddexp, logsumexp
 import Base: union
+
+export ProbabilitySemiField
+export MaxTropicalSemiField
+export LogSemiField
+
+include("algstruct.jl")
 
 #######################################################################
 # FSM definition
@@ -52,33 +59,32 @@ include("fsm.jl")
 #######################################################################
 # FSM algorithms
 
+export compile
 export compose
 export concat
 export determinize
-export _distribute
-export _leftminimize
 export minimize
 export removenilstates
 export weightnormalize
 
-
 include("fsmop.jl")
+
+include("compiledfsm.jl")
 
 #######################################################################
 # Pruning strategies
 
 export PruningStrategy
-
 export BackwardPruning
 export CompoundPruning
 export SafePruning
 export ThresholdPruning
 export nopruning
 
-include("pruning.jl")
+#include("pruning.jl")
 
 #######################################################################
-# Algorthms for inference with Markov chains
+# Algorithms for inference with Markov chains
 
 export αrecursion
 export αβrecursion
@@ -121,29 +127,30 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         write(dotfile, "$name [ $attrs ];\n")
     end
 
-    for link in links(fsm)
-        weight = round(link.weight, digits = 3)
+    for src in states(fsm)
+        for link in links(src)
+            weight = round(link.weight.val, digits = 3)
 
-        srcname = ""
-        if isinit(link.src)
-            srcname = "s"
-        elseif isfinal(link.src)
-            srcname = "e"
-        else
-            srcname = "$(link.src.id)"
+            srcname = ""
+            if isinit(src)
+                srcname = "s"
+            elseif isfinal(src)
+                srcname = "e"
+            else
+                srcname = "$(src.id)"
+            end
+
+            destname = ""
+            if isinit(link.dest)
+                destname = "s"
+            elseif isfinal(link.dest)
+                destname = "e"
+            else
+                destname = "$(link.dest.id)"
+            end
+
+            write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
         end
-
-        destname = ""
-        if isinit(link.dest)
-            destname = "s"
-        elseif isfinal(link.dest)
-            destname = "e"
-        else
-            destname = "$(link.dest.id)"
-        end
-
-
-        write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
 
     write(dotfile, "}\n")
@@ -177,5 +184,6 @@ function Base.show(
         write(io, "\n")
     end
 end
+
 
 end
