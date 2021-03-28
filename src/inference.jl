@@ -48,7 +48,7 @@ function remove_invalid_αpath!(αₙ::AbstractVector{T}, distances, N, n) where
 end
 
 function prune_α!(αₙ, distances, N, n, threshold)
-    remove_invalid_αpath!(αₙ, distances, N, n)
+    #remove_invalid_αpath!(αₙ, distances, N, n)
     SparseArrays.fkeep!(αₙ, (i,v) -> maximum(αₙ)/v ≤ threshold)
 end
 

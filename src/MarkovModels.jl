@@ -8,6 +8,7 @@ import Base: union
 
 export ProbabilitySemiField
 export MaxTropicalSemiField
+export MinTropicalSemiField
 export LogSemiField
 
 include("algstruct.jl")
@@ -15,42 +16,14 @@ include("algstruct.jl")
 #######################################################################
 # FSM definition
 
-# Forward definition of the Abs. state/link to avoid issue with
-# circular dependencies.
-abstract type AbstractState end
-abstract type AbstractLink{T} end
-
-export AbstractLink
-export Link
-
-include("link.jl")
-
-export PdfIndex
-export Label
-export State
-export InitStateID
-export initstateid
-export FinalStateID
-export finalstateid
-
-export isemitting
-export isinit
-export isfinal
-export islabeled
-export nextemittingstates
-
-include("state.jl")
-
 export FSM
 export LinearFSM
 export addstate!
 export link!
-export removestate!
-export unlink!
-
 export initstate
 export finalstate
-export emittingstates
+export isinit
+export isfinal
 export links
 export states
 
@@ -59,29 +32,18 @@ include("fsm.jl")
 #######################################################################
 # FSM algorithms
 
-export compile
 export compose
 export concat
 export determinize
 export minimize
 export removenilstates
+export relabel
 export weightnormalize
 
 include("fsmop.jl")
 
+export compile
 include("compiledfsm.jl")
-
-#######################################################################
-# Pruning strategies
-
-export PruningStrategy
-export BackwardPruning
-export CompoundPruning
-export SafePruning
-export ThresholdPruning
-export nopruning
-
-#include("pruning.jl")
 
 #######################################################################
 # Algorithms for inference with Markov chains
@@ -106,29 +68,28 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     write(dotfile, "Digraph {\n")
     write(dotfile, "rankdir=LR;")
 
+    write(dotfile, "s [ shape=circle label=\"<s>\" penwidth=2 fixedsize=true width=0.6 ];\n")
+    write(dotfile, "e [ shape=doublecircle label=\"</s>\" penwidth=1 fixedsize=true width=0.6 ];\n")
+
+
     for s in states(fsm)
+        (isinit(s) || isfinal(s)) && continue
         attrs = ""
         name = ""
-        if islabeled(s) || isemitting(s)
+        if  isemitting(s)
             name = "$(s.id)"
             attrs *=  "shape=circle"
-            attrs *= " label=\"" * (islabeled(s) ? "$(s.label)" : "$(s.pdfindex)") * "\""
+            attrs *= " label=\"$(s.pdfindex)\""
             attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
-        elseif isfinal(s) || isinit(s)
-            name = isinit(s) ? "s" : "e"
-            attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
-            attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
-            attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
-            attrs *= " fixedsize=true width=0.6"
         else
             name = "$(s.id)"
-            attrs *= "shape=point"
+            attrs *= "shape=circle label=\"$(s.id)\""
         end
         write(dotfile, "$name [ $attrs ];\n")
     end
 
     for src in states(fsm)
-        for link in links(src)
+        for link in links(fsm, src)
             weight = round(link.weight.val, digits = 3)
 
             srcname = ""
@@ -149,9 +110,20 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
                 destname = "$(link.dest.id)"
             end
 
-            write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
+            lname = ""
+            if hasinputlabel(link) && hasoutputlabel(link)
+                #lname *= link.ilabel == link.olabel ?  "$(link.ilabel)/" : "$(link.ilabel):$(link.olabel)/"
+                lname *= "$(link.ilabel):$(link.olabel)/"
+            elseif hasinputlabel(link)
+                lname *= "$(link.ilabel):ϵ/"
+            elseif hasoutputlabel(link)
+                lname *= "ϵ:$(link.olabel)/"
+            end
+            lname *= "$(weight)"
+            write(dotfile, "$srcname -> $destname [ label=\"$(lname)\" ];\n")
         end
     end
+
 
     write(dotfile, "}\n")
     close(dotfile)

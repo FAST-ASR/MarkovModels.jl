@@ -1,6 +1,63 @@
 # MarkovModels.jl
 #
-# Lucas Ondel, 2020
+# Lucas Ondel, 2021
+
+struct InitStateID end
+const initstateid = InitStateID()
+Base.show(io::IO, ::InitStateID) = print(io, "initstateid")
+
+struct FinalStateID end
+const finalstateid = FinalStateID()
+Base.show(io::IO, ::FinalStateID) = print(io, "finalstateid")
+
+const StateID = Union{UInt64, InitStateID, FinalStateID}
+const PdfIndex = Union{UInt64,Nothing}
+const Label = Union{String,Nothing}
+
+struct State
+    id::StateID
+    pdfindex::PdfIndex
+end
+
+"""
+    isemitting(state)
+
+Returns `true` if `state` a pdf index associated.
+"""
+isemitting(s::State) = ! isnothing(s.pdfindex)
+
+"""
+    isinit(state)
+
+Returns `true` if the `state` is the initial state of the FSM.
+"""
+isinit(s::State) = s.id == initstateid
+
+"""
+    isfinal(state)
+
+Returns `true` if the `state` is the final state of the FSM.
+"""
+isfinal(s::State) = s.id == finalstateid
+
+
+struct Link{T<:SemiField}
+    dest::State
+    ilabel::Label
+    olabel::Label
+    weight::T
+end
+
+"""
+    islabeled(link)
+
+Returns `true` if the `link` has a label.
+"""
+hasinputlabel(l::Link) = ! isnothing(l.ilabel)
+hasoutputlabel(l::Link) = ! isnothing(l.olabel)
+
+const shared_initstate = State(initstateid, nothing)
+const shared_finalstate = State(finalstateid, nothing)
 
 mutable struct StateIDCounter
     count::UInt64
@@ -16,42 +73,39 @@ weight.
 """
 struct FSM{T<:SemiField}
     idcounter::StateIDCounter
-    states::Dict{StateID, State{T}}
-
-    FSM{T}() where T = new{T}(
-        StateIDCounter(0),
-        Dict{StateID, State{T}}(
-            initstateid => State{T}(initstateid),
-            finalstateid => State{T}(finalstateid)
-        ),
-    )
+    states::Set{State}
+    links::Dict{State, Vector{Link{T}}}
 end
+FSM{T}() where T = FSM{T}(StateIDCounter(0), Set{State}(), Dict{State, Vector{Link{T}}}())
 
 """
-    addstate!(fsm[, pdfindex = ..., label = "..."])
+    addstate!(fsm[; id, pdfindex])
 
 Add `state` to `fsm` and return it.
 """
-function addstate!(fsm::FSM{T}; id = nothing, pdfindex = nothing, label = nothing) where T
+function addstate!(fsm::FSM{T}; id = nothing, pdfindex = nothing) where T
     if isnothing(id)
         fsm.idcounter.count += 1
         id = fsm.idcounter.count
     else
-        fsm.idcounter.count = max(fsm.idcounter.count, id)
+        fsm.idcounter.count = id
     end
-    s = State{T}(id, pdfindex, label, Vector{Link{State{T},T}}())
-    fsm.states[s.id] = s
+    s = State(id, pdfindex)
+    push!(fsm.states, s)
+    s
 end
 
 """
-    link!(src, dest[, weight = 0])
+    link!(fsm::FSM{T}, src, dest[, weight = zero(T)])
 
-Add a weighted connection between `state1` and `state2`. By default,
-`weight = 0`.
+Add a weighted connection between `state1` and `state2`.
 """
-link!(src::State{T}, dest::State{T}, weight::T = one(T)) where T =
-    push!(src.links, Link(dest, weight))
-
+function link!(fsm::FSM{T}, src::State, dest::State; ilabel::Label = nothing,
+               olabel::Label = nothing, weight::T = one(T)) where T
+    list = get(fsm.links, src, Link{T}[])
+    push!(list, Link{T}(dest, ilabel, olabel, weight))
+    fsm.links[src] = list
+end
 
 """
     LinearFSM([T = LogSemiField{Float64}, ]seq[, emissionsmap = Dict()])
@@ -65,11 +119,11 @@ function LinearFSM(T::Type{<:SemiField}, sequence, emissionsmap = Dict())
     prevstate = initstate(fsm)
     for token in sequence
         pdfindex = get(emissionsmap, token, nothing)
-        s = addstate!(fsm, pdfindex = pdfindex, label = token)
-        link!(prevstate, s)
+        s = addstate!(fsm, pdfindex = pdfindex)
+        link!(fsm, prevstate, s, token)
         prevstate = s
     end
-    link!(prevstate, finalstate(fsm))
+    link!(fsm, prevstate, finalstate(fsm))
     fsm
 end
 LinearFSM(sequence, emissionsmap = Dict()) =
@@ -80,19 +134,26 @@ LinearFSM(sequence, emissionsmap = Dict()) =
 
 Returns the initial state of `fsm`.
 """
-initstate(fsm::FSM) = fsm.states[initstateid]
+initstate(fsm::FSM) = shared_initstate
 
 """
     finalstate(fsm)
 
 Returns the final state of `fsm`.
 """
-finalstate(fsm::FSM) = fsm.states[finalstateid]
+finalstate(fsm::FSM) = shared_finalstate
 
 """
     states(fsm)
 
 Iterator over the state of `fsm`.
 """
-states(fsm::FSM) = values(fsm.states)
+states(fsm::FSM) = [initstate(fsm), finalstate(fsm), fsm.states...]
+
+"""
+    links(fsm, state)
+
+Iterator over the links to the children (i.e. next states) of `state`.
+"""
+links(fsm::FSM{T}, state::State) where T<:SemiField = get(fsm.links, state, Link{T}[])
 

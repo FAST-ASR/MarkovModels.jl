@@ -35,6 +35,7 @@ Base.one(::SemiField{T,A,M,MI,Z,O}) where {T,A,M,MI,Z,O} = SemiField{T,A,M,MI,Z,
 
 const LogSemiField{T} = SemiField{T, logaddexp, +, -, -Inf, 0} where T
 const MaxTropicalSemiField{T} = SemiField{T, max, +, -, -Inf, 0} where T
+const MinTropicalSemiField{T} = SemiField{T, min, +, -, Inf, 0} where T
 const ProbabilitySemiField{T} = SemiField{T, +, *, /, 0, 1} where T
 
 upperbound(::Type{<:T}) where T<:LogSemiField = T(Inf)

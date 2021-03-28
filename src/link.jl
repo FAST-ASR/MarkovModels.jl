@@ -1,22 +1,20 @@
-# MarkovModels - Link (i.e. arc) of a FSM.
+# MarkovModels.jl
 #
 # Lucas Ondel, 2021
 
-#######################################################################
-# Link
-
 """
-    struct Link{T}
-        src::T where T<:AbstractState
-        dest::D where T<:AbstractState
+    struct Link{S,L,T}
+        dest::S
+        label::L
         weight::T
     end
 
 Weighted link pointing to a destination state `dest` with
 weight `weight`.
 """
-struct Link{S<:AbstractState,T<:SemiField}
+struct Link{S<:AbstractState,L<:AbstractString,T:SemiField}
     dest::S
+    label::L
     weight::T
 end
 
