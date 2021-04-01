@@ -1,129 +1,103 @@
-# Implementation of generic graph algorithms.
+# MarkovModels.jl
+#
+# Lucas Ondel, 2021
 
-"""
-    αrecursion(graph, llh[, pruning = ...])
+function αrecursion!(α::AbstractMatrix{T}, A::AbstractMatrix{T},
+                     π::AbstractVector{T}, state_lhs::AbstractMatrix;
+                     prune!::Function = identity) where T<:SemiField
+    N = size(state_lhs, 2)
+    Aᵀ = transpose(A)
+    α[:, 1] = state_lhs[:, 1] .* π
 
-Forward step of the Baum-Welch algorithm in the log-domain.
-"""
-function αrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
-                    pruning::PruningStrategy = nopruning) where T <: AbstractFloat
+    for n in 2:N
+        # Equivalent to:
+        #αₙ = (Aᵀ * α[:,n-1]) .* state_lhs[:, n]
+        αₙ = mul!(similar(α[:, n], T, size(Aᵀ, 1)), Aᵀ,
+                  α[:,n-1] .* state_lhs[:,n], one(T), zero(T))
 
-    N = size(llh, 2) # Number of observations
-    α = Vector{Dict{State,T}}()
-    activestates = Dict{State, T}(initstate(fsm) => T(0.0))
-    for n in 1:N
-        push!(α, Dict{State,T}())
-        for (state, weightpath) in activestates
-            for (nstate, linkweight) in nextemittingstates(state)
-                nweightpath = weightpath + linkweight
-                α[n][nstate] = logaddexp(get(α[n], nstate, T(-Inf)), nweightpath)
-            end
-        end
-
-        # Add the log-likelihood outside the loop to add it only once
-        for s in keys(α[n])
-            α[n][s] += llh[s.pdfindex, n]
-        end
-
-        empty!(activestates)
-        merge!(activestates, pruning(α[n], n, N))
+        prune!(αₙ, n)
+        α[:, n] = αₙ
     end
     α
 end
 
-"""
-    βrecursion(graph, llh[, pruning = ...])
-
-Backward step of the Baum-Welch algorithm in the log domain.
-"""
-function βrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
-                    pruning::PruningStrategy = nopruning) where T <: AbstractFloat
-    N = size(llh, 2)
-
-    fsmᵀ = fsm |> transpose
-
-    activestates = Dict{State, T}()
-    β = Vector{Dict{State, T}}()
-    push!(β, Dict(s => T(0.0) for (s, w) in nextemittingstates(initstate(fsmᵀ))))
+function βrecursion!(β::AbstractMatrix{T}, A::AbstractMatrix{T},
+                     ω::AbstractVector{T}, state_lhs::AbstractMatrix;
+                     prune!::Function = identity) where T<:SemiField
+    N = size(state_lhs, 2)
+    β[:, end] = ω
     for n in N-1:-1:1
+        # Equivalent to:
+        #βₙ = A * (β[:, n+1] .* state_lhs[:, n+1])
+        βₙ = mul!(similar(β[:, n], T, size(A, 2)), A,
+                  β[:,n+1] .* state_lhs[:,n+1], one(T), zero(T))
 
-        # Update the active tokens
-        empty!(activestates)
-        merge!(activestates, pruning(β[1], n+1, N))
-
-        pushfirst!(β, Dict{State,T}())
-        for (state, weightpath) in activestates
-            prev_llh = llh[state.pdfindex, n+1]
-            for (nstate, linkweight) in nextemittingstates(state)
-                nweightpath = weightpath + linkweight + prev_llh
-                β[1][nstate] = logaddexp(get(β[1], nstate, T(-Inf)), nweightpath)
-            end
-        end
+        prune!(βₙ, n)
+        β[:, n] = βₙ
     end
     β
 end
 
-"""
-    αβrecursion(fsm, llh[, pruning = nopruning])
+function remove_invalid_αpath!(αₙ::AbstractVector{T}, distances, N, n) where T
+    for (i,v) in zip(findnz(αₙ)...)
+        if distances[i] > (N - n + 1)
+            αₙ[i] = zero(T)
+        end
+    end
+    αₙ
+end
 
-Baum-Welch algorithm per state in the log domain. This function returns
+function prune_α!(αₙ, distances, N, n, threshold)
+    #remove_invalid_αpath!(αₙ, distances, N, n)
+    SparseArrays.fkeep!(αₙ, (i,v) -> maximum(αₙ)/v ≤ threshold)
+end
+
+function prune_β!(βₙ, n, threshold, α)
+    I, V = findnz(α[:, n])
+    SparseArrays.fkeep!(βₙ, (i,v) -> i ∈ I && maximum(βₙ)/v ≤ threshold)
+end
+
+
+"""
+    αβrecursion(cfsm, lhs[, pruning = nopruning])
+
+Baum-Welch algorithm. This function returns
 a tuple `(lnαβ, ttl)` where `lnαβ` is a sparse representation of the
 responsibilities and `ttl` is the log-likelihood of the sequence given
 the inference `fsm`.
 """
-function αβrecursion(fsm::AbstractFSM, llh::AbstractMatrix{T};
-                     pruning::PruningStrategy = nopruning) where T <: AbstractFloat
+function αβrecursion(cfsm::CompiledFSM{T},
+                     lhs::AbstractMatrix{T};
+                     pruning::T = upperbound(T),
+                    ) where T<:SemiField
+    # Expand the per-pdf log-likelihoods to the per-state
+    # likelihoods. This is necessary when some states share the
+    # same emission.
+    state_lhs = cfsm.state_pdf * lhs
 
-    lnα = αrecursion(fsm, llh, pruning = pruning)
-    lnβ = βrecursion(fsm, llh, pruning = BackwardPruning(lnα))
+    S, N = nstates(cfsm), size(lhs, 2)
+    α = spzeros(T, S, N)
+    β = spzeros(T, S, N)
+    γ = spzeros(T, S, N)
 
-    lnγ = Vector{Dict{State,T}}()
+    αrecursion!(α, cfsm.A, cfsm.π, state_lhs,
+                prune! = (αₙ, n) -> prune_α!(αₙ, cfsm.distances, N, n, pruning))
+    βrecursion!(β, cfsm.A, cfsm.ω, state_lhs,
+                prune! = (βₙ, n) -> prune_β!(βₙ, n, pruning, α))
 
-    ttl = 0.
-    for n in 1:size(llh, 2)
-        push!(lnγ, Dict{State, T}())
-        for s in intersect(keys(lnα[n]), keys(lnβ[n]))
-            lnγ[n][s] = lnα[n][s] + lnβ[n][s]
-        end
-
-        sum = logsumexp(values(lnγ[n]))
-        for s in keys(lnγ[n]) lnγ[n][s] -= sum end
-
-        # We could use any other time step to get the total
-        # log-likelihood but, in case of heavy pruning, it is probably
-        # safer to get it from the last frame.
-        if n == size(llh, 2) ttl = sum end
-    end
-
-    lnγ, ttl
+    αβ = α .* β
+    αβ ./ sum(αβ, dims = 1)
 end
-
-struct Responsibilities
-    N::Int64
-    sparseresps::Dict{PdfIndex, Vector{<:AbstractFloat}}
-end
-
-Base.getindex(r::Responsibilities, i) = get(r.sparseresps, i, zeros(r.N))
 
 """
-    resps(fsm, lnαβ[, dense = false])
+    resps(cfsm, lnγ)
 
 Convert the output of the `αβrecursion` to the per-frame pdf
-responsibilities. The returned value is a dictionary whose keys are
-pdf indices.
+responsibilities. By default, the results
 """
-function resps(fsm::AbstractFSM, lnαβ)
-    N = length(lnαβ)
 
-    γ = Dict{PdfIndex, Vector}()
-    for n in 1:N
-        for (s, w) in lnαβ[n]
-            γ_s = get(γ, s.pdfindex, zeros(N))
-            γ_s[n] += exp(w)
-            γ[s.pdfindex] = γ_s
-        end
-    end
-    Responsibilities(N, γ)
+function resps(cfsm::CompiledFSM, lnγ::AbstractMatrix{<:SemiField})
+    cfsm.state_pdf' * convert(Float64, lnγ)
 end
 
 """
@@ -131,7 +105,7 @@ end
 
 Compute bestpath using forward pass.
 """
-function maxβrecursion(fsm::AbstractFSM{T}, lnα, draw, labelfilter) where T <: AbstractFloat
+function maxβrecursion(fsm::FSM{T}, lnα, draw, labelfilter) where T<:SemiField
     fsmᵀ = fsm |> transpose
     prevstate = initstate(fsmᵀ)
     labels = []
@@ -173,25 +147,24 @@ function maxβrecursion(fsm::AbstractFSM{T}, lnα, draw, labelfilter) where T <:
 end
 
 """
-    beststring(fsm, llh[, pruning = nopruning, labelfilter = x -> true])
+    beststring(fsm, lhs[, pruning = nopruning, labelfilter = x -> true])
 
-Returns the best sequence of the labels given the log-likelihood `llh`.
+Returns the best sequence of the labels given the log-likelihood `lhs`.
 """
-function beststring(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
-                  labelfilter = x -> true)
-    lnα = αrecursion(fsm, llh, pruning = pruning)
-    maxβrecursion(fsm, lnα, false, labelfilter)
-end
-
-"""
-    samplestring(fsm, llh[, nsamples = 1, pruning = nopruning, labelfilter = x -> true])
-
-Sample a sequence of labels given the log-likelihood `llh`.
+#function beststring(fsm::AbstractFSM, lhs; pruning::PruningStrategy = nopruning,
+#                  labelfilter = x -> true)
+#    lnα = αrecursion(fsm, lhs, pruning = pruning)
+#    maxβrecursion(fsm, lnα, false, labelfilter)
+#end
 
 """
-function samplestring(fsm::AbstractFSM, llh; pruning::PruningStrategy = nopruning,
-                    nsamples = 1, labelfilter = x -> true)
-    lnα = αrecursion(fsm, llh, pruning = pruning)
-    [maxβrecursion(fsm, lnα, true, labelfilter) for i in 1:nsamples]
-end
+    samplestring(fsm, lhs[, nsamples = 1, pruning = nopruning, labelfilter = x -> true])
+
+Sample a sequence of labels given the log-likelihood `lhs`.
+"""
+#function samplestring(fsm::AbstractFSM, lhs; pruning::PruningStrategy = nopruning,
+#                    nsamples = 1, labelfilter = x -> true)
+#    lnα = αrecursion(fsm, lhs, pruning = pruning)
+#    [maxβrecursion(fsm, lnα, true, labelfilter) for i in 1:nsamples]
+#end
 

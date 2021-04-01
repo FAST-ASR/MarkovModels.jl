@@ -1,136 +1,62 @@
-# MarkovModels - Implementation of Finite State Machine (FSM)
+# MarkovModels.jl
 #
-# Lucas Ondel, 2020
+# Lucas Ondel, 2021
+#
 
-#######################################################################
-# AbstractFSM interface
+include("state.jl")
+include("link.jl")
 
-abstract type AbstractFSM{T} end
+mutable struct StateIDCounter
+    count::UInt64
+end
+
+struct FSM{T}
+    idcounter::StateIDCounter
+    states::Set{State}
+    links::Dict{State, Vector{Link{T}}}
+end
+FSM{T}() where T = FSM{T}(StateIDCounter(0), Set{State}(), Dict{State, Vector{Link{T}}}())
+
+function addstate!(fsm::FSM{T}) where T
+    fsm.idcounter.count += 1
+    s = State(fsm.idcounter.count, zero(T), zero(T))
+    push!(fsm.states, s)
+    s
+end
 
 """
-    initstate(fsm)
+    link!(fsm::FSM{T}, src, dest[, weight = zero(T)])
 
-Returns the initial state of `fsm`.
+Add a weighted connection between `state1` and `state2`.
 """
-initstate
+function link!(fsm::FSM{T}, src::State{T}, dest::State{T}; ilabel::Label = nothing,
+               olabel::Label = nothing, weight::T = one(T)) where T
+    list = get(fsm.links, src, Link{T}[])
+    push!(list, Link{T}(dest, ilabel, olabel, weight))
+    fsm.links[src] = list
+end
+
+initstates(fsm::FSM{T}) where T = filter(s -> s.startweight ≠ zero(T), fsm.states)
+finalstates(fsm::FSM{T}) where T = filter(s -> s.endweight ≠ zero(T), fsm.states)
 
 """
     finalstate(fsm)
 
 Returns the final state of `fsm`.
 """
-finalstate
+#finalstate(fsm::FSM) = shared_finalstate
 
 """
     states(fsm)
 
 Iterator over the state of `fsm`.
 """
-states
+states(fsm::FSM) = fsm.states
 
 """
-    links(fsm)
+    links(fsm, state)
 
-Returns the list of the links of the FSM.
+Iterator over the links to the children (i.e. next states) of `state`.
 """
-links(fsm::AbstractFSM)
-
-#######################################################################
-# FSM
-
-mutable struct StateIDCounter
-    count::UInt64
-end
-
-"""
-    struct FSM{T}
-        ...
-    end
-
-Structure of a FSM. The type `T` indicates the type of the arcs'
-weight.
-"""
-struct FSM{T} <: AbstractFSM{T}
-    idcounter::StateIDCounter
-    states::Dict{StateID, State}
-
-    FSM{T}() where T = new{T}(
-        StateIDCounter(0),
-        Dict{StateID, State}(
-            initstateid => State(initstateid),
-            finalstateid => State(finalstateid)
-        ),
-    )
-end
-
-#######################################################################
-# Methods to construct the FSM
-
-"""
-    addstate!(fsm[, pdfindex = ..., label = "..."])
-
-Add `state` to `fsm` and return it.
-"""
-function addstate!(fsm; id = nothing, pdfindex = nothing, label = nothing)
-    if isnothing(id)
-        fsm.idcounter.count += 1
-        id = fsm.idcounter.count
-    else
-        fsm.idcounter.count = max(fsm.idcounter.count, id)
-    end
-    s = State(id, pdfindex, label, Vector{Link}())
-    fsm.states[s.id] = s
-end
-
-"""
-    link!(src, dest[, weight = 0])
-
-Add a weighted connection between `state1` and `state2`. By default,
-`weight = 0`.
-"""
-link!(src, dest, weight = 0) = push!(src.links, Link(src, dest, weight))
-
-
-"""
-    LinearFSM([T, ]seq[, emissionsmap::Dict{<:Label, <:PdfIndex}])
-
-Create a linear FSM of type `T` from a sequence of labels `seq`. If
-`emissionsmap` is provided, every item `l` of `seq` with a matching entry
-in `emissionsmap` will be assigned the pdf index `emissionsmap[l]`.
-`PdfIndex` can be any integer type and `Label` any string type.
-"""
-function LinearFSM(T, sequence::AbstractVector{<:Label},
-                   emissionsmap = Dict{Label, PdfIndex}())
-    fsm = FSM{T}()
-    prevstate = initstate(fsm)
-    for token in sequence
-        pdfindex = get(emissionsmap, token, nothing)
-        s = addstate!(fsm, pdfindex = pdfindex, label = token)
-        link!(prevstate, s)
-        prevstate = s
-    end
-    link!(prevstate, finalstate(fsm))
-    fsm
-end
-function LinearFSM(sequence::AbstractVector{<:Label},
-                   emissionsmap = Dict{Label, PdfIndex}())
-    LinearFSM(Float64, sequence, emissionsmap)
-end
-
-#######################################################################
-# Implementation of the AbstractFSM interface
-
-initstate(fsm::FSM) = fsm.states[initstateid]
-finalstate(fsm::FSM) = fsm.states[finalstateid]
-states(fsm::FSM) = values(fsm.states)
-
-function links(fsm::FSM)
-    retval = []
-    for s in states(fsm)
-        for l in links(s)
-            push!(retval, l)
-        end
-    end
-    retval
-end
+links(fsm::FSM{T}, state::State) where T = get(fsm.links, state, Link{T}[])
 

@@ -1,51 +1,33 @@
-
 module MarkovModels
 
+using LinearAlgebra
+using SparseArrays
 using StatsBase: sample, Weights
 using StatsFuns: logaddexp, logsumexp
 import Base: union
 
+export ProbabilitySemiField
+export MaxTropicalSemiField
+export MinTropicalSemiField
+export LogSemiField
+
+include("algstruct.jl")
+
 #######################################################################
 # FSM definition
-
-# Forward definition of the Abs. state/link to avoid issue with
-# circular dependencies.
-abstract type AbstractState end
-abstract type AbstractLink{T} end
-
-export AbstractLink
-export Link
-
-include("link.jl")
-
-export PdfIndex
-export Label
-export State
-export InitStateID
-export initstateid
-export FinalStateID
-export finalstateid
-
-export isemitting
-export isinit
-export isfinal
-export islabeled
-export nextemittingstates
-
-include("state.jl")
 
 export FSM
 export LinearFSM
 export addstate!
 export link!
-export removestate!
-export unlink!
-
-export initstate
-export finalstate
-export emittingstates
+export initstates
+export finalstates
+export isinit
+export isfinal
 export links
 export states
+export setstart!
+export setfinal!
 
 include("fsm.jl")
 
@@ -55,30 +37,18 @@ include("fsm.jl")
 export compose
 export concat
 export determinize
-export _distribute
-export _leftminimize
 export minimize
 export removenilstates
+export relabel
 export weightnormalize
-
 
 include("fsmop.jl")
 
-#######################################################################
-# Pruning strategies
-
-export PruningStrategy
-
-export BackwardPruning
-export CompoundPruning
-export SafePruning
-export ThresholdPruning
-export nopruning
-
-include("pruning.jl")
+export compile
+include("compiledfsm.jl")
 
 #######################################################################
-# Algorthms for inference with Markov chains
+# Algorithms for inference with Markov chains
 
 export αrecursion
 export αβrecursion
@@ -100,50 +70,30 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     write(dotfile, "Digraph {\n")
     write(dotfile, "rankdir=LR;")
 
+
     for s in states(fsm)
-        attrs = ""
-        name = ""
-        if islabeled(s) || isemitting(s)
-            name = "$(s.id)"
-            attrs *=  "shape=circle"
-            attrs *= " label=\"" * (islabeled(s) ? "$(s.label)" : "$(s.pdfindex)") * "\""
-            attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
-        elseif isfinal(s) || isinit(s)
-            name = isinit(s) ? "s" : "e"
-            attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
-            attrs *= " label=" * (isfinal(s) ? "\"</s>\"" : "\"<s>\"")
-            attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
-            attrs *= " fixedsize=true width=0.6"
-        else
-            name = "$(s.id)"
-            attrs *= "shape=point"
-        end
-        write(dotfile, "$name [ $attrs ];\n")
+        name = "$(s.id)"
+        label = "label=\"$(s.id)"
+        attrs = "penwidth=" * (isinit(s) ? "2" : "1")
+        label *= isinit(s) ? "/$(round(s.startweight.val, digits = 3))" : ""
+        attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
+        label *= isfinal(s) ? "/$(round(s.finalweight.val, digits = 3))\"" : "\""
+        write(dotfile, "$name [ $label $attrs ];\n")
     end
 
-    for link in links(fsm)
-        weight = round(link.weight, digits = 3)
+    for src in states(fsm)
+        for link in links(fsm, src)
+            weight = round(link.weight.val, digits = 3)
 
-        srcname = ""
-        if isinit(link.src)
-            srcname = "s"
-        elseif isfinal(link.src)
-            srcname = "e"
-        else
-            srcname = "$(link.src.id)"
-        end
-
-        destname = ""
-        if isinit(link.dest)
-            destname = "s"
-        elseif isfinal(link.dest)
-            destname = "e"
-        else
+            srcname = "$(src.id)"
             destname = "$(link.dest.id)"
+
+            ilabel = isnothing(link.ilabel) ? "ϵ" : link.ilabel
+            olabel = isnothing(link.olabel) ? "ϵ" : link.olabel
+            lname = "$(ilabel):$(olabel)/"
+            lname *= "/$(weight)"
+            write(dotfile, "$srcname -> $destname [ label=\"$(lname)\" ];\n")
         end
-
-
-        write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
 
     write(dotfile, "}\n")
@@ -179,3 +129,4 @@ function Base.show(
 end
 
 end
+
