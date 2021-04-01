@@ -20,12 +20,14 @@ export FSM
 export LinearFSM
 export addstate!
 export link!
-export initstate
-export finalstate
+export initstates
+export finalstates
 export isinit
 export isfinal
 export links
 export states
+export setstart!
+export setfinal!
 
 include("fsm.jl")
 
@@ -68,62 +70,31 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     write(dotfile, "Digraph {\n")
     write(dotfile, "rankdir=LR;")
 
-    write(dotfile, "s [ shape=circle label=\"<s>\" penwidth=2 fixedsize=true width=0.6 ];\n")
-    write(dotfile, "e [ shape=doublecircle label=\"</s>\" penwidth=1 fixedsize=true width=0.6 ];\n")
-
 
     for s in states(fsm)
-        (isinit(s) || isfinal(s)) && continue
-        attrs = ""
-        name = ""
-        if  isemitting(s)
-            name = "$(s.id)"
-            attrs *=  "shape=circle"
-            attrs *= " label=\"$(s.pdfindex)\""
-            attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
-        else
-            name = "$(s.id)"
-            attrs *= "shape=circle label=\"$(s.id)\""
-        end
-        write(dotfile, "$name [ $attrs ];\n")
+        name = "$(s.id)"
+        label = "label=\"$(s.id)"
+        attrs = "penwidth=" * (isinit(s) ? "2" : "1")
+        label *= isinit(s) ? "/$(round(s.startweight.val, digits = 3))" : ""
+        attrs *= " shape=" * (isfinal(s) ? "doublecircle" : "circle")
+        label *= isfinal(s) ? "/$(round(s.finalweight.val, digits = 3))\"" : "\""
+        write(dotfile, "$name [ $label $attrs ];\n")
     end
 
     for src in states(fsm)
         for link in links(fsm, src)
             weight = round(link.weight.val, digits = 3)
 
-            srcname = ""
-            if isinit(src)
-                srcname = "s"
-            elseif isfinal(src)
-                srcname = "e"
-            else
-                srcname = "$(src.id)"
-            end
+            srcname = "$(src.id)"
+            destname = "$(link.dest.id)"
 
-            destname = ""
-            if isinit(link.dest)
-                destname = "s"
-            elseif isfinal(link.dest)
-                destname = "e"
-            else
-                destname = "$(link.dest.id)"
-            end
-
-            lname = ""
-            if hasinputlabel(link) && hasoutputlabel(link)
-                #lname *= link.ilabel == link.olabel ?  "$(link.ilabel)/" : "$(link.ilabel):$(link.olabel)/"
-                lname *= "$(link.ilabel):$(link.olabel)/"
-            elseif hasinputlabel(link)
-                lname *= "$(link.ilabel):ϵ/"
-            elseif hasoutputlabel(link)
-                lname *= "ϵ:$(link.olabel)/"
-            end
-            lname *= "$(weight)"
+            ilabel = isnothing(link.ilabel) ? "ϵ" : link.ilabel
+            olabel = isnothing(link.olabel) ? "ϵ" : link.olabel
+            lname = "$(ilabel):$(olabel)/"
+            lname *= "/$(weight)"
             write(dotfile, "$srcname -> $destname [ label=\"$(lname)\" ];\n")
         end
     end
-
 
     write(dotfile, "}\n")
     close(dotfile)
@@ -157,5 +128,5 @@ function Base.show(
     end
 end
 
-
 end
+
