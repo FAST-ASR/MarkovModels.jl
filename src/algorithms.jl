@@ -9,11 +9,34 @@ function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
     Aᵀ = transpose(A)
     α[:, 1] = lhs[:, 1] .* π
 
+    buffer = similar(α[:,1], T, length(π))
+
     for n in 2:N
         # Equivalent to:
         #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
-        αₙ = mul!(similar(α[:, n], T, size(Aᵀ, 1)), Aᵀ,
-                  α[:,n-1] .* lhs[:,n], one(T), zero(T))
+        αₙ = mul!(buffer, Aᵀ,
+                  view(α, :, n-1) .* view(lhs, :, n), one(T), zero(T))
+
+        #prune!(αₙ, n)
+        α[:, n] = αₙ
+    end
+    α
+end
+
+function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
+                     A::AbstractMatrix{T}, lhs::AbstractMatrix;
+                     prune!::Function = identity) where T
+    N = size(lhs, 2)
+    Aᵀ = transpose(A)
+    α[:, 1] = lhs[:, 1] .* π
+
+    buffer = similar(α[:,1], T, length(π))
+
+    for n in 2:N
+        # Equivalent to:
+        #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
+        αₙ = mul!(buffer, Aᵀ,
+                  view(α, :, n-1) .* view(lhs, :, n), one(T), zero(T))
 
         #prune!(αₙ, n)
         α[:, n] = αₙ
@@ -26,11 +49,14 @@ function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
                      prune!::Function = identity) where T
     N = size(lhs, 2)
     β[:, end] = ω
+
+    buffer = similar(β[:,1], T, length(ω))
+
     for n in N-1:-1:1
         # Equivalent to:
         #βₙ = A * (β[:, n+1] .* lhs[:, n+1])
-        βₙ = mul!(similar(β[:, n], T, size(A, 2)), A,
-                  β[:,n+1] .* lhs[:,n+1], one(T), zero(T))
+        βₙ = mul!(buffer, A,
+                  view(β, :,n+1) .* view(lhs, :, n+1), one(T), zero(T))
 
         #prune!(βₙ, n)
         β[:, n] = βₙ
@@ -65,20 +91,20 @@ Baum-Welch algorithm where `pinit` is initial state probabilities,
 `pfinal` is the final states probabilities and `A` is the transition
 matrix and `lh` is the per-state and per-frame likelihood.
 """
-function αβrecursion(pinit::AbstractVector{T},
-                     pfinal::AbstractVector{T},
+function αβrecursion(π::AbstractVector{T},
+                     ω::AbstractVector{T},
                      A::AbstractMatrix{T},
                      lhs::AbstractMatrix{T};
-                     pruning::T = upperbound(T),
+                     pruning::T = T(Inf),#upperbound(T),
                     ) where T
     S, N = length(π), size(lhs, 2)
     α = zeros(T, S, N)
     β = zeros(T, S, N)
     γ = zeros(T, S, N)
 
-    αrecursion!(α, pinit, A, lhs,
+    αrecursion!(α, π, A, lhs,
                 prune! = (αₙ, n) -> prune_α!(αₙ, cfsm.distances, N, n, pruning))
-    βrecursion!(β, pfinal, A, lhs,
+    βrecursion!(β, ω, A, lhs,
                 prune! = (βₙ, n) -> prune_β!(βₙ, n, pruning, α))
 
     αβ = α .* β
