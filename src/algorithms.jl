@@ -1,16 +1,7 @@
 # Copyright - 2020 - Brno University of Technology
 # Copyright - 2021 - CNRS
 #
-# Contact: Lucas Ondel <lucas.ondel@gmail.com
-#
-# legal entity when the software has been created under wage-earning status
-# adding underneath, if so required :" contributor(s) : [name of the
-# individuals] ([date of creation])
-#
-# [e-mail of the author(s)]
-#
-# This software is a computer program whose purpose is to [describe
-# functionalities and technical features of your software].
+# Contact: Lucas Ondel <lucas.ondel@gmail.com>
 #
 # This software is governed by the CeCILL  license under French law and
 # abiding by the rules of distribution of free software.  You can  use,
@@ -39,69 +30,61 @@
 # knowledge of the CeCILL license and that you accept its terms.
 
 function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
-                     A::AbstractMatrix{T}, lhs::AbstractMatrix;
-                     prune!::Function = identity) where T
+                     A::AbstractMatrix{T}, lhs::AbstractMatrix) where T
     N = size(lhs, 2)
     Aᵀ = transpose(A)
-    α[:, 1] = lhs[:, 1] .* π
-
     buffer = similar(α[:,1], T, length(π))
-
+    α[:, 1] = lhs[:, 1] .* π
     for n in 2:N
         # Equivalent to:
         #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
         αₙ = mul!(buffer, Aᵀ,
                   view(α, :, n-1) .* view(lhs, :, n), one(T), zero(T))
-
-        #prune!(αₙ, n)
-        α[:, n] = αₙ
-    end
-    α
-end
-
-function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
-                     A::AbstractMatrix{T}, lhs::AbstractMatrix;
-                     prune!::Function = identity) where T
-    N = size(lhs, 2)
-    Aᵀ = transpose(A)
-    α[:, 1] = lhs[:, 1] .* π
-
-    buffer = similar(α[:,1], T, length(π))
-
-    for n in 2:N
-        # Equivalent to:
-        #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
-        αₙ = mul!(buffer, Aᵀ,
-                  view(α, :, n-1) .* view(lhs, :, n), one(T), zero(T))
-
-        #prune!(αₙ, n)
         α[:, n] = αₙ
     end
     α
 end
 
 function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
-                     A::AbstractMatrix{T}, lhs::AbstractMatrix;
-                     prune!::Function = identity) where T
+                     A::AbstractMatrix{T}, lhs::AbstractMatrix{T}) where T
     N = size(lhs, 2)
-    β[:, end] = ω
-
     buffer = similar(β[:,1], T, length(ω))
-
+    β[:, end] = ω
     for n in N-1:-1:1
         # Equivalent to:
         #βₙ = A * (β[:, n+1] .* lhs[:, n+1])
         βₙ = mul!(buffer, A,
                   view(β, :,n+1) .* view(lhs, :, n+1), one(T), zero(T))
-
-        #prune!(βₙ, n)
         β[:, n] = βₙ
     end
     β
 end
 
+"""
+    αβrecursion(π, ω, A, lhs)
+
+Baum-Welch algorithm where `π` is initial state probabilities,
+`ω` is the final states probabilities and `A` is the probability
+transition matrix and `lhs` is the per-state and per-frame likelihood.
+"""
+function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
+                     A::AbstractMatrix{T}, lhs::AbstractMatrix{T}) where T
+    S, N = length(π), size(lhs, 2)
+    α = zeros(T, S, N)
+    β = zeros(T, S, N)
+    γ = zeros(T, S, N)
+
+    αrecursion!(α, π, A, lhs)
+    βrecursion!(β, ω, A, lhs)
+
+    αβ = α .* β
+    sums = sum(αβ, dims = 1)
+    αβ ./ sums, maximum(sums)
+end
+
 function remove_invalid_αpath!(αₙ::AbstractVector{T}, distances, N, n) where T
-    for (i,v) in zip(findnz(αₙ)...)
+    I, V = findnz(αₙ)
+    for i in I
         if distances[i] > (N - n + 1)
             αₙ[i] = zero(T)
         end
@@ -110,39 +93,101 @@ function remove_invalid_αpath!(αₙ::AbstractVector{T}, distances, N, n) where
 end
 
 function prune_α!(αₙ, distances, N, n, threshold)
-    #remove_invalid_αpath!(αₙ, distances, N, n)
+    if ! isnothing(distances) remove_invalid_αpath!(αₙ, distances, N, n) end
+    maxval = maximum(αₙ)
     SparseArrays.fkeep!(αₙ, (i,v) -> maximum(αₙ)/v ≤ threshold)
 end
 
 function prune_β!(βₙ, n, threshold, α)
     I, V = findnz(α[:, n])
-    SparseArrays.fkeep!(βₙ, (i,v) -> i ∈ I && maximum(βₙ)/v ≤ threshold)
+    maxval = maximum(βₙ)
+    SparseArrays.fkeep!(βₙ, (i,v) -> i ∈ I && maxval/v ≤ threshold)
+end
+
+function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
+                     A::AbstractSparseMatrix{T}, lhs::AbstractMatrix{T},
+                     prune!::Function) where T
+    N = size(lhs, 2)
+    Aᵀ = transpose(A)
+    α[:, 1] = lhs[:,1] .* π
+    for n in 2:N
+        # Equivalent to:
+        #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
+        αₙ = mul!(similar(α[:,n], T, size(Aᵀ, 1)), Aᵀ,
+                  α[:,n-1] .* lhs[:,n], one(T), zero(T))
+        prune!(αₙ, n)
+        α[:, n] = αₙ
+    end
+    α
+end
+
+function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
+                     A::AbstractSparseMatrix{T}, lhs::AbstractMatrix{T},
+                     prune!::Function) where T
+    N = size(lhs, 2)
+    β[:, end] = ω
+    for n in N-1:-1:1
+        # Equivalent to:
+        #βₙ = A * (β[:, n+1] .* lhs[:, n+1])
+        βₙ = mul!(similar(β[:, n], T, size(A, 2)), A,
+                  β[:,n+1] .* lhs[:, n+1], one(T), zero(T))
+        prune!(βₙ, n)
+        β[:, n] = βₙ
+    end
+    β
 end
 
 
-"""
-    αβrecursion(pinit, pend, A, lhs[, pruning = nopruning])
+function calculate_distances(ω::AbstractSparseVector{T},
+                             A::AbstractSparseMatrix{T}) where T
+    Aᵀ = transpose(A)
+    queue = Set{Tuple{Int,Int}}([(state, 0) for state in findnz(ω)[1]])
+    visited = Set{Int}(findnz(ω)[1])
+    distances = zeros(Int, length(ω))
+    while ! isempty(queue)
+        state, dist = pop!(queue)
+        for nextstate in findnz(Aᵀ[state,:])[1]
+            if nextstate ∉ visited
+                push!(queue, (nextstate, dist + 1))
+                push!(visited, nextstate)
+                distances[nextstate] = dist + 1
+            end
+        end
+    end
+    distances
+end
 
-Baum-Welch algorithm where `pinit` is initial state probabilities,
-`pfinal` is the final states probabilities and `A` is the transition
-matrix and `lh` is the per-state and per-frame likelihood.
 """
-function αβrecursion(π::AbstractVector{T},
-                     ω::AbstractVector{T},
-                     A::AbstractMatrix{T},
-                     lhs::AbstractMatrix{T};
-                     pruning::T = T(Inf),#upperbound(T),
-                    ) where T
+    αβrecursion(π, ω, A::AbstractSparseMatrix, lhs; prune! = identity)
+
+Baum-Welch algorithm operating on sparse matrix, where `π` is initial
+state probabilities, `ω` is the final states probabilities and `A` is
+the probability transition matrix and `lhs` is the per-state and
+per-frame likelihood.
+"""
+function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
+                     A::AbstractSparseMatrix{T}, lhs::AbstractMatrix{T};
+                     pruning::Number = T(Inf),
+                     distances = nothing) where T
     S, N = length(π), size(lhs, 2)
-    α = zeros(T, S, N)
-    β = zeros(T, S, N)
-    γ = zeros(T, S, N)
+    α = spzeros(T, S, N)
+    β = spzeros(T, S, N)
+    γ = spzeros(T, S, N)
 
     αrecursion!(α, π, A, lhs,
-                prune! = (αₙ, n) -> prune_α!(αₙ, cfsm.distances, N, n, pruning))
+                (αₙ, n) -> prune_α!(αₙ, distances, N, n, pruning))
     βrecursion!(β, ω, A, lhs,
-                prune! = (βₙ, n) -> prune_β!(βₙ, n, pruning, α))
+                (βₙ, n) -> prune_β!(βₙ, n, pruning, α))
 
-    αβ = α .* β
-    αβ ./ sum(αβ, dims = 1)
+    normalize_spmatrix(α .* β)
 end
+
+function normalize_spmatrix(M::AbstractSparseMatrix{T}) where T
+    sums = sum(M, dims = 1)
+    I, J, V = findnz(M)
+    for i in 1:length(V)
+        V[i] /= sums[J[i]]
+    end
+    sparse(I, J, V), maximum(sums)
+end
+

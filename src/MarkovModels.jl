@@ -1,16 +1,7 @@
 # Copyright - 2020 - Brno University of Technology
 # Copyright - 2021 - CNRS
 #
-# Contact: Lucas Ondel <lucas.ondel@gmail.com
-#
-# legal entity when the software has been created under wage-earning status
-# adding underneath, if so required :" contributor(s) : [name of the
-# individuals] ([date of creation])
-#
-# [e-mail of the author(s)]
-#
-# This software is a computer program whose purpose is to [describe
-# functionalities and technical features of your software].
+# Contact: Lucas Ondel <lucas.ondel@gmail.com>
 #
 # This software is governed by the CeCILL  license under French law and
 # abiding by the rules of distribution of free software.  You can  use,
@@ -38,8 +29,6 @@
 # The fact that you are presently reading this means that you have had
 # knowledge of the CeCILL license and that you accept its terms.
 
-
-
 module MarkovModels
 
 using LinearAlgebra
@@ -53,17 +42,10 @@ export TropicalSemifield
 
 include("semifields.jl")
 
-#######################################################################
-# Algorithms for inference with Markov chains
-
 export αrecursion
-export αβrecursion
 export βrecursion
-export resps
-export beststring
-export samplestring
+export αβrecursion
 
 include("algorithms.jl")
 
 end
-

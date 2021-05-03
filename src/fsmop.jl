@@ -6,7 +6,7 @@
 Transpose the fsm, i.e. reverse all it's arcs. The final state becomes
 the initial state.
 """
-function Base.transpose(fsm::FSM{T}) where T<:SemiField
+function Base.transpose(fsm::FSM{T}) where T
     nfsm = FSM{T}()
     smap = Dict()
     for s in states(fsm)
@@ -80,7 +80,7 @@ Base.union(fsm::FSM{T}, rest::FSM{T}...) where T = foldl(union, rest, init=fsm)
 
 Concatenate several FSMs together.
 """
-function concat(fsm1::FSM{T}, fsm2::FSM{T}) where T<:SemiField
+function concat(fsm1::FSM{T}, fsm2::FSM{T}) where T
     fsm = FSM{T}()
 
     cs = addstate!(fsm) # special non-emitting state for concatenaton
@@ -112,7 +112,7 @@ function concat(fsm1::FSM{T}, fsm2::FSM{T}) where T<:SemiField
 
     fsm
 end
-concat(fsm1::FSM{T}, rest::FSM{T}...) where T<:SemiField = foldl(concat, rest, init=fsm1)
+concat(fsm1::FSM{T}, rest::FSM{T}...) where T = foldl(concat, rest, init=fsm1)
 
 """
     weightnormalize(fsm)
@@ -120,7 +120,7 @@ concat(fsm1::FSM{T}, rest::FSM{T}...) where T<:SemiField = foldl(concat, rest, i
 Change the weight of the links such that the sum of the exponentiated
 weights of the outgoing links from one state will sum up to one.
 """
-function weightnormalize(fsm::FSM{T}) where T<:SemiField
+function weightnormalize(fsm::FSM{T}) where T
     nfsm = FSM{T}()
     smap = Dict(
         initstateid => initstate(nfsm),
@@ -222,7 +222,7 @@ minimize(fsm::FSM) = (transpose ∘ determinize ∘ transpose ∘ determinize)(f
 Remove all states that are non-emitting and have no labels (except the
 the initial and final states)
 """
-function removenilstates(fsm::FSM{T}) where T<:SemiField
+function removenilstates(fsm::FSM{T}) where T
     nfsm = FSM{T}()
 
     newstates = Dict(initstate(fsm) => initstate(nfsm),
@@ -259,7 +259,7 @@ end
 
 Replace the labels given maps.
 """
-function relabel(fsm::FSM{T}, ilabelmap, olabelmap) where T<:SemiField
+function relabel(fsm::FSM{T}, ilabelmap, olabelmap) where T
     nfsm = FSM{T}()
     smap = Dict()
 
