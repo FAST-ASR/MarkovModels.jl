@@ -46,4 +46,3 @@ Base.isless(x::OrderedSemifield, y::OrderedSemifield) = isless(x.val, y.val)
 Base.isless(x::OrderedSemifield, y::Number) = isless(x.val, y)
 Base.isless(x::Number, y::OrderedSemifield) = isless(x, y.val)
 Base.abs(x::OrderedSemifield) = abs(x.val)
-

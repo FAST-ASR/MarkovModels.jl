@@ -48,4 +48,17 @@ export αβrecursion
 
 include("algorithms.jl")
 
+export FSM
+export addstate!
+export link!
+export setinit!
+export setfinal!
+export states
+
+export determinize
+export minimize
+export renormalize!
+
+include("fsm.jl")
+
 end
