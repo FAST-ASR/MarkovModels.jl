@@ -55,6 +55,7 @@ export setinit!
 export setfinal!
 export states
 
+export compile
 export determinize
 export minimize
 export renormalize!

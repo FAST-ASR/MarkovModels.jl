@@ -137,26 +137,6 @@ function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
     β
 end
 
-
-function calculate_distances(ω::AbstractSparseVector{T},
-                             A::AbstractSparseMatrix{T}) where T
-    Aᵀ = transpose(A)
-    queue = Set{Tuple{Int,Int}}([(state, 0) for state in findnz(ω)[1]])
-    visited = Set{Int}(findnz(ω)[1])
-    distances = zeros(Int, length(ω))
-    while ! isempty(queue)
-        state, dist = pop!(queue)
-        for nextstate in findnz(Aᵀ[state,:])[1]
-            if nextstate ∉ visited
-                push!(queue, (nextstate, dist + 1))
-                push!(visited, nextstate)
-                distances[nextstate] = dist + 1
-            end
-        end
-    end
-    distances
-end
-
 """
     αβrecursion(π, ω, A::AbstractSparseMatrix, lhs; prune! = identity)
 

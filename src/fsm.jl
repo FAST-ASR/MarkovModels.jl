@@ -189,7 +189,13 @@ function _unique_labels(statelist, T, step)
         push!(lstates, s)
         labels[(s.label, step)] = (lstates, iw+s.initweight, fw+s.finalweight, tw+w)
     end
-    labels
+
+    # Inverse the map so that the set of states is the key.
+    retval = Dict()
+    for (key, value) in labels
+        retval[value[1]] = (key[1], value[2], value[3], value[4])
+    end
+    retval
 end
 
 function determinize(fsm::FSM{T}) where T
@@ -201,11 +207,14 @@ function determinize(fsm::FSM{T}) where T
     queue = _unique_labels(initstates, T, 0)
     while ! isempty(queue)
         key, value = pop!(queue)
-        label, step = key
-        lstates, iw, fw, tw = value
+        lstates = key
+        label, iw, fw, tw = value
+        step = 0
 
-        s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
-        smap[key] = s
+        if key ∉ keys(smap)
+            s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
+            smap[key] = s
+        end
 
         nextstates = []
         for ls in lstates
@@ -251,3 +260,51 @@ function Base.transpose(fsm::FSM{T}) where T
 end
 
 minimize(fsm::FSM{T}) where T = (transpose ∘ determinize ∘ transpose ∘ determinize)(fsm)
+
+function _calculate_distances(ω::AbstractSparseVector{T},
+                              A::AbstractSparseMatrix{T}) where T
+    Aᵀ = transpose(A)
+    queue = Set{Tuple{Int,Int}}([(state, 0) for state in findnz(ω)[1]])
+    visited = Set{Int}(findnz(ω)[1])
+    distances = zeros(Int, length(ω))
+    while ! isempty(queue)
+        state, dist = pop!(queue)
+        for nextstate in findnz(Aᵀ[state,:])[1]
+            if nextstate ∉ visited
+                push!(queue, (nextstate, dist + 1))
+                push!(visited, nextstate)
+                distances[nextstate] = dist + 1
+            end
+        end
+    end
+    distances
+end
+
+function compile(fsm::FSM{T}) where T
+    allstates = collect(states(fsm))
+    S = length(allstates)
+
+    # Initial states' probabilities.
+    π = spzeros(T, S)
+    for s in filter(isinit, allstates) π[s.id] = s.initweight end
+
+    # Final states' probabilities.
+    ω = spzeros(T, S)
+    for s in filter(isfinal, allstates) ω[s.id] = s.finalweight end
+
+    # Transition matrix.
+    A = spzeros(T, S, S)
+    for src in allstates
+        for link in links(fsm, src)
+            A[src.id,link.dest.id] = link.weight
+        end
+    end
+
+    # For each state the distance to the nearest final state.
+    dists = _calculate_distances(ω, A)
+
+    # Pdf index mapping.
+    pdfmap = [s.pdfindex for s in sort(allstates, by = p -> p.id)]
+
+    (π = π, ω = ω, A = A, dists = dists, pdfmap = pdfmap)
+end
