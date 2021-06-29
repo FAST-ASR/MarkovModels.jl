@@ -1,33 +1,4 @@
-# Copyright - 2020 - Brno University of Technology
-# Copyright - 2021 - CNRS
-#
-# Contact: Lucas Ondel <lucas.ondel@gmail.com>
-#
-# This software is governed by the CeCILL  license under French law and
-# abiding by the rules of distribution of free software.  You can  use,
-# modify and/ or redistribute the software under the terms of the CeCILL
-# license as circulated by CEA, CNRS and INRIA at the following URL
-# "http://www.cecill.info".
-#
-# As a counterpart to the access to the source code and  rights to copy,
-# modify and redistribute granted by the license, users are provided only
-# with a limited warranty  and the software's author,  the holder of the
-# economic rights,  and the successive licensors  have only  limited
-# liability.
-#
-# In this respect, the user's attention is drawn to the risks associated
-# with loading,  using,  modifying and/or developing or reproducing the
-# software by the user in light of its specific status of free software,
-# that may mean  that it is complicated to manipulate,  and  that  also
-# therefore means  that it is reserved for developers  and  experienced
-# professionals having in-depth computer knowledge. Users are therefore
-# encouraged to load and test the software's suitability as regards their
-# requirements in conditions enabling the security of their systems and/or
-# data to be ensured and,  more generally, to use and operate it in the
-# same conditions as regards security.
-#
-# The fact that you are presently reading this means that you have had
-# knowledge of the CeCILL license and that you accept its terms.
+# SPDX-License-Identifier: MIT
 
 const PdfIndex = Union{Int,Nothing}
 const Label = Union{AbstractString,Nothing}
@@ -46,7 +17,6 @@ islabeled(s::State) = ! isnothing(s.label)
 isemitting(s::State)  = ! isnothing(s.pdfindex)
 setinit!(s::State{T}, weight::T = one(T)) where T = s.initweight = weight
 setfinal!(s::State{T}, weight::T = one(T)) where T = s.finalweight = weight
-
 
 mutable struct Link{T<:Semifield}
     dest::State
@@ -261,15 +231,15 @@ end
 
 minimize(fsm::FSM{T}) where T = (transpose ∘ determinize ∘ transpose ∘ determinize)(fsm)
 
-function _calculate_distances(ω::AbstractSparseVector{T},
-                              A::AbstractSparseMatrix{T}) where T
+function _calculate_distances(ω::AbstractVector{T}, A::AbstractMatrix{T}) where T
     Aᵀ = transpose(A)
-    queue = Set{Tuple{Int,Int}}([(state, 0) for state in findnz(ω)[1]])
-    visited = Set{Int}(findnz(ω)[1])
+    I = findall(ω .> zero(T))
+    queue = Set{Tuple{Int,Int}}([(state, 0) for state in I])
+    visited = Set{Int}(I)
     distances = zeros(Int, length(ω))
     while ! isempty(queue)
         state, dist = pop!(queue)
-        for nextstate in findnz(Aᵀ[state,:])[1]
+        for nextstate in findall(Aᵀ[state,:] .> zero(T))
             if nextstate ∉ visited
                 push!(queue, (nextstate, dist + 1))
                 push!(visited, nextstate)
@@ -280,23 +250,25 @@ function _calculate_distances(ω::AbstractSparseVector{T},
     distances
 end
 
-function compile(fsm::FSM{T}) where T
+function compile(fsm::FSM{T}; allocator = spzeros) where T
     allstates = collect(states(fsm))
     S = length(allstates)
 
     # Initial states' probabilities.
-    π = spzeros(T, S)
+    π = allocator(T, S)
     for s in filter(isinit, allstates) π[s.id] = s.initweight end
 
     # Final states' probabilities.
-    ω = spzeros(T, S)
+    ω = allocator(T, S)
     for s in filter(isfinal, allstates) ω[s.id] = s.finalweight end
 
     # Transition matrix.
-    A = spzeros(T, S, S)
+    A = allocator(T, S, S)
+    Aᵀ = allocator(T, S, S)
     for src in allstates
         for link in links(fsm, src)
-            A[src.id,link.dest.id] = link.weight
+            A[src.id, link.dest.id] = link.weight
+            Aᵀ[link.dest.id, src.id] = link.weight
         end
     end
 
@@ -306,5 +278,29 @@ function compile(fsm::FSM{T}) where T
     # Pdf index mapping.
     pdfmap = [s.pdfindex for s in sort(allstates, by = p -> p.id)]
 
-    (π = π, ω = ω, A = A, dists = dists, pdfmap = pdfmap)
+    (π = π, ω = ω, A = A, Aᵀ = Aᵀ, dists = dists, pdfmap = pdfmap)
+end
+
+function gpu(cfsm) where T
+    if ! issparse(cfsm.π)
+        return (
+            π = CuArray(cfsm.π),
+            ω = CuArray(cfsm.ω),
+            A = CuArray(cfsm.A),
+            Aᵀ = CuArray(cfsm.Aᵀ),
+            dists = cfsm.dists,
+            pdfmap = cfsm.pdfmap
+        )
+    end
+
+    A = CuSparseMatrixCSC(cfsm.A)
+    Aᵀ = CuSparseMatrixCSC(cfsm.Aᵀ)
+    return (
+        π = CuSparseVector(cfsm.π),
+        ω = CuSparseVector(cfsm.ω),
+        A = CuSparseMatrixCSR(Aᵀ.colPtr, Aᵀ.rowVal, Aᵀ.nzVal, A.dims),
+        Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, A.dims),
+        dists = cfsm.dists,
+        pdfmap = cfsm.pdfmap
+    )
 end
