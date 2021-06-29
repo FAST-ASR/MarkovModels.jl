@@ -1,51 +1,40 @@
 # SPDX-License-Identifier: MIT
 
-function _cukernel_spare_dense_mul!(out, sp_nzVal, ds_val)
-    i = threadIdx().x
-    out[i] = sp_nzVal[i] * ds_val[i]
+#######################################################################
+# elmul_svdv!
+#
+#   Element-wise multiplication of a sparse vector and a dense vector.
+#
+
+function _cukernel_elmul_svdv!(out, nzVal, nzInd, dsVec)
+    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    stride = blockDim().x * gridDim().x
+    for i = index:stride:length(nzInd)
+        idx = nzInd[i]
+        out[idx] = nzVal[i] * dsVec[idx]
+    end
     return
 end
 
-# Element wise vector multiplication.
-function el_mul(x::CuSparseVector{T}, y::CuVector{T}) where T
-    out = similar(x)
-    ds_val = y[x.iPtr]
-    sp_nzVal = x.nzVal
-    out_nzVal = out.nzVal
-    @cuda threads=length(sp_nzVal) _cukernel_spare_dense_mul!(out_nzVal, sp_nzVal,
-                                                              ds_val)
-    return out
-end
-
-function el_mul!(out::CuVector, x::CuSparseVector{T}, y::CuVector{T}) where T
+function elmul_svdv!(out::CuVector, x::CuSparseVector{T}, y::CuVector{T}) where T
     I = SparseArrays.nonzeroinds(x)
-    ds_val = y[I]
-    sp_nzVal = x.nzVal
-    out_nzVal = view(out, I)
-    @cuda threads=length(sp_nzVal) _cukernel_spare_dense_mul!(out_nzVal, sp_nzVal,
-                                                              ds_val)
+    V = nonzeros(x)
+    N = length(x.nzVal)
+    numblocks = ceil(Int, N/256)
+    @cuda threads=256 blocks=numblocks _cukernel_elmul_svdv!(out, V, I, y)
     return out
 end
 
-function _cukernel_smdv!(out, cols, rows, vals, x)
-    ti = threadIdx().x
-    i = rows[ti]
-    j = cols[ti]
-    out[i] += vals[ti] * x[j]
-    return
-end
+#######################################################################
 
-function smdv(M::CuSparseMatrixCOO{T}, x::CuVector{T}) where T
-    out = similar(x, size(M, 1))
-    fill!(out, zero(T))
-    cols = M.colInd
-    rows = M.rowInd
-    vals = M.nzVal
-    @cuda threads=length(vals) _cukernel_smdv!(out, cols, rows, vals, x)
-    return out
-end
 
-function _cukernel_csr_smdv!(out, N, rowPtr, colVal, nzVal, x)
+#######################################################################
+# mul_smdv!
+#
+#   Product of a sparse matrix and a dense vector.
+#
+
+function _cukernel_mul_smdv!(out, N, rowPtr, colVal, nzVal, x)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
     #@cushow threadIdx().x, blockIdx().x, blockDim().x, index
@@ -57,7 +46,7 @@ function _cukernel_csr_smdv!(out, N, rowPtr, colVal, nzVal, x)
     return
 end
 
-function smdv!(out::CuVector{T}, M::CuSparseMatrixCSR{T}, x::CuVector{T}) where T
+function mul_smdv!(out::CuVector{T}, M::CuSparseMatrixCSR{T}, x::CuVector{T}) where T
     fill!(out, zero(T))
     rowPtr = M.rowPtr
     colVal = M.colVal
@@ -65,6 +54,8 @@ function smdv!(out::CuVector{T}, M::CuSparseMatrixCSR{T}, x::CuVector{T}) where 
     N = size(M,1)
     numblocks = ceil(Int, N/256)
     #@show N, numblocks
-    @cuda threads=256 blocks=numblocks _cukernel_csr_smdv!(out, N, rowPtr, colVal, nzVal, x)
+    @cuda threads=256 blocks=numblocks _cukernel_mul_smdv!(out, N, rowPtr, colVal, nzVal, x)
     return out
 end
+
+#######################################################################

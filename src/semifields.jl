@@ -1,20 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-#######################################################################
-# The following functions are taken from the LogExpFunctions package:
-#   https://github.com/JuliaStats/LogExpFunctions.jl
-
-function logaddexp(x::Real, y::Real)
-    # ensure Δ = 0 if x = y = ± Inf
-    Δ = ifelse(x == y, zero(x - y), abs(x - y))
-    max(x, y) + log1pexp(-Δ)
-end
-
-log1pexp(x::Real) = x < 18.0 ? log1p(exp(x)) : x < 33.3 ? x + exp(-x) : oftype(exp(-x), x)
-log1pexp(x::Float32) = x < 9.0f0 ? log1p(exp(x)) : x < 16.0f0 ? x + exp(-x) : oftype(exp(-x), x)
-
-#######################################################################
-
 abstract type Semifield <: Number end
 
 struct LogSemifield{T<:AbstractFloat} <: Semifield

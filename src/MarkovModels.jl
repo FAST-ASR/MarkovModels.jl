@@ -3,6 +3,7 @@
 module MarkovModels
 
 using CUDA, CUDA.CUSPARSE, LinearAlgebra, SparseArrays
+using LogExpFunctions: logaddexp
 using StatsBase: sample, Weights
 
 export FSM, LogSemifield

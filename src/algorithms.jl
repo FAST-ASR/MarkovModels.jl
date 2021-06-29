@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-function αβrecursion(cfsm, lhs::AbstractMatrix{T}; pruning = T(Inf)) where T
+function αβrecursion(cfsm, lhs::AbstractMatrix{T}; pruning::T = typemax(T)) where T
     αβrecursion(cfsm.π, cfsm.ω, cfsm.A, cfsm.Aᵀ, lhs, pruning, cfsm.dists)
 end
 
@@ -57,14 +57,12 @@ function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
                      Aᵀ::AbstractMatrix{T}, lhs::AbstractMatrix,
                      prune!::Function) where T
     N = size(lhs, 2)
-    buffer = similar(α[:,1], T, length(π))
     α[:, 1] = lhs[:, 1] .* π
     for n in 2:N
         # Equivalent to:
         #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
-        αₙ = mul!(buffer, Aᵀ, view(α, :, n-1) .* view(lhs, :, n), one(T), zero(T))
-        prune!(αₙ, n)
-        α[:, n] = αₙ
+        mul!(view(α, :, n), Aᵀ, view(α, :, n-1) .* view(lhs, :, n), one(T), zero(T))
+        prune!(view(α, :, n), n)
     end
     α
 end
@@ -73,14 +71,12 @@ function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
                      A::AbstractMatrix{T}, lhs::AbstractMatrix{T},
                      prune!::Function) where T
     N = size(lhs, 2)
-    buffer = similar(β[:,1], T, length(ω))
     β[:, end] = ω
     for n in N-1:-1:1
         # Equivalent to:
         #βₙ = A * (β[:, n+1] .* lhs[:, n+1])
-        βₙ = mul!(buffer, A, view(β, :,n+1) .* view(lhs, :, n+1), one(T), zero(T))
-        prune!(βₙ, n)
-        β[:, n] = βₙ
+        mul!(view(β, :, n), A, view(β, :,n+1) .* view(lhs, :, n+1), one(T), zero(T))
+        prune!(view(β, :, n), n)
     end
     β
 end
@@ -90,14 +86,13 @@ function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
                      lhs::AbstractMatrix{T},
                      pruning, distances) where T
     S, N = length(π), size(lhs, 2)
-    α = similar(π, T, S, N)
-    β = similar(π, T, S, N)
-    γ = similar(π, T, S, N)
+    α = fill!(similar(lhs, T, S, N), zero(T))
+    β = fill!(similar(lhs, T, S, N), zero(T))
 
-    pα = T(pruning) == T(Inf) ? (αₙ, n) -> αₙ : (
-        (αₙ, n) -> prune_α!(αₙ, distances, N, n, T(pruning)))
-    pβ = T(pruning) == T(Inf) ? (βₙ, n) -> βₙ : (
-        (βₙ, n) -> prune_β!(βₙ, n, T(pruning), α))
+    pα = pruning == typemax(T) ? (αₙ, n) -> αₙ : (
+        (αₙ, n) -> prune_α!(αₙ, distances, N, n, pruning))
+    pβ = pruning == typemax(T) ? (βₙ, n) -> βₙ : (
+        (βₙ, n) -> prune_β!(βₙ, n, pruning, α))
 
     αrecursion!(α, π, Aᵀ, lhs, pα)
     βrecursion!(β, ω, A, lhs, pβ)
@@ -157,11 +152,10 @@ function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
     S, N = length(π), size(lhs, 2)
     α = spzeros(T, S, N)
     β = spzeros(T, S, N)
-    γ = spzeros(T, S, N)
 
-    pα = T(pruning) == T(Inf) ? (αₙ, n) -> αₙ : (
-        (αₙ, n) -> prune_α!(αₙ, distances, N, n, T(pruning)))
-    pβ = (βₙ, n) -> prune_β!(βₙ, n, T(pruning), α)
+    pα = pruning == typemax(T) ? (αₙ, n) -> αₙ : (
+        (αₙ, n) -> prune_α!(αₙ, distances, N, n, pruning))
+    pβ = (βₙ, n) -> prune_β!(βₙ, n, pruning, α)
 
     αrecursion!(α, π, Aᵀ, lhs, pα)
     βrecursion!(β, ω, A, lhs, pβ)
@@ -178,12 +172,13 @@ function αrecursion!(α::CuMatrix{T}, π::CuSparseVector{T},
     N = size(lhs, 2)
     buffer = similar(α[:,1], T, length(π))
     #α[:, 1] = lhs[:, 1] .* π
-    el_mul!(view(α, :, 1), π, view(lhs, :, 1))
+    elmul_svdv!(view(α, :, 1), π, view(lhs, :, 1))
     for n in 2:N
         # Equivalent to:
         #αₙ = (Aᵀ * α[:,n-1]) .* lhs[:, n]
         #αₙ = mul!(buffer, Aᵀ, view(α, :, n-1) .* view(lhs, :, n))
-        α[:, n] = smdv!(buffer, Aᵀ, view(α, :, n-1) .* view(lhs, :, n))
+        mul_smdv!(view(α, :, n), Aᵀ, view(α, :, n-1) .* view(lhs, :, n))
+        prune!(view(α, :, n), n)
     end
     α
 end
@@ -197,50 +192,23 @@ function βrecursion!(β::CuMatrix{T}, ω::CuSparseVector{T},
         # Equivalent to:
         #βₙ = A * (β[:, n+1] .* lhs[:, n+1])
         #βₙ = mul!(similar(β[:, n], T, size(A, 2)), A, β[:,n+1] .* lhs[:, n+1])
-        smdv!(β[:, n], A, view(β, :, n+1) .* view(lhs, :, n+1))
+        mul_smdv!(view(β, :, n), A, view(β, :, n+1) .* view(lhs, :, n+1))
+        prune!(view(β, :, n), n)
     end
     β
 end
-
-function normalize_spmatrix(M::CuSparseMatrix{T}) where T
-    sums = sum(M, dims = 1)
-    I, J, V = findnz(M)
-    for i in 1:length(V)
-        V[i] /= sums[J[i]]
-    end
-    sparse(I, J, V), maximum(sums)
-end
-
-#function αβrecursion(π::CuSparseVector{T}, ω::CuSparseVector{T},
-#                     A::CuSparseMatrixCSC{T}, Aᵀ::CuSparseMatrixCSC{T},
-#                     lhs::CuArray{T}, pruning, distances) where T
-#    S, N = length(π), size(lhs, 2)
-#    α = [CuSparseVector(spzeros(T, S)) for n in 1:N]
-#    β = [CuSparseVector(spzeros(T, S)) for n in 1:N]
-#    γ = CuSparseMatrixCSC(spzeros(T, S, N))
-#
-#    pα = T(pruning) == T(Inf) ? (αₙ, n) -> αₙ : (
-#        (αₙ, n) -> prune_α!(αₙ, distances, N, n, T(pruning)))
-#    pβ = (βₙ, n) -> prune_β!(βₙ, n, T(pruning), α)
-#
-#    αrecursion!(α, π, Aᵀ, lhs, pα)
-#    βrecursion!(β, ω, A, lhs, pβ)
-#
-#    normalize_spmatrix(α .* β)
-#end
 
 function αβrecursion(π::CuSparseVector{T}, ω::CuSparseVector{T},
                      A::CuSparseMatrixCSR{T}, Aᵀ::CuSparseMatrixCSR{T},
                      lhs::CuArray{T}, pruning, distances) where T
     S, N = length(π), size(lhs, 2)
-    α = similar(lhs, T, S, N)
-    β = similar(lhs, T, S, N)
-    γ = similar(lhs, T, S, N)
+    α = fill!(similar(lhs, T, S, N), zero(T))
+    β = fill!(similar(lhs, T, S, N), zero(T))
 
-    pα = T(pruning) == T(Inf) ? (αₙ, n) -> αₙ : (
-        (αₙ, n) -> prune_α!(αₙ, distances, N, n, T(pruning)))
-    pβ = T(pruning) == T(Inf) ? (βₙ, n) -> βₙ : (
-        (βₙ, n) -> prune_β!(βₙ, n, T(pruning), α))
+    pα = pruning == typemax(T) ? (αₙ, n) -> αₙ : (
+        (αₙ, n) -> prune_α!(αₙ, distances, N, n, pruning))
+    pβ = pruning == typemax(T) ? (βₙ, n) -> βₙ : (
+        (βₙ, n) -> prune_β!(βₙ, n, pruning, α))
 
     αrecursion!(α, π, Aᵀ, lhs, pα)
     βrecursion!(β, ω, A, lhs, pβ)
