@@ -4,7 +4,7 @@ The MarkovModels package represents Markov chains as probabilistic a
 Finite State Machine (FSM).  Here is an example of FSM as used by the
 package:
 
-![](images/examplefsm.svg)
+![missing image](images/examplefsm.svg)
 
 The thick line node indicates the starting state whereas the double
 line node indicates the ending states.

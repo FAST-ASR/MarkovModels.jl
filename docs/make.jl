@@ -15,7 +15,7 @@ makedocs(
         "Home" => "index.md",
         "Manual" => Any[
             "Finite State Machines" => "fsm.md",
-#            "Inference" => "inference.md"
+            "Inference" => "inference.md"
         ]
     ]
 )
