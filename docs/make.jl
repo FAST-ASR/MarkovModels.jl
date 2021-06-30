@@ -1,20 +1,25 @@
-using Documenter
+# SPDX-License-Identifier: MIT
 
-push!(LOAD_PATH, "../")
+push!(LOAD_PATH, "../src")
+
+using Documenter
 using MarkovModels
 
+DocMeta.setdocmeta!(MarkovModels, :DocTestSetup,
+                    :(using MarkovModels), recursive = true)
+
 makedocs(
-    sitename = "MarkovModels",
-    format = Documenter.HTML(prettyurls = get(ENV, "CI", nothing) == "true"),
+    sitename = "MarkovModels.jl",
+    modules = [MarkovModels],
     pages = [
         "Home" => "index.md",
         "Manual" => Any[
             "Finite State Machines" => "fsm.md",
-            "Inference" => "inference.md"
+#            "Inference" => "inference.md"
         ]
     ]
 )
 
 deploydocs(
-    repo = "github.com/BUTSpeechFIT/MarkovModels.git",
+    repo = "github.com/lucasondel/MarkovModels.jl.git",
 )

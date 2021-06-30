@@ -1,5 +1,16 @@
 # SPDX-License-Identifier: MIT
 
+"""
+    αβrecursion(cfsm, lhs::AbstractMatrix{T}; pruning::T = typemax(T) where T
+
+Return the states log conditional probabilities (as a matrix) and the
+total likelihood of the sequence. `pruning` is a `LogSemifield` number
+between `zero(T)` and `typemax(T)`. The lower it is the more pruning
+will occurs. Note that using `pruning` only makes sense if `cfsm`
+was compiled with `allocator = spzeros`.
+
+See also: [`compile`](@ref)
+"""
 function αβrecursion(cfsm, lhs::AbstractMatrix{T}; pruning::T = typemax(T)) where T
     αβrecursion(cfsm.π, cfsm.ω, cfsm.A, cfsm.Aᵀ, lhs, pruning, cfsm.dists)
 end

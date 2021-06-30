@@ -1,9 +1,5 @@
 # Finite State Machines
 
-```@meta
-CurrentModule = MarkovModels
-```
-
 The MarkovModels package represents Markov chains as probabilistic a
 Finite State Machine (FSM).  Here is an example of FSM as used by the
 package:
@@ -87,7 +83,8 @@ link!(fsm, s3, s4)
 compile
 determinize
 gpu
-renormalize
+minimize
+renormalize!
 replace(::FSM{T}, ::Dict) where T
 transpose
 ```

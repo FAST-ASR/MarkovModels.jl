@@ -9,7 +9,7 @@ using StatsBase: sample, Weights
 export FSM, LogSemifield
 export αrecursion, βrecursion, αβrecursion
 export addstate!, compile, determinize, gpu, link!, minimize,
-    renormalize!, setinit!, setfinal!, states
+    renormalize!, setinit!, setfinal!, states, transpose
 
 include("cusparse.jl")
 include("semifields.jl")

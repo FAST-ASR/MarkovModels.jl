@@ -23,6 +23,14 @@ mutable struct Link{T<:Semifield}
     weight::T
 end
 
+"""
+    struct FSM{T<:Semifield}
+        states # vector of states
+        links # Dict state -> vector of links
+    end
+
+Probabilistic finite state machine.
+"""
 struct FSM{T<:Semifield}
     states::Vector{State{T}}
     links::Dict{State, Vector{Link{T}}}
