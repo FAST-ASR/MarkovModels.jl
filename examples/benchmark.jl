@@ -39,23 +39,23 @@ function main(T, SF, S, N, pruning)
 
     println("αβrecursion with dense CPU arrays:")
     cfsm = compile(fsm, allocator = zeros)
-    @btime αβrecursion($cfsm, $lhs, pruning = $pruning)
+    @btime αβrecursion($cfsm, $lhs, pruning = SF($pruning))
     println("------------------------------------------------")
 
     println("αβrecursion with sparse CPU arrays:")
     cfsm = compile(fsm, allocator = spzeros)
-    @btime αβrecursion($cfsm, $lhs, pruning = $pruning)
+    @btime αβrecursion($cfsm, $lhs, pruning = SF($pruning))
     println("------------------------------------------------")
 
     println("αβrecursion with dense GPU arrays:")
     cfsm = compile(fsm, allocator = zeros) |> gpu
     lhs = CuArray(lhs)
-    @btime αβrecursion($cfsm, $lhs, pruning = $pruning)
+    @btime αβrecursion($cfsm, $lhs)
     println("------------------------------------------------")
 
     println("αβrecursion with sparse GPU arrays:")
     cfsm = compile(fsm, allocator = spzeros) |> gpu
-    @btime αβrecursion($cfsm, $lhs, pruning = $pruning)
+    @btime αβrecursion($cfsm, $lhs)
     println("------------------------------------------------")
 end
 
