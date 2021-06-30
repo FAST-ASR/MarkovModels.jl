@@ -10,15 +10,8 @@ package:
 
 ![](images/examplefsm.svg)
 
-The double edge circle node with the label "<s>" (respectively "</s>")
-is the initial (respectively final) state of the FSM. States with light
-blue background color are *emitting states*, that is, they are
-associated with a probability density function index (`pdfindex`). If
-they have no label, this index is use when displaying the node - as in
-the example above. White circle node with a label written inside are
-*non-emitting labeled states*. The states represented as point are
-neither emitting nor have a label. Finally, the number on the links
-are the log-probabilities to move from one state to another.
+The thick line node indicates the starting state whereas the double
+line node indicates the ending states.
 
 !!! note
     To be able to visualize FSMs as in the example above when using
@@ -29,7 +22,7 @@ are the log-probabilities to move from one state to another.
 
 In the following, we present the tools provided by the package
 manipulate such FSM. All the examples below assume that you
-have already imported the MarkovModels package by doing `using
+have already imported the MarkovModels.jl package by doing `using
 MarkovModels`.
 
 ## Creating FSMs
@@ -38,13 +31,18 @@ FSMs are represented by the following structure:
 ```@docs
 FSM
 ```
-
-To create an FSM object simply type:
+Our FSMs operate in the log-semifield where each number can be
+interpreted as a log-probability. The package provide the following
+type:
 ```julia
-fsm = FSM{Float64}()
+T = Float64
+SF = LogSemifield{T}
 ```
-![alternative text](images/initfsm.svg)
 
+Then, too create an FSM object simply type:
+```julia
+fsm = FSM{SF}()
+```
 When created, the FSM has only two states: the initial state and the
 final state. FSMs cannot have multiple initial for final states.
 
@@ -55,36 +53,32 @@ s2 = addstate!(fsm, pdfindex = 2, label = "a")
 s3 = addstate!(fsm, label = "b")
 s4 = addstate!(fsm)
 ```
-![alternative text](images/addstate.svg)
+![missing image](images/addstate.svg)
 
 Note that a state can be:
   * emitting and labeled
   * emitting only
   * labeled only
   * non-emitting and non-labeled (nil state)
-The initial and final states are specific nil states.
 
-The `link!` allows to add weighted arcs between states:
+You also need to define which state is a *starting state* and which
+one is an *ending state* (there can be several starting/ending states):
 ```julia
-link!(initstate(fsm), s1)
-link!( s1, s1, log(1/2))
-link!(s1, s2, log(1/2))
-link!(s2, s3)
-link!(s3, s4)
-link!(s4, finalstate(fsm))
+setinit!(s1)
+setfinal!(s4)
 ```
-![alternative text](images/links.svg)
+![missing image](images/init_final.svg)
 
-Finally, we provide a special constructor for convenience:
-```@docs
-LinearFSM
-```
 
-For instance,
+The `link!` function add weighted arcs between states:
 ```julia
-fsm = LinearFSM(Float32, ["a", "b", "c"], Dict("a" => 1, "b" => 2, "c" => 3))
+link!(fsm, s1, s1, SF(log(1/2)))
+link!(fsm, s1, s2, SF(log(1/2)))
+link!(fsm, s2, s3)
+link!(fsm, s3, s4)
 ```
-![](images/linearfsm.svg)
+![missing image](images/links.svg)
+
 
 ## States
 
@@ -107,10 +101,10 @@ Link
 ## Iterating over states and links
 
 ```@docs
-    initstate
-    finalstate
-    links
-    states
+initstate
+finalstate
+links
+states
 ```
 
 ## FSM operations
