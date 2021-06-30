@@ -16,14 +16,17 @@ From the Julia REPL, type ] to enter the Pkg REPL mode and run:
 pkg> add MarkovModels
 ```
 
-Have a look at the [documentation](https://butspeechfit.github.io/MarkovModels/stable)
+Have a look at the [documentation](https://lucasondel.github.io/MarkovModels.jl/stable)
+or the [examples](https://github.com/lucasondel/MarkovModels.jl/tree/master/examples) 
 to get started.
 
 ## Benchmark
 
 Here is a small benchmark of the *forward-backward* algorithm run
-with a Intel(R) Xeon(R) CPU E5-2630 v2 @ 2.60GHz a GeForce GTX 1080
-GPU. The computation load is approximately of aligning 10 seconds of
+with a Intel(R) Xeon(R) CPU E5-2630 v2 @ 2.60GHz and a GeForce GTX 1080
+GPU.
+
+The computation load is approximately of aligning 10 seconds of
 speech with 30 phones each with 3-states left-to-right topology.
 
 ```
@@ -50,6 +53,6 @@ Setup:
 
 ## Authors
 
-* [Lucas Ondel](https://lucasondel.github.io/), Brno University of Technology, 2020
+* [Lucas Ondel](https://lucasondel.github.io/), Brno University of Technology, 2020, [Laboratoire Interdisciplinaire des Sciences du Numérique](https://www.lisn.upsaclay.fr/) 2021
 * Martin Kocour, Brno University of Technology, 2020
 
