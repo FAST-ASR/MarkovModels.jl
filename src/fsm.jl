@@ -90,6 +90,12 @@ end
 #######################################################################
 # FSM operations
 
+"""
+    renormalize!(fsm)
+
+Ensure the that all the weights of all the outgoing arcs leaving a
+state sum up to 1.
+"""
 function renormalize!(fsm::FSM{T}) where T
     total = zero(T)
     for s in filter(isinit, states(fsm)) total += s.initweight end
@@ -108,6 +114,14 @@ function renormalize!(fsm::FSM{T}) where T
     fsm
 end
 
+"""
+    replace(fsm, subfsms)
+
+Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
+is done with label of the state, i.e. the state with label `l` will be
+replaced by `subfsms[l]`. States that don't have matching labels are
+left untouched.
+"""
 function Base.replace(fsm::FSM{T}, subfsms::Dict) where T
     newfsm = FSM{T}()
 
@@ -168,6 +182,11 @@ function _unique_labels(statelist, T, step)
     retval
 end
 
+"""
+    determinize(fsm)
+
+Determinize the FSM w.r.t. the state labels.
+"""
 function determinize(fsm::FSM{T}) where T
     newfsm = FSM{T}()
     smap = Dict()
@@ -211,6 +230,11 @@ function determinize(fsm::FSM{T}) where T
     newfsm
 end
 
+"""
+    transpose(fsm)
+
+Reverse the direction of the arcs.
+"""
 function Base.transpose(fsm::FSM{T}) where T
     newfsm = FSM{T}()
     smap = Dict()
@@ -229,6 +253,11 @@ function Base.transpose(fsm::FSM{T}) where T
     newfsm
 end
 
+"""
+    minimize(fsm)
+
+Return a minimal equivalent fsm.
+"""
 minimize(fsm::FSM{T}) where T = (transpose ∘ determinize ∘ transpose ∘ determinize)(fsm)
 
 function _calculate_distances(ω::AbstractVector{T}, A::AbstractMatrix{T}) where T
@@ -250,6 +279,13 @@ function _calculate_distances(ω::AbstractVector{T}, A::AbstractMatrix{T}) where
     distances
 end
 
+"""
+    compile(fsm; allocator = spzeros)
+
+Compile `fsm` into a inference-friendly format. `allocator` is a
+function analogous to `zeros` which create a matrix and fill with
+zero elements.
+"""
 function compile(fsm::FSM{T}; allocator = spzeros) where T
     allstates = collect(states(fsm))
     S = length(allstates)
@@ -281,6 +317,11 @@ function compile(fsm::FSM{T}; allocator = spzeros) where T
     (π = π, ω = ω, A = A, Aᵀ = Aᵀ, dists = dists, pdfmap = pdfmap)
 end
 
+"""
+    gpu(cfsm)
+
+Move the compiled fsm `cfsm` to a GPU.
+"""
 function gpu(cfsm) where T
     if ! issparse(cfsm.π)
         return (
