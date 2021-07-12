@@ -173,7 +173,6 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict) where T
 
     newfsm
 end
-FSM() = FSM{Float64}()
 
 function _unique_labels(statelist, T, step)
     labels = Dict()
