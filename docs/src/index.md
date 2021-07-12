@@ -1,19 +1,19 @@
 # MarkovModels Documentation
 
-[MarkovModels](https://github.com/BUTSpeechFIT/MarkovModels) is a
+[MarkovModels](https://github.com/BUTSpeechFIT/MarkovModels.jl) is a
 [Julia](https://julialang.org/) package to use (Hidden) Markov Models
 for probabilistic inference.
 
-See the project on [github](https://github.com/BUTSpeechFIT/MarkovModels).
+See the project on [github](https://github.com/lucasondel/MarkovModels.jl).
 
-To quickly get started, have a look at our examples:
-* [Building a simple ASR decoder](https://github.com/BUTSpeechFIT/MarkovModels/blob/master/examples/demo.ipynb)
-* [Baum-Welch (forward-backward) algorithm](https://github.com/BUTSpeechFIT/MarkovModels/blob/master/examples/inference.ipynb)
+To quickly get started, have a look at the examples:
+* [notebook demo](https://github.com/lucasondel/MarkovModels.jl/blob/master/examples/demo.ipynb)
+* [benchmark](https://github.com/lucasondel/MarkovModels.jl/blob/master/examples/benchmark.jl)
 
 ## Authors
 
-* [Lucas Ondel](https://lucasondel.github.io), Brno University of Technology
-* Martin Kocour, Brno University of Technology
+* [Lucas Ondel](https://lucasondel.github.io)
+* Martin Kocour
 
 ## Installation
 

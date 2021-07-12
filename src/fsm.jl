@@ -1,137 +1,356 @@
-# MarkovModels - Implementation of Finite State Machine (FSM)
-#
-# Lucas Ondel, 2020
+# SPDX-License-Identifier: MIT
 
-#######################################################################
-# AbstractFSM interface
+const PdfIndex = Union{Int,Nothing}
+const Label = Union{AbstractString,Nothing}
 
-abstract type AbstractFSM{T} end
+mutable struct State{T<:Semifield}
+    id::Int
+    initweight::T
+    finalweight::T
+    pdfindex::PdfIndex
+    label::Label
+end
 
-"""
-    initstate(fsm)
+isinit(s::State{T}) where T = s.initweight ≠ zero(T)
+isfinal(s::State{T}) where T = s.finalweight ≠ zero(T)
+islabeled(s::State) = ! isnothing(s.label)
+isemitting(s::State)  = ! isnothing(s.pdfindex)
+setinit!(s::State{T}, weight::T = one(T)) where T = s.initweight = weight
+setfinal!(s::State{T}, weight::T = one(T)) where T = s.finalweight = weight
 
-Returns the initial state of `fsm`.
-"""
-initstate
-
-"""
-    finalstate(fsm)
-
-Returns the final state of `fsm`.
-"""
-finalstate
-
-"""
-    states(fsm)
-
-Iterator over the state of `fsm`.
-"""
-states
-
-"""
-    links(fsm)
-
-Returns the list of the links of the FSM.
-"""
-links(fsm::AbstractFSM)
-
-#######################################################################
-# FSM
-
-mutable struct StateIDCounter
-    count::UInt64
+mutable struct Link{T<:Semifield}
+    dest::State
+    weight::T
 end
 
 """
-    struct FSM{T}
-        ...
+    struct FSM{T<:Semifield}
+        states # vector of states
+        links # Dict state -> vector of links
     end
 
-Structure of a FSM. The type `T` indicates the type of the arcs'
-weight.
+Probabilistic finite state machine.
 """
-struct FSM{T} <: AbstractFSM{T}
-    idcounter::StateIDCounter
-    states::Dict{StateID, State}
+struct FSM{T<:Semifield}
+    states::Vector{State{T}}
+    links::Dict{State, Vector{Link{T}}}
+end
+FSM{T}() where T = FSM{T}(State{T}[], Dict{State, Vector{Link{T}}}())
+FSM() = FSM{LogSemifield{Float64}}()
 
-    FSM{T}() where T = new{T}(
-        StateIDCounter(0),
-        Dict{StateID, State}(
-            initstateid => State(initstateid),
-            finalstateid => State(finalstateid)
-        ),
-    )
+states(fsm::FSM) = fsm.states
+links(fsm::FSM{T}, state::State{T}) where T = get(fsm.links, state, Link{T}[])
+
+function addstate!(fsm::FSM{T}; initweight = zero(T), finalweight = zero(T),
+                   pdfindex = nothing, label = nothing) where T
+    s = State(length(fsm.states)+1, initweight, finalweight, pdfindex, label)
+    push!(fsm.states, s)
+    s
+end
+
+function link!(fsm::FSM{T}, src::State{T}, dest::State{T}, weight::T = one(T)) where T
+    list = get(fsm.links, src, Link{T}[])
+    link = Link{T}(dest, weight)
+    push!(list, link)
+    fsm.links[src] = list
+    link
+end
+
+function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
+    dotpath, dotfile = mktemp()
+    svgpath, svgfile = mktemp()
+
+    write(dotfile, "Digraph {\n")
+    write(dotfile, "rankdir=LR;")
+
+    for s in states(fsm)
+        name = "$(s.id)"
+        label = islabeled(s) ? "$(s.label)" : "ϵ"
+        label *= isemitting(s) ? ":$(s.pdfindex)" : ":ϵ"
+        attrs = "shape=" * (isfinal(s) ? "doublecircle" : "circle")
+        attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
+        attrs *= " label=\"" * label * "\""
+        attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
+        write(dotfile, "$name [ $attrs ];\n")
+    end
+
+    for src in states(fsm)
+        for link in links(fsm, src)
+            weight = round(convert(Float64, link.weight), digits = 3)
+            srcname = "$(src.id)"
+            destname = "$(link.dest.id)"
+            write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
+        end
+    end
+    write(dotfile, "}\n")
+    close(dotfile)
+    run(`dot -Tsvg $(dotpath) -o $(svgpath)`)
+
+    xml = read(svgfile, String)
+    write(io, xml)
+
+    close(svgfile)
+
+    rm(dotpath)
+    rm(svgpath)
+end
+
+#######################################################################
+# FSM operations
+
+"""
+    renormalize!(fsm)
+
+Ensure the that all the weights of all the outgoing arcs leaving a
+state sum up to 1.
+"""
+function renormalize!(fsm::FSM{T}) where T
+    total = zero(T)
+    for s in filter(isinit, states(fsm)) total += s.initweight end
+    for s in filter(isinit, states(fsm)) s.initweight /= total end
+
+    total = zero(T)
+    for s in filter(isfinal, states(fsm)) total += s.finalweight end
+    for s in filter(isfinal, states(fsm)) s.finalweight /= total end
+
+    for src in states(fsm)
+        total = zero(T)
+        for link in links(fsm, src) total += link.weight end
+        for link in links(fsm, src) link.weight /= total end
+    end
+
+    fsm
+end
+
+"""
+    replace(fsm, subfsms)
+
+Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
+is done with label of the state, i.e. the state with label `l` will be
+replaced by `subfsms[l]`. States that don't have matching labels are
+left untouched.
+"""
+function Base.replace(fsm::FSM{T}, subfsms::Dict) where T
+    newfsm = FSM{T}()
+
+    smap_in = Dict()
+    smap_out = Dict()
+    for s in states(fsm)
+        if s.label in keys(subfsms)
+            smap = Dict()
+            for cs in states(subfsms[s.label])
+                label = "$(s.label)!$(cs.label)"
+                ns = addstate!(newfsm, pdfindex = cs.pdfindex, label = label,
+                               initweight = s.initweight * cs.initweight,
+                               finalweight = s.finalweight * cs.finalweight)
+                smap[cs] = ns
+
+                if isinit(cs) smap_in[s] = ns end
+                if isfinal(cs) smap_out[s] = ns end
+            end
+
+            for cs in states(subfsms[s.label])
+                for link in links(subfsms[s.label], cs)
+                    link!(newfsm, smap[cs], smap[link.dest], link.weight)
+                end
+            end
+
+        else
+            ns = addstate!(newfsm, pdfindex = s.pdfindex, label = s.label,
+                           initweight = s.initweight, finalweight = s.finalweight)
+            smap_in[s] = ns
+            smap_out[s] = ns
+        end
+    end
+
+    for osrc in states(fsm)
+        for link in links(fsm, osrc)
+            src = smap_out[osrc]
+            dest = smap_in[link.dest]
+            link!(newfsm, src, dest, link.weight)
+        end
+    end
+
+    newfsm
 end
 FSM() = FSM{Float64}()
 
-#######################################################################
-# Methods to construct the FSM
-
-"""
-    addstate!(fsm[, pdfindex = ..., label = "..."])
-
-Add `state` to `fsm` and return it.
-"""
-function addstate!(fsm; id = nothing, pdfindex = nothing, label = nothing)
-    if isnothing(id)
-        fsm.idcounter.count += 1
-        id = fsm.idcounter.count
-    else
-        fsm.idcounter.count = max(fsm.idcounter.count, id)
+function _unique_labels(statelist, T, step)
+    labels = Dict()
+    for (s, w) in statelist
+        lstates, iw, fw, tw = get(labels, (s.label, step), (Set(), zero(T), zero(T), zero(T)))
+        push!(lstates, s)
+        labels[(s.label, step)] = (lstates, iw+s.initweight, fw+s.finalweight, tw+w)
     end
-    s = State(id, pdfindex, label, Vector{Link}())
-    fsm.states[s.id] = s
-end
 
-"""
-    link!(src, dest[, weight = 0])
-
-Add a weighted connection between `state1` and `state2`. By default,
-`weight = 0`.
-"""
-link!(src, dest, weight = 0) = push!(src.links, Link(src, dest, weight))
-
-
-"""
-    LinearFSM([T, ]seq[, emissionsmap::Dict{<:Label, <:PdfIndex}])
-
-Create a linear FSM of type `T` from a sequence of labels `seq`. If
-`emissionsmap` is provided, every item `l` of `seq` with a matching entry
-in `emissionsmap` will be assigned the pdf index `emissionsmap[l]`.
-`PdfIndex` can be any integer type and `Label` any string type.
-"""
-function LinearFSM(T, sequence::AbstractVector{<:Label},
-                   emissionsmap = Dict{Label, PdfIndex}())
-    fsm = FSM{T}()
-    prevstate = initstate(fsm)
-    for token in sequence
-        pdfindex = get(emissionsmap, token, nothing)
-        s = addstate!(fsm, pdfindex = pdfindex, label = token)
-        link!(prevstate, s)
-        prevstate = s
-    end
-    link!(prevstate, finalstate(fsm))
-    fsm
-end
-function LinearFSM(sequence::AbstractVector{<:Label},
-                   emissionsmap = Dict{Label, PdfIndex}())
-    LinearFSM(Float64, sequence, emissionsmap)
-end
-
-#######################################################################
-# Implementation of the AbstractFSM interface
-
-initstate(fsm::FSM) = fsm.states[initstateid]
-finalstate(fsm::FSM) = fsm.states[finalstateid]
-states(fsm::FSM) = values(fsm.states)
-
-function links(fsm::FSM)
-    retval = []
-    for s in states(fsm)
-        for l in links(s)
-            push!(retval, l)
-        end
+    # Inverse the map so that the set of states is the key.
+    retval = Dict()
+    for (key, value) in labels
+        retval[value[1]] = (key[1], value[2], value[3], value[4])
     end
     retval
 end
 
+"""
+    determinize(fsm)
+
+Determinize the FSM w.r.t. the state labels.
+"""
+function determinize(fsm::FSM{T}) where T
+    newfsm = FSM{T}()
+    smap = Dict()
+    newlinks = Dict()
+
+    initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
+    queue = _unique_labels(initstates, T, 0)
+    while ! isempty(queue)
+        key, value = pop!(queue)
+        lstates = key
+        label, iw, fw, tw = value
+        step = 0
+
+        if key ∉ keys(smap)
+            s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
+            smap[key] = s
+        end
+
+        nextstates = []
+        for ls in lstates
+            for link in links(fsm, ls)
+                push!(nextstates, (link.dest, link.weight))
+            end
+        end
+
+        nextlabels = _unique_labels(nextstates, T, step+1)
+        for (key2, value2) in nextlabels
+            w = get(newlinks, (key,key2), zero(T))
+            newlinks[(key,key2)] = w+value2[end]
+        end
+        queue = merge(queue, _unique_labels(nextstates, T, step+1))
+    end
+
+    for (key, value) in newlinks
+        src = smap[key[1]]
+        dest = smap[key[2]]
+        weight = value
+        link!(newfsm, src, dest, weight)
+    end
+
+    newfsm
+end
+
+"""
+    transpose(fsm)
+
+Reverse the direction of the arcs.
+"""
+function Base.transpose(fsm::FSM{T}) where T
+    newfsm = FSM{T}()
+    smap = Dict()
+    for s in states(fsm)
+        ns = addstate!(newfsm, label = s.label, initweight = s.finalweight,
+                       finalweight = s.initweight, pdfindex = s.pdfindex)
+        smap[s] = ns
+    end
+
+    for src in states(fsm)
+        for link in links(fsm, src)
+            link!(newfsm, smap[link.dest], smap[src], link.weight)
+        end
+    end
+
+    newfsm
+end
+
+"""
+    minimize(fsm)
+
+Return a minimal equivalent fsm.
+"""
+minimize(fsm::FSM{T}) where T = (transpose ∘ determinize ∘ transpose ∘ determinize)(fsm)
+
+function _calculate_distances(ω::AbstractVector{T}, A::AbstractMatrix{T}) where T
+    Aᵀ = transpose(A)
+    I = findall(ω .> zero(T))
+    queue = Set{Tuple{Int,Int}}([(state, 0) for state in I])
+    visited = Set{Int}(I)
+    distances = zeros(Int, length(ω))
+    while ! isempty(queue)
+        state, dist = pop!(queue)
+        for nextstate in findall(Aᵀ[state,:] .> zero(T))
+            if nextstate ∉ visited
+                push!(queue, (nextstate, dist + 1))
+                push!(visited, nextstate)
+                distances[nextstate] = dist + 1
+            end
+        end
+    end
+    distances
+end
+
+"""
+    compile(fsm; allocator = spzeros)
+
+Compile `fsm` into a inference-friendly format. `allocator` is a
+function analogous to `zeros` which create a matrix and fill with
+zero elements.
+"""
+function compile(fsm::FSM{T}; allocator = spzeros) where T
+    allstates = collect(states(fsm))
+    S = length(allstates)
+
+    # Initial states' probabilities.
+    π = allocator(T, S)
+    for s in filter(isinit, allstates) π[s.id] = s.initweight end
+
+    # Final states' probabilities.
+    ω = allocator(T, S)
+    for s in filter(isfinal, allstates) ω[s.id] = s.finalweight end
+
+    # Transition matrix.
+    A = allocator(T, S, S)
+    Aᵀ = allocator(T, S, S)
+    for src in allstates
+        for link in links(fsm, src)
+            A[src.id, link.dest.id] = link.weight
+            Aᵀ[link.dest.id, src.id] = link.weight
+        end
+    end
+
+    # For each state the distance to the nearest final state.
+    dists = _calculate_distances(ω, A)
+
+    # Pdf index mapping.
+    pdfmap = [s.pdfindex for s in sort(allstates, by = p -> p.id)]
+
+    (π = π, ω = ω, A = A, Aᵀ = Aᵀ, dists = dists, pdfmap = pdfmap)
+end
+
+"""
+    gpu(cfsm)
+
+Move the compiled fsm `cfsm` to a GPU.
+"""
+function gpu(cfsm) where T
+    if ! issparse(cfsm.π)
+        return (
+            π = CuArray(cfsm.π),
+            ω = CuArray(cfsm.ω),
+            A = CuArray(cfsm.A),
+            Aᵀ = CuArray(cfsm.Aᵀ),
+            dists = cfsm.dists,
+            pdfmap = cfsm.pdfmap
+        )
+    end
+
+    A = CuSparseMatrixCSC(cfsm.A)
+    Aᵀ = CuSparseMatrixCSC(cfsm.Aᵀ)
+    return (
+        π = CuSparseVector(cfsm.π),
+        ω = CuSparseVector(cfsm.ω),
+        A = CuSparseMatrixCSR(Aᵀ.colPtr, Aᵀ.rowVal, Aᵀ.nzVal, A.dims),
+        Aᵀ = CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, A.dims),
+        dists = cfsm.dists,
+        pdfmap = cfsm.pdfmap
+    )
+end
