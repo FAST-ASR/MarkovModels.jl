@@ -1,0 +1,17 @@
+name: Test
+on: [push]
+jobs:
+    test:
+        strategy:
+            matrix:
+                julia-version: ['1.6.0']
+                os: [ubuntu-latest]
+
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v2
+            - uses: julia-actions/setup-julia@latest
+              with:
+                version: ${{ matrix.julia-version }}
+            - uses: julia-actions/julia-buildpkg@latest
+            - uses: julia-actions/julia-runtest@latest
