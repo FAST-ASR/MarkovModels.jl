@@ -288,6 +288,32 @@ function _calculate_distances(ω::AbstractVector{T}, A::AbstractMatrix{T}) where
 end
 
 """
+    union(fsm1, fsm2, ...)
+
+Merge several FSMs into a single one.
+"""
+function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
+    fsm = FSM{T}()
+    s = addstate!(fsm)
+    s1 = addstate!(fsm, label = "#fsm1")
+    s2 = addstate!(fsm, label = "#fsm2")
+    link!(fsm, s, s1)
+    link!(fsm, s, s2)
+    setinit!(s)
+    setfinal!(s1)
+    setfinal!(s2)
+    unionfsm = replace(fsm, Dict("#fsm1" => fsm1, "#fsm2" => fsm2))
+    foreach(states(unionfsm)) do s
+        if ! isnothing(s.label)
+            s.label = replace(s.label, "#fsm1!" => "")
+            s.label = replace(s.label, "#fsm2!" => "")
+        end
+    end
+    return unionfsm
+end
+Base.union(fsm::FSM{T}, rest::FSM{T}...) where T = foldl(union, rest, init=fsm)
+
+"""
     compile(fsm; allocator = spzeros)
 
 Compile `fsm` into a inference-friendly format. `allocator` is a
