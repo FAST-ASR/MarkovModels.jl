@@ -1,30 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-#######################################################################
-# Wrapped operations
-
-# Element-wise division.
-eldiv!(out, x::AbstractArray, y::AbstractArray) = broadcast!(/, out, x, y)
-
-# Element-wise multiplication.
-elmul!(out, x::AbstractArray, y::AbstractArray) = broadcast!(*, out, x, y)
-#elmul!(out, x::CuVector, Y::CuMatrix) = broadcast!(*, out, Y, x)
-elmul!(out, x::CuSparseVector, y::AbstractVector) = elmul_svdv!(out, x, y)
-elmul!(out, x::CuSparseVector, Y::AbstractMatrix) = elmul_svdm!(out, x, Y)
-
-# Matrix multiplication.
-matmul!(out, X::AbstractMatrix{T}, y::AbstractArray{T}) where T =
-    mul!(out, X, y, one(T), zero(T))
-matmul!(out, X::CuMatrix{T}, Y::CuMatrix{T}) where T =
-    mul_dmdm!(out, X, Y)
-matmul!(out, X::CuSparseMatrixCSR{T}, y::CuVector{T}) where T =
-    mul_smdv!(out, X, y)
-matmul!(out, X::CuSparseMatrixCSR{T}, Y::CuMatrix{T}) where T =
-    mul_smdm!(out, X, Y)
-
-
-#######################################################################
-
 """
     αβrecursion(cfsm, lhs)
     αβrecursion(π, ω, A, Aᵀ, lhs)

@@ -5,11 +5,14 @@ using LogExpFunctions
 using MarkovModels
 using Test
 
-const B = 2
-const S = 3
-const N = 5
+const D = 5 # vector/matrix dimension
+const B = 2 # batch size
+const S = 3 # number of states
+const N = 5 # number of frames
+
 const T = Float64
 const SF = LogSemifield{T}
+
 
 function makefsm(SF, S)
     fsm = FSM{SF}()
@@ -65,19 +68,41 @@ if CUDA.functional()
         x = ones(T, D)
         y = spzeros(T, D)
         y[2] = T(3)
-
         xg = CuArray(x)
         yg = CuSparseVector(y)
         out = similar(xg)
         MarkovModels.elmul_svdv!(out, yg, xg)
         @test all(convert(Vector{T}, out) .≈ x .* y)
 
-        Yᵀ = spdiagm(y)
-        Yᵀg = CuSparseMatrixCSC(Yᵀ)
-        Yg = CuSparseMatrixCSR( Yᵀg.colPtr, Yᵀg.rowVal, Yᵀg.nzVal, (D,D))
+        x = ones(T, D)
+        y = spzeros(T, D)
+        xg = CuArray(x)
+        yg = CuSparseVector(y)
         out = similar(xg)
-        MarkovModels.mul_smdv!(out, Yg, xg)
-        @test all(convert(Vector{T}, out) .≈ transpose(Yᵀ) * x)
+        MarkovModels.elmul_svdv!(out, yg, xg)
+        @test all(convert(Vector{T}, out) .≈ x .* y)
+
+        for Yᵀ in [spdiagm(y), spzeros(T, length(y))]
+            Yᵀ = spdiagm(y)
+            Yᵀg = CuSparseMatrixCSC(Yᵀ)
+            Yg = CuSparseMatrixCSR( Yᵀg.colPtr, Yᵀg.rowVal, Yᵀg.nzVal, (D,D))
+            out = similar(xg)
+            MarkovModels.mul_smdv!(out, Yg, xg)
+            @test all(convert(Vector{T}, out) .≈ transpose(Yᵀ) * x)
+        end
+
+        x = ones(T, D)
+        y = spzeros(T, D)
+        X = ones(T, D, D)
+        Y = spzeros(T, D, D)
+        xg = CuArray(x)
+        yg = CuSparseVector(y)
+        Xg = CuArray(X)
+        Yg = CuSparseMatrixCSC(Y)
+        Yg = CuSparseMatrixCSR(Yg.colPtr, Yg.rowVal, Yg.nzVal, Yg.dims)
+        out = similar(Xg)
+        MarkovModels.elmul_svdm!(out, yg, Xg)
+        @test all(convert(Matrix{T}, out) .≈ X .* reshape(y, :, 1))
 
         x = ones(T, D)
         y = spzeros(T, D)
@@ -86,16 +111,23 @@ if CUDA.functional()
         Y[1,1] = T(1)
         Y[1,2] = T(2)
         Y[2,1] = T(3)
-
         xg = CuArray(x)
         yg = CuSparseVector(y)
         Xg = CuArray(X)
         Yg = CuSparseMatrixCSC(Y)
         Yg = CuSparseMatrixCSR(Yg.colPtr, Yg.rowVal, Yg.nzVal, Yg.dims)
-
         out = similar(Xg)
         MarkovModels.elmul_svdm!(out, yg, Xg)
         @test all(convert(Matrix{T}, out) .≈ X .* reshape(y, :, 1))
+
+        A = spzeros(3, 3)
+        Ag = CuSparseMatrixCSC(A)
+        Ag = CuSparseMatrixCSR(Ag.colPtr, Ag.rowVal, Ag.nzVal, Ag.dims)
+        Y = ones(3, 3)
+        Yg = CuArray(Y)
+        out = similar(Yg)
+        MarkovModels.mul_smdm!(out, Ag, Yg)
+        @test all(convert(Matrix{T}, out) .≈ A' * Y)
 
         A = spzeros(3, 3)
         A[1, 1] = 1/2
@@ -110,7 +142,6 @@ if CUDA.functional()
         out = similar(Yg)
         MarkovModels.mul_smdm!(out, Ag, Yg)
         @test all(convert(Matrix{T}, out) .≈ A' * Y)
-
 
         A = ones(T, 3, 2)
         Ag = CuArray(A)

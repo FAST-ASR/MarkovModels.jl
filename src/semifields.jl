@@ -1,4 +1,4 @@
-#A = CuSparseMatrixCSR(Aᵀ.colPtr, Aᵀ.rowVal, Aᵀ.nzVal, A.dims) SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: MIT
 
 const kMinLogDiffFloat = log(1.19209290f-7)
 
@@ -32,7 +32,7 @@ Base.show(io::IO, x::LogSemifield) = print(io, x.val)
 Base.promote(x::LogSemifield{T}, y::Real) where T = x, LogSemifield{T}(y)
 Base.promote(y::Real, x::LogSemifield{T}) where T = LogSemifield{T}(y), x
 Base.:+(x::LogSemifield{T}, y::LogSemifield{T}) where T =
-    LogSemifield{T}(logaddexp(x.val, y.val))
+    LogSemifield{T}(mylogaddexp(x.val, y.val))
 Base.:*(x::LogSemifield, y::LogSemifield) = LogSemifield(x.val + y.val)
 Base.:/(x::LogSemifield, y::LogSemifield) = LogSemifield(x.val - y.val)
 Base.zero(::Type{LogSemifield{T}}) where T = LogSemifield{T}(T(-Inf))
