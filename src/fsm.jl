@@ -109,6 +109,7 @@ function renormalize!(fsm::FSM{T}) where T
     for s in filter(isinit, states(fsm)) total += s.initweight end
     for s in filter(isinit, states(fsm)) s.initweight /= total end
 
+
     total = zero(T)
     for s in filter(isfinal, states(fsm)) total += s.finalweight end
     for s in filter(isfinal, states(fsm)) s.finalweight /= total end

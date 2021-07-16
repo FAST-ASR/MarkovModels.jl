@@ -1,46 +1,56 @@
 # SPDX-License-Identifier: MIT
 
-using ArgParse
 using CUDA
 using CUDA.CUSPARSE
-using BenchmarkTools
 using MarkovModels
 using SparseArrays
 using LinearAlgebra
 using LogExpFunctions
+using Torch
+using Torch: to_tensor
 
-BLAS.set_num_threads(1)
+#######################################################################
+# Benchmarking macro
+
+macro benchmark(ex)
+    quote
+        $(esc(ex))
+        local elapsedtime = time_ns()
+        val = $(esc(ex))
+        elapsedtime = time_ns() - elapsedtime
+        val, elapsedtime / 1e9
+    end
+end
 
 #######################################################################
 # This is the "standard" way of implementing the forward-backward
 # algorithm (as would be done in python for example).
 
-function forward(Aᵀ, init, lhs::AbstractMatrix{T}) where T
+function forward(A, init, lhs::AbstractMatrix{T}) where T
     N = size(lhs, 2)
-    log_α = fill!(similar(lhs), T(-Inf))
-    log_α[:, 1] = view(lhs, :, 1) + init
+    log_α = similar(lhs)
+    log_α[:, 1] = lhs[:, 1] + init
     for n in 2:N
-        log_α[:, n] = lhs[:, n] + logsumexp(Aᵀ .+ reshape(log_α[:,n-1], 1, :),
-                                                     dims = 2)
+        #log_α[:, n] = lhs[:,n] + logsumexp(Aᵀ .+ reshape(log_α[:,n-1], 1, :), dims = 2)
+        log_α[:, n] = lhs[:,n] + dropdims(logsumexp(A .+ log_α[:,n-1], dims = 1), dims = 1)
     end
     log_α
 end
 
-function backward(A, final, lhs::AbstractMatrix{T}) where T
+function backward(Aᵀ, final, lhs::AbstractMatrix{T}) where T
     N = size(lhs, 2)
-    log_β = fill!(similar(lhs), T(-Inf))
+    log_β = similar(lhs)
     log_β[:, end] = final
     for n in N-1:-1:1
-        tmp = dropdims(logsumexp(A .+ reshape(log_β[:,n+1] .+ lhs[:, n+1], 1, :),
-                                 dims = 2), dims = 2)
-        log_β[:, n] = tmp
+        #log_β[:, n] = logsumexp(Aᵀ .+ log_β[:,n+1] .+ lhs[:,n+1], dims = 2)
+        log_β[:, n] = dropdims(logsumexp(Aᵀ .+ log_β[:,n+1] .+ lhs[:,n+1], dims = 1), dims = 1)
     end
     log_β
 end
 
 function forward_backward(A, Aᵀ, init, final, lhs)
-    log_α = forward(Aᵀ, init, lhs)
-    log_β = backward(A, final, lhs)
+    log_α = forward(A, init, lhs)
+    log_β = backward(Aᵀ, final, lhs)
     log_γ = log_α .+ log_β
     sums = logsumexp(log_γ, dims = 1)
     log_γ .- sums, minimum(sums)
@@ -65,80 +75,66 @@ function makefsm(SF, S)
     fsm
 end
 
-function main(T, SF, S, N)
+function main(T, SF, B, S, N)
     # Generate some pseudo-(log)likelihood
-    lhs = convert(Matrix{SF}, zeros(T, S, N))
+    lhs = convert(Array{SF, 3}, zeros(T, S, N, B))
 
     # Build the Finite State Machine (FSM).
     fsm = makefsm(SF, S)
 
-    println("Setup:")
-    println("  float type: $T")
-    println("  # states: $S")
-    println("  # frames: $N")
-    println()
+    precision = T == Float64 ? "double" : "single"
 
-    println("αβrecursion (standard implementation) with dense CPU arrays:")
-    cfsm = compile(fsm, allocator = zeros)
-    Aᵀ = convert(Matrix{T}, cfsm.Aᵀ)
-    A = convert(Matrix{T}, cfsm.A)
-    init = convert(Vector{T}, cfsm.π)
-    final = convert(Vector{T}, cfsm.ω)
-    lhs_rs = convert(Matrix{T}, lhs)
-    @btime forward_backward($A, $Aᵀ, $init, $final, $lhs_rs)
-    println("------------------------------------------------")
+    #cfsm = compile(fsm, allocator = zeros)
+    #Aᵀ = convert(Matrix{T}, cfsm.Aᵀ)
+    #A = convert(Matrix{T}, cfsm.A)
+    #init = convert(Vector{T}, cfsm.π)
+    #final = convert(Vector{T}, cfsm.ω)
+    #lhs_rs = convert(Matrix{T}, lhs)
+    #val, etime = @benchmark forward_backward(A, Aᵀ, init, final, lhs_rs)
+    #println("julia\t$precision\t$S\t$N\tstandard\tdense\tcpu\t$etime")
 
-    println("αβrecursion with dense CPU arrays:")
-    cfsm = compile(fsm, allocator = zeros)
-    @btime αβrecursion($cfsm, $lhs)
-    println("------------------------------------------------")
+    #cfsm = compile(fsm, allocator = zeros)
+    #αβrecursion(cfsm, lhs)
+    #val, etime = @benchmark αβrecursion(cfsm, lhs)
+    #println("julia\t$precision\t$S\t$N\tsemifield\tdense\tcpu\t$etime")
 
-    println("αβrecursion with sparse CPU arrays:")
     cfsm = compile(fsm, allocator = spzeros)
-    @btime αβrecursion($cfsm, $lhs)
-    println("------------------------------------------------")
+    αβrecursion(cfsm, lhs)
+    val, etime = @benchmark αβrecursion(cfsm, lhs)
+    println("julia\t$precision\t$B\t$S\t$N\tsemifield\tsparse\tcpu\t$etime")
 
-    println("αβrecursion (standard implementation) with dense GPU arrays:")
-    cfsm = compile(fsm, allocator = zeros)
-    Aᵀ = convert(Matrix{T}, cfsm.Aᵀ) |> CuArray
-    A = convert(Matrix{T}, cfsm.A) |> CuArray
-    init = convert(Vector{T}, cfsm.π) |> CuArray
-    final = convert(Vector{T}, cfsm.ω) |> CuArray
-    lhs_rs = convert(Matrix{T}, lhs) |> CuArray
-    @btime forward_backward($A, $Aᵀ, $init, $final, $lhs_rs)
-    println("------------------------------------------------")
+    #cfsm = compile(fsm, allocator = zeros)
+    #Aᵀ = convert(Matrix{T}, cfsm.Aᵀ) |> CuArray
+    #A = convert(Matrix{T}, cfsm.A) |> CuArray
+    #init = convert(Vector{T}, cfsm.π) |> CuArray
+    #final = convert(Vector{T}, cfsm.ω) |> CuArray
+    #lhs_rs = convert(Matrix{T}, lhs) |> CuArray
+    #forward_backward(A, Aᵀ, init, final, lhs_rs)
+    #val, etime = @benchmark [forward_backward(A, Aᵀ, init, final, lhs_rs) for b in 1:B]
+    #println("julia\t$precision\t$B\t$S\t$N\tstandard\tdense\tgpu\t$etime")
 
-    println("αβrecursion with dense GPU arrays:")
-    cfsm = compile(fsm, allocator = zeros) |> gpu
+    #cfsm = compile(fsm, allocator = zeros) |> gpu
     lhs = CuArray(lhs)
-    @btime αβrecursion($cfsm, $lhs)
-    println("------------------------------------------------")
+    #αβrecursion(cfsm, lhs)
+    #val, etime = @benchmark αβrecursion(cfsm, lhs)
+    #println("julia\t$precision\t$S\t$N\tsemifield\tdense\tgpu\t$etime")
 
-    println("αβrecursion with sparse GPU arrays:")
     cfsm = compile(fsm, allocator = spzeros) |> gpu
-    @btime αβrecursion($cfsm, $lhs)
-    println("------------------------------------------------")
+    αβrecursion(cfsm, lhs)
+    val, etime = @benchmark αβrecursion(cfsm, lhs)
+    println("julia\t$precision\t$B\t$S\t$N\tsemifield\tsparse\tgpu\t$etime")
 end
 
-s = ArgParseSettings()
-@add_arg_table s begin
-    "--num-frames", "-N"
-        help = "number of observation frames"
-        arg_type = Int
-        default = 1000
-    "--num-states", "-S"
-        help = "number of states"
-        arg_type = Int
-        default = 1000
-    "--single-precision"
-        help = "use single precision"
-        action = :store_true
-end
-
-args = parse_args(s)
-
-const T = args["single-precision"] ? Float32 : Float64
+const T = Float64
 const SF = LogSemifield{T}
-const S = args["num-states"]
-const N = args["num-frames"]
-main(T, SF, S, N)
+const Bs = 10:10
+const Ss = 300:300
+const Ns = 500:500:10000
+
+for B in Bs
+    for S in Ss
+        for N in Ns
+            main(T, SF, B, S, N)
+        end
+    end
+end

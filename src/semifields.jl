@@ -1,4 +1,24 @@
-# SPDX-License-Identifier: MIT
+#A = CuSparseMatrixCSR(Aᵀ.colPtr, Aᵀ.rowVal, Aᵀ.nzVal, A.dims) SPDX-License-Identifier: MIT
+
+const kMinLogDiffFloat = log(1.19209290f-7)
+
+function mylogaddexp(x::T, y::T) where T
+    if x == T(-Inf) return y end
+    if y == T(-Inf) return x end
+
+    diff = T(0)
+    if x < y
+        diff = x - y
+        x = y
+    else
+        diff = y -x
+    end
+
+    if diff >= log(eps(T))
+        return x + log1p(exp(diff))
+    end
+    return x
+end
 
 abstract type Semifield <: Number end
 

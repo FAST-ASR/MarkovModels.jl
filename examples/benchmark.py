@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 import argparse
+import gc
 import time
 import torch
 
@@ -29,18 +30,14 @@ def forward(A, init, lhs):
     log_alphas[0] = lhs[0] + init
     At = A.t()
     for i in range(1, lhs.shape[0]):
-        log_alphas[i] = lhs[i]
-        log_alphas[i] += torch.logsumexp(log_alphas[i-1] + At, dim=1).view(-1)
+        log_alphas[i] = lhs[i] + torch.logsumexp(log_alphas[i-1] + At, dim=1).view(-1)
     return log_alphas
 
 def backward(A, final, lhs):
     log_betas = torch.zeros_like(lhs) - float('inf')
     log_betas[-1] = final
     for i in reversed(range(lhs.shape[0]-1)):
-        # we use log_betas[i] as an intermediate buffer.
-        log_betas[i] = lhs[i+1]
-        log_betas[i] += log_betas[i+1]
-        log_betas[i] = torch.logsumexp(A + log_betas[i], dim=1).view(-1)
+        log_betas[i] = torch.logsumexp(A + log_betas[i+1] + lhs[i+1], dim=1).view(-1)
     return log_betas
 
 def forward_backward(A, init, final, lhs):
@@ -48,29 +45,23 @@ def forward_backward(A, init, final, lhs):
     log_betas = backward(A, final, lhs)
     lgammas = log_alphas + log_betas
     lognorm = torch.logsumexp(lgammas, dim=1)
-    lgammas -= lognorm[:, None]
-    return lgammas, torch.min(lognorm)
+    return lgammas - lognorm[:, None], torch.min(lognorm)
 
 def main(args):
     N = args.num_frames
     S = args.num_states
     T = torch.float32 if args.single_precision else torch.float64
 
-    print('Setup:')
-    print(f'  float type: {T}')
-    print(f'  # states: {S}')
-    print(f'  # frames: {N}')
-    print()
+    lang = 'python'
+    precision = 'double' if T == torch.float64 else 'single'
 
     lhs = torch.zeros(N, S, dtype=T)
     A, init, final = make_hmm(T, S)
 
-    print("αβrecursion with dense CPU arrays:")
     t1 = time.time()
     lg, ttl = forward_backward(A, init, final, lhs)
     t2 = time.time()
-    print(f'  {t2 - t1}')
-    print("------------------------------------------------")
+    print(f'{lang}\t{precision}\t{S}\t{N}\tstandard\tdense\tcpu\t{t2 - t1}')
 
     device = torch.device('cuda')
     A = A.to(device)
@@ -78,12 +69,10 @@ def main(args):
     final = final.to(device)
     lhs = lhs.to(device)
 
-    print("αβrecursion with dense GPU arrays:")
     t1 = time.time()
     forward_backward(A, init, final, lhs)
     t2 = time.time()
-    print(f'  {t2 - t1}')
-    print("------------------------------------------------")
+    print(f'{lang}\t{precision}\t{S}\t{N}\tstandard\tdense\tgpu\t{t2 - t1}')
 
 
 
