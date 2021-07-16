@@ -1,8 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-const kMinLogDiffFloat = log(1.19209290f-7)
-
-function mylogaddexp(x::T, y::T) where T
+function logaddexp(x::T, y::T) where T
     if x == T(-Inf) return y end
     if y == T(-Inf) return x end
 
@@ -32,7 +30,7 @@ Base.show(io::IO, x::LogSemifield) = print(io, x.val)
 Base.promote(x::LogSemifield{T}, y::Real) where T = x, LogSemifield{T}(y)
 Base.promote(y::Real, x::LogSemifield{T}) where T = LogSemifield{T}(y), x
 Base.:+(x::LogSemifield{T}, y::LogSemifield{T}) where T =
-    LogSemifield{T}(mylogaddexp(x.val, y.val))
+    LogSemifield{T}(logaddexp(x.val, y.val))
 Base.:*(x::LogSemifield, y::LogSemifield) = LogSemifield(x.val + y.val)
 Base.:/(x::LogSemifield, y::LogSemifield) = LogSemifield(x.val - y.val)
 Base.zero(::Type{LogSemifield{T}}) where T = LogSemifield{T}(T(-Inf))
