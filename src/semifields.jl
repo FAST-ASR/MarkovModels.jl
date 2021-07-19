@@ -2,15 +2,12 @@
 
 # Stable implemenation of the log(exp(x) + exp(y)).
 function logaddexp(x::T, y::T) where T
-    if x == T(-Inf) return y end
-    if y == T(-Inf) return x end
-
-    diff = T(0)
+    diff = zero(T)
     if x < y
         diff = x - y
         x = y
-    else
-        diff = y -x
+    else y < x
+        diff = y - x
     end
 
     if diff >= log(eps(T))
