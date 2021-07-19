@@ -108,3 +108,14 @@ function gpu(cfsm::CompiledFSM{T}) where T
     )
 end
 
+function Base.convert(::Type{CompiledFSM{NT}}, cfsm) where NT <: Semifield
+    CompiledFSM(
+        copyto!(similar(cfsm.π, NT), cfsm.π),
+        copyto!(similar(cfsm.ω, NT), cfsm.ω),
+        copyto!(similar(cfsm.A, NT), cfsm.A),
+        copyto!(similar(cfsm.Aᵀ, NT), cfsm.Aᵀ),
+        cfsm.dists,
+        cfsm.pdfmap
+    )
+end
+Base.convert(::Type{T}, cfsm::T) where T <: CompiledFSM = cfsm
