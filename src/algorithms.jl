@@ -1,5 +1,67 @@
 # SPDX-License-Identifier: MIT
 
+const Abstract3DTensor{T} = AbstractArray{T,3} where T
+
+#======================================================================
+Forward recursion
+======================================================================#
+
+function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
+                     Aᵀ::AbstractMatrix{T}, lhs::AbstractMatrix) where T
+    N = size(lhs, 2)
+    buffer = similar(lhs[:, 1])
+    @views elmul!(α[:,1], π, lhs[:,1])
+    @views for n in 2:N
+        matmul!(buffer, Aᵀ, α[:,n-1])
+        elmul!(α[:,n], buffer, lhs[:,n])
+    end
+    α
+end
+
+function αrecursion!(α::Abstract3DTensor{T}, π::AbstractVector{T},
+                     Aᵀ::AbstractMatrix{T}, lhs::Abstract3DTensor{T}) where T
+    N = size(lhs, 2)
+    buffer = similar(α[:,1,:])
+    @views elmul!(α[:,1,:], π, lhs[:,1,:])
+    @views for n in 2:N
+        matmul!(buffer, Aᵀ, α[:,n,:])
+        elmul!(α[:,n,:], buffer, lhs[:,n,:])
+    end
+    α
+end
+
+#======================================================================
+Backward recursion
+======================================================================#
+
+function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
+                     A::AbstractMatrix{T}, lhs::AbstractMatrix{T}) where T
+    N = size(lhs, 2)
+    buffer = similar(lhs[:, 1])
+    β[:, end] = ω
+    @views for n in N-1:-1:1
+        elmul!(buffer, β[:,n+1], lhs[:,n+1])
+        matmul!(β[:,n], A, buffer)
+    end
+    β
+end
+
+function βrecursion!(β::Abstract3DTensor{T}, ω::AbstractVector{T},
+                     A::AbstractMatrix{T}, lhs::Abstract3DTensor{T}) where T
+    N = size(lhs, 2)
+    buffer = fill!(similar(β[:,1,:]), one(T))
+    @views elmul!(β[:,end,:], ω, buffer)
+    @views for n in N-1:-1:1
+        elmul!(buffer, β[:,n+1,:], lhs[:,n+1,:])
+        matmul!(β[:,n,:], A, buffer)
+    end
+    β
+end
+
+#======================================================================
+Forward-Backward algorithm
+======================================================================#
+
 """
     αβrecursion(cfsm, lhs)
     αβrecursion(π, ω, A, Aᵀ, lhs)
@@ -19,9 +81,6 @@ function αβrecursion(cfsm, lhs::AbstractArray)
     αβrecursion(cfsm.π, cfsm.ω, cfsm.A, cfsm.Aᵀ, lhs)
 end
 
-#######################################################################
-# Generic implementation
-
 function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
                      A::AbstractMatrix{T}, Aᵀ::AbstractMatrix,
                      lhs::AbstractMatrix{T}) where T
@@ -40,32 +99,6 @@ function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
     γ, minimum(sums)
 end
 
-function αrecursion!(α::AbstractMatrix{T}, π::AbstractVector{T},
-                     Aᵀ::AbstractMatrix{T}, lhs::AbstractMatrix) where T
-    N = size(lhs, 2)
-    buffer = similar(lhs[:, 1])
-    @views elmul!(α[:,1], π, lhs[:,1])
-    @views for n in 2:N
-        elmul!(buffer, α[:,n-1], lhs[:,n])
-        matmul!(α[:, n], Aᵀ, buffer)
-    end
-    α
-end
-
-function βrecursion!(β::AbstractMatrix{T}, ω::AbstractVector{T},
-                     A::AbstractMatrix{T}, lhs::AbstractMatrix{T}) where T
-    N = size(lhs, 2)
-    buffer = similar(lhs[:, 1])
-    β[:, end] = ω
-    @views for n in N-1:-1:1
-        elmul!(buffer, β[:,n+1], lhs[:,n+1])
-        matmul!(β[:,n], A, buffer)
-    end
-    β
-end
-
-const Abstract3DTensor{T} = AbstractArray{T, 3} where T
-
 function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
                      A::AbstractMatrix{T}, Aᵀ::AbstractMatrix,
                      lhs::Abstract3DTensor{T}) where T
@@ -82,29 +115,5 @@ function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
     eldiv!(γ, γ, sums)
 
     γ, dropdims(minimum(sums, dims = (1, 2)), dims = (1, 2))
-end
-
-function αrecursion!(α::Abstract3DTensor{T}, π::AbstractVector{T},
-                     Aᵀ::AbstractMatrix{T}, lhs::Abstract3DTensor{T}) where T
-    N = size(lhs, 2)
-    buffer = similar(α[:,1,:])
-    @views elmul!(α[:,1,:], π, lhs[:,1,:])
-    @views for n in 2:N
-        elmul!(buffer, α[:,n-1,:], lhs[:,n,:])
-        matmul!(α[:,n,:], Aᵀ, buffer)
-    end
-    α
-end
-
-function βrecursion!(β::Abstract3DTensor{T}, ω::AbstractVector{T},
-                     A::AbstractMatrix{T}, lhs::Abstract3DTensor{T}) where T
-    N = size(lhs, 2)
-    buffer = fill!(similar(β[:,1,:]), one(T))
-    @views elmul!(β[:,end,:], ω, buffer)
-    @views for n in N-1:-1:1
-        elmul!(buffer, β[:,n+1,:], lhs[:,n+1,:])
-        matmul!(β[:,n,:], A, buffer)
-    end
-    β
 end
 

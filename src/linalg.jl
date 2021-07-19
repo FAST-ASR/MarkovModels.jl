@@ -3,7 +3,7 @@
 #======================================================================
 This file wrapped a few basic linear algebra operations in order to
 have more fine-grained control between CPU/GPU code and different
-semifield algebra operation.
+semifield algebra operations.
 ======================================================================#
 
 # Element-wise division.
