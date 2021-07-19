@@ -21,7 +21,7 @@ end
 
 abstract type Semifield <: Number end
 
-Base.convert(T::Type{<:Real}, x::Semifield) = T(x.val)
+Base.convert(T::Type{<:Number}, x::Semifield) = T(x.val)
 Base.promote(x::SF, y::Real) where SF <: Semifield = x, SF(y)
 Base.promote(x::Real, y::SF) where SF <: Semifield = SF(x), y
 Base.show(io::IO, x::Semifield) = print(io, x.val)
