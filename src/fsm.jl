@@ -67,6 +67,10 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         name = "$(s.id)"
         label = islabeled(s) ? "$(s.label)" : "ϵ"
         label *= isemitting(s) ? ":$(s.pdfindex)" : ":ϵ"
+        if s.finalweight ≠ zero(typeof(s.finalweight))
+            weight = round(convert(Float64, s.finalweight), digits = 3)
+            label *= "/$(weight)"
+        end
         attrs = "shape=" * (isfinal(s) ? "doublecircle" : "circle")
         attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
         attrs *= " label=\"" * label * "\""
