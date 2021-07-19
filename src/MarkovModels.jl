@@ -2,18 +2,54 @@
 
 module MarkovModels
 
-using CUDA, CUDA.CUSPARSE, LinearAlgebra, SparseArrays
-using LogExpFunctions: logaddexp
-using StatsBase: sample, Weights
+using CUDA
+using CUDA.CUSPARSE
+using LinearAlgebra
+using SparseArrays
 
-export FSM, LogSemifield
-export αrecursion, βrecursion, αβrecursion
-export addstate!, compile, determinize, gpu, link!, minimize,
-    renormalize!, setinit!, setfinal!, states, transpose
+#======================================================================
+Redefinition of some linear operations to work on GPU.
+======================================================================#
 
-include("cusparse.jl")
+include("linalg.jl")
+include("culinalg.jl")
+
+#======================================================================
+Semifield algebras.
+======================================================================#
+
 include("semifields.jl")
+
+export LogSemifield
+
+#======================================================================
+API to build and manipulate FSM.
+======================================================================#
+
 include("fsm.jl")
+
+export FSM
+export addstate!
+export determinize
+export link!
+export minimize
+export renormalize!
+export setinit!
+export setfinal!
+export states
+
+include("cfsm.jl")
+
+export CompiledFSM
+export compile
+export gpu
+
+#======================================================================
+Inference algorithms.
+======================================================================#
+
 include("algorithms.jl")
+
+export αβrecursion
 
 end

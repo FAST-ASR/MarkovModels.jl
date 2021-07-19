@@ -1,4 +1,5 @@
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+LogExpFunctions = "2ab3a3ac-af41-5b50-aa03-7779005ae688"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
