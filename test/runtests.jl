@@ -1,8 +1,9 @@
 # SPDX-License-Identifier: MIT
 
 using CUDA, CUDA.CUSPARSE, SparseArrays
-using LogExpFunctions
+import LogExpFunctions: logsumexp
 using MarkovModels
+import MarkovModels: logaddexp
 using Test
 
 const D = 5 # vector/matrix dimension
@@ -61,8 +62,14 @@ function forward_backward(A, Aᵀ, init, final, lhs)
     exp.(log_γ .- sums), minimum(sums)
 end
 
+
+@testset "logaddexp" begin
+    @test (@inferred logaddexp(2.0, 3.0)) ≈ log(exp(2.0) + exp(3.0))
+    @test (@inferred logaddexp(10002.0, 10003.0)) ≈ 10000 + logaddexp(2.0, 3.0)
+end
+
 if CUDA.functional()
-    @testset "CUDA sparse op" begin
+    @testset "linalg" begin
         D = 5
 
         x = ones(T, D)
