@@ -51,6 +51,7 @@ Inference algorithms.
 
 include("algorithms.jl")
 
-export αβrecursion
+export stateposteriors
+export bestpath
 
 end

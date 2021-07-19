@@ -19,8 +19,8 @@ matmul!(out, X::AbstractMatrix{T}, y::AbstractArray{T}) where T =
     mul!(out, X, y, one(T), zero(T))
 matmul!(out, X::CuMatrix{T}, Y::CuMatrix{T}) where T =
     mul_dmdm!(out, X, Y)
-matmul!(out, X::CuSparseMatrixCSR{T}, y::CuVector{T}) where T =
+matmul!(out, X::CuSparseMatrixCSR{T}, y::AbstractVector{T}) where T =
     mul_smdv!(out, X, y)
-matmul!(out, X::CuSparseMatrixCSR{T}, Y::CuMatrix{T}) where T =
+matmul!(out, X::CuSparseMatrixCSR{T}, Y::AbstractMatrix{T}) where T =
     mul_smdm!(out, X, Y)
 

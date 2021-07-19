@@ -58,7 +58,7 @@ function forward_backward(A, Aᵀ, init, final, lhs)
     log_β = backward(Aᵀ, final, lhs)
     log_γ = log_α .+ log_β
     sums = logsumexp(log_γ, dims = 1)
-    log_γ .- sums, minimum(sums)
+    exp.(log_γ .- sums), minimum(sums)
 end
 
 if CUDA.functional()
@@ -154,7 +154,7 @@ if CUDA.functional()
 end
 
 @testset "forward_backward" begin
-    lhs = ones(SF, S, N)
+    lhs = ones(T, S, N)
 
     fsm = makefsm(SF, S)
     cfsm = compile(fsm, allocator = zeros)
@@ -167,30 +167,30 @@ end
         convert(Matrix{T}, lhs)
     )
 
-    γ_dcpu, ttl_dcpu = @inferred αβrecursion(cfsm, lhs)
-    @test all(γ_ref .≈ convert(Matrix{T}, γ_dcpu))
-    @test convert(T, ttl_ref) ≈ convert(T, ttl_dcpu)
+    γ_dcpu, ttl_dcpu = @inferred stateposteriors(cfsm, lhs)
+    @test all(γ_ref .≈ γ_dcpu)
+    @test ttl_ref ≈ ttl_dcpu
 
     cfsm = compile(fsm, allocator = spzeros)
-    γ_scpu, ttl_scpu = @inferred αβrecursion(cfsm, lhs)
-    @test all(γ_ref .≈ convert(Matrix{T}, γ_scpu))
-    @test convert(T, ttl_ref) ≈ convert(T, ttl_scpu)
+    γ_scpu, ttl_scpu = @inferred stateposteriors(cfsm, lhs)
+    @test all(γ_ref .≈ γ_scpu)
+    @test ttl_ref ≈ ttl_scpu
 
     if CUDA.functional()
         cfsm = compile(fsm, allocator = zeros) |> gpu
-        γ_dgpu, ttl_dgpu = @inferred αβrecursion(cfsm, CuArray(lhs))
+        γ_dgpu, ttl_dgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
         @test all(γ_ref .≈ convert(Matrix{T}, γ_dgpu))
-        @test convert(T, ttl_ref) ≈ convert(T, ttl_dgpu)
+        @test ttl_ref ≈ ttl_dgpu
 
         cfsm = compile(fsm, allocator = spzeros) |> gpu
-        γ_sgpu, ttl_sgpu = @inferred αβrecursion(cfsm, CuArray(lhs))
+        γ_sgpu, ttl_sgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
         @test all(γ_ref .≈ convert(Matrix{T}, γ_sgpu))
-        @test convert(T, ttl_ref) ≈ convert(T, ttl_sgpu)
+        @test ttl_ref ≈ ttl_sgpu
     end
 end
 
 @testset "batch forward_backward" begin
-    lhs = ones(SF, S, N, B)
+    lhs = ones(T, S, N, B)
 
     fsm = makefsm(SF, S)
     cfsm = compile(fsm, allocator = zeros)
@@ -203,32 +203,32 @@ end
         convert(Matrix{T}, lhs[:, :, 1])
     )
 
-    #γ_dcpu, ttl_dcpu = @inferred αβrecursion(cfsm, lhs)
-    #for b in 1:B
-    #    @test all(γ_ref .≈ convert(Matrix{T}, γ_dcpu[:,:,b]))
-    #    @test convert(T, ttl_ref) ≈ convert(T, ttl_dcpu[b])
-    #end
+    γ_dcpu, ttl_dcpu = @inferred stateposteriors(cfsm, lhs)
+    for b in 1:B
+        @test all(γ_ref .≈ γ_dcpu[:,:,b])
+        @test ttl_ref ≈ ttl_dcpu[b]
+    end
 
     cfsm = compile(fsm, allocator = spzeros)
-    γ_scpu, ttl_scpu = @inferred αβrecursion(cfsm, lhs)
+    γ_scpu, ttl_scpu = @inferred stateposteriors(cfsm, lhs)
     for b in 1:B
-        @test all(γ_ref .≈ convert(Matrix{T}, γ_scpu[:,:,b]))
-        @test convert(T, ttl_ref) ≈ convert(T, ttl_scpu[b])
+        @test all(γ_ref .≈ γ_scpu[:,:,b])
+        @test ttl_ref ≈ ttl_scpu[b]
     end
 
     if CUDA.functional()
         cfsm = compile(fsm, allocator = zeros) |> gpu
-        γ_dgpu, ttl_dgpu = @inferred αβrecursion(cfsm, CuArray(lhs))
+        γ_dgpu, ttl_dgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
         for b in 1:B
-            @test all(γ_ref .≈ convert(Matrix{T}, γ_dgpu[:,:,b]))
-            @test convert(T, ttl_ref) ≈ convert(Vector{T}, ttl_dgpu)[b]
+            @test all(γ_ref .≈ convert(Array{T,3}, γ_dgpu)[:,:,b])
+            @test ttl_ref ≈ convert(Vector{T}, ttl_dgpu)[b]
         end
 
         cfsm = compile(fsm, allocator = spzeros) |> gpu
-        γ_sgpu, ttl_sgpu = @inferred αβrecursion(cfsm, CuArray(lhs))
+        γ_sgpu, ttl_sgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
         for b in 1:B
-            @test all(γ_ref .≈ convert(Matrix{T}, γ_sgpu[:,:,b]))
-            @test convert(T, ttl_ref) ≈ convert(Vector{T}, ttl_sgpu)[b]
+            @test all(γ_ref .≈ convert(Array{T,3}, γ_sgpu)[:,:,b])
+            @test ttl_ref ≈ convert(Vector{T}, ttl_sgpu)[b]
         end
     end
 end

@@ -24,7 +24,7 @@ function αrecursion!(α::Abstract3DTensor{T}, π::AbstractVector{T},
     buffer = similar(α[:,1,:])
     @views elmul!(α[:,1,:], π, lhs[:,1,:])
     @views for n in 2:N
-        matmul!(buffer, Aᵀ, α[:,n,:])
+        matmul!(buffer, Aᵀ, α[:,n-1,:])
         elmul!(α[:,n,:], buffer, lhs[:,n,:])
     end
     α
@@ -59,27 +59,8 @@ function βrecursion!(β::Abstract3DTensor{T}, ω::AbstractVector{T},
 end
 
 #======================================================================
-Forward-Backward algorithm
+Generic forward-backward algorithm
 ======================================================================#
-
-"""
-    αβrecursion(cfsm, lhs)
-    αβrecursion(π, ω, A, Aᵀ, lhs)
-
-Return the states conditional probabilities (as a matrix) and the
-total likelihood of the sequence. `csfm` is a compiled FSM
-(see [`compile`](@ref)), `π` is the vector of initial probabilities,
-`ω` is the vector of final probabilities, `A` is the matrix of
-transition probabilites, `Aᵀ` is the transpose of the matrix of
-transition probabilities and `lhs` is the matrix of likelihoods.
-"""
-αβrecursion
-
-# A convenience function to call the forward-backward on a compiled
-# FSM.
-function αβrecursion(cfsm, lhs::AbstractArray)
-    αβrecursion(cfsm.π, cfsm.ω, cfsm.A, cfsm.Aᵀ, lhs)
-end
 
 function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
                      A::AbstractMatrix{T}, Aᵀ::AbstractMatrix,
@@ -115,5 +96,31 @@ function αβrecursion(π::AbstractVector{T}, ω::AbstractVector{T},
     eldiv!(γ, γ, sums)
 
     γ, dropdims(minimum(sums, dims = (1, 2)), dims = (1, 2))
+end
+
+#======================================================================
+Specialized algorithms
+======================================================================#
+
+_convert(T, ttl::Number) = convert(T, ttl)
+_convert(T, ttl::AbstractVector) = copyto!(similar(ttl, T), ttl)
+
+function stateposteriors(in_cfsm, in_lhs::AbstractArray{T}) where T <: Real
+    SF = LogSemifield{T}
+    cfsm = convert(CompiledFSM{SF}, in_cfsm)
+    lhs = copyto!(similar(in_lhs, SF), in_lhs)
+    γ, ttl = αβrecursion(cfsm.π, cfsm.ω, cfsm.A, cfsm.Aᵀ, lhs)
+    out = copyto!(similar(in_lhs), γ)
+    exp.(out), _convert(T, ttl)
+end
+
+function bestpath(in_cfsm, in_lhs::AbstractArray{T}) where T <: Real
+    SF = TropicalSemifield{T}
+    cfsm = convert(CompiledFSM{SF}, in_cfsm)
+    lhs = copyto!(similar(in_lhs, SF), in_lhs)
+    γ, _ = αβrecursion(cfsm.π, cfsm.ω, cfsm.A, cfsm.Aᵀ, lhs)
+    out = copyto!(similar(in_lhs), γ)
+    idxs = mapslices(argmax, out, dims = 1)
+    dropdims(idxs, dims = 1), dropdims(lhs[idxs], dims = 1)
 end
 
