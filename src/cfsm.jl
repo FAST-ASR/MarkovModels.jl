@@ -54,19 +54,19 @@ function compile(fsm::FSM{T}; allocator = spzeros) where T
 
     # Initial states' probabilities.
     π = allocator(T, S)
-    for s in filter(isinit, allstates) π[s.id] = s.initweight end
+    for s in filter(isinit, allstates) π[s.pdfindex] = s.initweight end
 
     # Final states' probabilities.
     ω = allocator(T, S)
-    for s in filter(isfinal, allstates) ω[s.id] = s.finalweight end
+    for s in filter(isfinal, allstates) ω[s.pdfindex] = s.finalweight end
 
     # Transition matrix.
     A = allocator(T, S, S)
     Aᵀ = allocator(T, S, S)
     for src in allstates
         for link in links(fsm, src)
-            A[src.id, link.dest.id] = link.weight
-            Aᵀ[link.dest.id, src.id] = link.weight
+            A[src.pdfindex, link.dest.pdfindex] = link.weight
+            Aᵀ[link.dest.pdfindex, src.pdfindex] = link.weight
         end
     end
 
