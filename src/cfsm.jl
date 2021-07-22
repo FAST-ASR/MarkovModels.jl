@@ -6,6 +6,7 @@
         ω        # vector of final probabilities
         A        # matrix of transition probabilities
         Aᵀ       # transpose of `A`
+        pdfmap   # mapping state -> pdfindex
     end
 
 Compiled FSM: matrix/vector format of an FSM used by inference
@@ -16,6 +17,7 @@ struct CompiledFSM{T<:Semifield}
     ω::AbstractVector{T}
     A::AbstractMatrix{T}
     Aᵀ::AbstractMatrix{T}
+    pdfmap::AbstractVector{Int}
 end
 
 """
@@ -31,23 +33,25 @@ function compile(fsm::FSM{T}; allocator = spzeros) where T
 
     # Initial states' probabilities.
     π = allocator(T, S)
-    for s in filter(isinit, allstates) π[s.pdfindex] = s.initweight end
+    for s in filter(isinit, allstates) π[s.id] = s.initweight end
 
     # Final states' probabilities.
     ω = allocator(T, S)
-    for s in filter(isfinal, allstates) ω[s.pdfindex] = s.finalweight end
+    for s in filter(isfinal, allstates) ω[s.id] = s.finalweight end
 
     # Transition matrix.
     A = allocator(T, S, S)
     Aᵀ = allocator(T, S, S)
     for src in allstates
         for link in links(fsm, src)
-            A[src.pdfindex, link.dest.pdfindex] = link.weight
-            Aᵀ[link.dest.pdfindex, src.pdfindex] = link.weight
+            A[src.id, link.dest.id] = link.weight
+            Aᵀ[link.dest.id, src.id] = link.weight
         end
     end
 
-    CompiledFSM{T}(π, ω, A, Aᵀ)
+    pdfmap = [s.pdfindex for s in sort(allstates, by = p -> p.id)]
+
+    CompiledFSM{T}(π, ω, A, Aᵀ, pdfmap)
 end
 
 """
@@ -61,7 +65,8 @@ function gpu(cfsm::CompiledFSM{T}) where T
             CuArray(cfsm.π),
             CuArray(cfsm.ω),
             CuArray(cfsm.A),
-            CuArray(cfsm.Aᵀ)
+            CuArray(cfsm.Aᵀ),
+            CuArray(cfsm.pdfmap)
         )
     end
 
@@ -71,7 +76,8 @@ function gpu(cfsm::CompiledFSM{T}) where T
         CuSparseVector(cfsm.π),
         CuSparseVector(cfsm.ω),
         CuSparseMatrixCSR(Aᵀ.colPtr, Aᵀ.rowVal, Aᵀ.nzVal, A.dims),
-        CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, A.dims)
+        CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, A.dims),
+        CuArray(cfsm.pdfmap)
     )
 end
 
@@ -80,7 +86,8 @@ function Base.convert(::Type{CompiledFSM{NT}}, cfsm) where NT <: Semifield
         copyto!(similar(cfsm.π, NT), cfsm.π),
         copyto!(similar(cfsm.ω, NT), cfsm.ω),
         copyto!(similar(cfsm.A, NT), cfsm.A),
-        copyto!(similar(cfsm.Aᵀ, NT), cfsm.Aᵀ)
+        copyto!(similar(cfsm.Aᵀ, NT), cfsm.Aᵀ),
+        copyto!(similar(cfsm.pdfmap, Int), cfsm.pdfmap)
     )
 end
 Base.convert(::Type{T}, cfsm::T) where T <: CompiledFSM = cfsm
