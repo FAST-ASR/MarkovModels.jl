@@ -67,6 +67,10 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         name = "$(s.id)"
         label = islabeled(s) ? "$(s.label)" : "ϵ"
         label *= isemitting(s) ? ":$(s.pdfindex)" : ":ϵ"
+        if s.initweight ≠ zero(typeof(s.initweight))
+            weight = round(convert(Float64, s.initweight), digits = 3)
+            label *= "/$(weight)"
+        end
         if s.finalweight ≠ zero(typeof(s.finalweight))
             weight = round(convert(Float64, s.finalweight), digits = 3)
             label *= "/$(weight)"
@@ -99,8 +103,42 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     rm(svgpath)
 end
 
-#######################################################################
-# FSM operations
+#======================================================================
+FSM operations
+======================================================================#
+
+"""
+    union(fsm1, fsm2, ...)
+
+Merge all the fsms into a single one.
+"""
+function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
+    allstates = union(states(fsm1), states(fsm2))
+    newfsm = FSM{T}()
+
+    smap = Dict()
+    for state in allstates
+        smap[state] = addstate!(newfsm, label = state.label,
+                                pdfindex = state.pdfindex,
+                                initweight = state.initweight,
+                                finalweight = state.finalweight)
+    end
+
+    for src in states(fsm1)
+        for link in links(fsm1, src)
+            link!(newfsm, smap[src], smap[link.dest], link.weight)
+        end
+    end
+
+    for src in states(fsm2)
+        for link in links(fsm2, src)
+            link!(newfsm, smap[src], smap[link.dest], link.weight)
+        end
+    end
+
+    newfsm
+end
+Base.union(f::FSM{T}, o::FSM{T}...) where T = foldl(union, o, init = f)
 
 """
     renormalize!(fsm)
