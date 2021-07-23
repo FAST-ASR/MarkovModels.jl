@@ -172,10 +172,12 @@ have matching labels are left untouched.
 function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     newfsm = FSM{T}()
 
+    matchlabel = label -> split(label, delim)[end]
+
     smap_in = Dict()
     smap_out = Dict()
     for s in states(fsm)
-        if split(s.label, delim)[end] in keys(subfsms)
+        if matchlabel(s.label) in keys(subfsms)
             smap = Dict()
             for cs in states(subfsms[s.label])
                 label = "$(s.label)$(delim)$(cs.label)"
@@ -188,8 +190,8 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
                 if isfinal(cs) smap_out[s] = ns end
             end
 
-            for cs in states(subfsms[s.label])
-                for link in links(subfsms[s.label], cs)
+            for cs in states(subfsms[matchlabel(s.label)])
+                for link in links(subfsms[matchlabel(s.label)], cs)
                     link!(newfsm, smap[cs], smap[link.dest], link.weight)
                 end
             end
