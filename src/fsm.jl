@@ -179,7 +179,7 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     for s in states(fsm)
         if matchlabel(s.label) in keys(subfsms)
             smap = Dict()
-            for cs in states(subfsms[s.label])
+            for cs in states(subfsms[matchlabel(s.label)])
                 label = "$(s.label)$(delim)$(cs.label)"
                 ns = addstate!(newfsm, pdfindex = cs.pdfindex, label = label,
                                initweight = s.initweight * cs.initweight,
