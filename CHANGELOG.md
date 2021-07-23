@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+* fixed duplicate initial state when determinizing
 * CompiledFSM structure stores the state -> pdf mapping to deal with
   the case when the state id is different from the pdf index
 * added `union` function to group several fsms together

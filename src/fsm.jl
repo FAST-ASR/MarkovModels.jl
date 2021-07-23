@@ -213,7 +213,7 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict) where T
     newfsm
 end
 
-function _unique_labels(statelist, T, step)
+function _unique_labels(statelist, T, step; init = true)
     labels = Dict()
     for (s, w) in statelist
         lstates, iw, fw, tw = get(labels, (s.label, step), (Set(), zero(T), zero(T), zero(T)))
@@ -224,7 +224,7 @@ function _unique_labels(statelist, T, step)
     # Inverse the map so that the set of states is the key.
     retval = Dict()
     for (key, value) in labels
-        retval[value[1]] = (key[1], value[2], value[3], value[4])
+        retval[value[1]] = (key[1], value[2], value[3], value[4], init)
     end
     retval
 end
@@ -240,15 +240,19 @@ function determinize(fsm::FSM{T}) where T
     newlinks = Dict()
 
     initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
-    queue = _unique_labels(initstates, T, 0)
+    queue = _unique_labels(initstates, T, 0, init = true)
     while ! isempty(queue)
         key, value = pop!(queue)
         lstates = key
-        label, iw, fw, tw = value
+        label, iw, fw, tw, init = value
         step = 0
 
         if key ∉ keys(smap)
-            s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
+            if init
+                s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
+            else
+                s = addstate!(newfsm, label = label, finalweight = fw)
+            end
             smap[key] = s
         end
 
@@ -259,12 +263,12 @@ function determinize(fsm::FSM{T}) where T
             end
         end
 
-        nextlabels = _unique_labels(nextstates, T, step+1)
+        nextlabels = _unique_labels(nextstates, T, step+1, init = false)
         for (key2, value2) in nextlabels
             w = get(newlinks, (key,key2), zero(T))
             newlinks[(key,key2)] = w+value2[end]
         end
-        queue = merge(queue, _unique_labels(nextstates, T, step+1))
+        queue = merge(queue, nextlabels)
     end
 
     for (key, value) in newlinks
