@@ -216,10 +216,9 @@ end
 function _unique_labels(statelist, T, step)
     labels = Dict()
     for (s, w) in statelist
-        #lstates, iw, fw, tw = get(labels, (s.label, step), (Set(), zero(T), zero(T), zero(T)))
-        lstates, iw, fw, tw = get(labels, s.label, (Set(), zero(T), zero(T), zero(T)))
+        lstates, iw, fw, tw = get(labels, (s.label, step), (Set(), zero(T), zero(T), zero(T)))
         push!(lstates, s)
-        labels[s.label] = (lstates, iw+s.initweight, fw+s.finalweight, tw+w)
+        labels[(s.label, step)] = (lstates, iw+s.initweight, fw+s.finalweight, tw+w)
     end
 
     # Inverse the map so that the set of states is the key.
