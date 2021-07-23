@@ -1,5 +1,11 @@
 # Releases
 
+## 0.5.0
+
+* CompiledFSM structure stores the state -> pdf mapping to deal with
+  the case when the state id is different from the pdf index
+* added `union` function to group several fsms together
+
 ## 0.4.0
 
 * added best path decoding
