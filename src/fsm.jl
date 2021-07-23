@@ -162,23 +162,23 @@ function renormalize!(fsm::FSM{T}) where T
 end
 
 """
-    replace(fsm, subfsms)
+    replace(fsm, subfsms, delim = "!")
 
 Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
-is done with label of the state, i.e. the state with label `l` will be
-replaced by `subfsms[l]`. States that don't have matching labels are
-left untouched.
+is done with the last tone of `label` of the state, i.e. the state
+with label `a!b!c` will be replaced by `subfsms[c]`. States that don't
+have matching labels are left untouched.
 """
-function Base.replace(fsm::FSM{T}, subfsms::Dict) where T
+function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     newfsm = FSM{T}()
 
     smap_in = Dict()
     smap_out = Dict()
     for s in states(fsm)
-        if s.label in keys(subfsms)
+        if split(s.label, delim)[end] in keys(subfsms)
             smap = Dict()
             for cs in states(subfsms[s.label])
-                label = "$(s.label)!$(cs.label)"
+                label = "$(s.label)$(delim)$(cs.label)"
                 ns = addstate!(newfsm, pdfindex = cs.pdfindex, label = label,
                                initweight = s.initweight * cs.initweight,
                                finalweight = s.finalweight * cs.finalweight)
