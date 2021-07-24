@@ -6,8 +6,7 @@
         ω        # vector of final probabilities
         A        # matrix of transition probabilities
         Aᵀ       # transpose of `A`
-        dists    # distance of each state to the final state
-        pdfmap   # mapping state -> pdf index
+        pdfmap   # mapping state -> pdfindex
     end
 
 Compiled FSM: matrix/vector format of an FSM used by inference
@@ -18,27 +17,7 @@ struct CompiledFSM{T<:Semifield}
     ω::AbstractVector{T}
     A::AbstractMatrix{T}
     Aᵀ::AbstractMatrix{T}
-    dists::AbstractVector
-    pdfmap::AbstractVector
-end
-
-function calculate_distances(ω::AbstractVector{T}, A::AbstractMatrix{T}) where T
-    Aᵀ = transpose(A)
-    I = findall(ω .> zero(T))
-    queue = Set{Tuple{Int,Int}}([(state, 0) for state in I])
-    visited = Set{Int}(I)
-    distances = zeros(Int, length(ω))
-    while ! isempty(queue)
-        state, dist = pop!(queue)
-        for nextstate in findall(Aᵀ[state,:] .> zero(T))
-            if nextstate ∉ visited
-                push!(queue, (nextstate, dist + 1))
-                push!(visited, nextstate)
-                distances[nextstate] = dist + 1
-            end
-        end
-    end
-    distances
+    pdfmap::AbstractVector{Int}
 end
 
 """
@@ -70,13 +49,9 @@ function compile(fsm::FSM{T}; allocator = spzeros) where T
         end
     end
 
-    # For each state the distance to the nearest final state.
-    dists = calculate_distances(ω, A)
-
-    # Pdf index mapping.
     pdfmap = [s.pdfindex for s in sort(allstates, by = p -> p.id)]
 
-    CompiledFSM{T}(π, ω, A, Aᵀ, dists, pdfmap)
+    CompiledFSM{T}(π, ω, A, Aᵀ, pdfmap)
 end
 
 """
@@ -91,8 +66,7 @@ function gpu(cfsm::CompiledFSM{T}) where T
             CuArray(cfsm.ω),
             CuArray(cfsm.A),
             CuArray(cfsm.Aᵀ),
-            cfsm.dists,
-            cfsm.pdfmap
+            CuArray(cfsm.pdfmap)
         )
     end
 
@@ -103,8 +77,17 @@ function gpu(cfsm::CompiledFSM{T}) where T
         CuSparseVector(cfsm.ω),
         CuSparseMatrixCSR(Aᵀ.colPtr, Aᵀ.rowVal, Aᵀ.nzVal, A.dims),
         CuSparseMatrixCSR(A.colPtr, A.rowVal, A.nzVal, A.dims),
-        cfsm.dists,
-        cfsm.pdfmap
+        CuArray(cfsm.pdfmap)
     )
 end
 
+function Base.convert(::Type{CompiledFSM{NT}}, cfsm) where NT <: Semifield
+    CompiledFSM(
+        copyto!(similar(cfsm.π, NT), cfsm.π),
+        copyto!(similar(cfsm.ω, NT), cfsm.ω),
+        copyto!(similar(cfsm.A, NT), cfsm.A),
+        copyto!(similar(cfsm.Aᵀ, NT), cfsm.Aᵀ),
+        copyto!(similar(cfsm.pdfmap, Int), cfsm.pdfmap)
+    )
+end
+Base.convert(::Type{T}, cfsm::T) where T <: CompiledFSM = cfsm

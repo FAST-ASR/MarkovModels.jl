@@ -67,6 +67,14 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
         name = "$(s.id)"
         label = islabeled(s) ? "$(s.label)" : "ϵ"
         label *= isemitting(s) ? ":$(s.pdfindex)" : ":ϵ"
+        if s.initweight ≠ zero(typeof(s.initweight))
+            weight = round(convert(Float64, s.initweight), digits = 3)
+            label *= "/$(weight)"
+        end
+        if s.finalweight ≠ zero(typeof(s.finalweight))
+            weight = round(convert(Float64, s.finalweight), digits = 3)
+            label *= "/$(weight)"
+        end
         attrs = "shape=" * (isfinal(s) ? "doublecircle" : "circle")
         attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
         attrs *= " label=\"" * label * "\""
@@ -95,8 +103,42 @@ function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
     rm(svgpath)
 end
 
-#######################################################################
-# FSM operations
+#======================================================================
+FSM operations
+======================================================================#
+
+"""
+    union(fsm1, fsm2, ...)
+
+Merge all the fsms into a single one.
+"""
+function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
+    allstates = union(states(fsm1), states(fsm2))
+    newfsm = FSM{T}()
+
+    smap = Dict()
+    for state in allstates
+        smap[state] = addstate!(newfsm, label = state.label,
+                                pdfindex = state.pdfindex,
+                                initweight = state.initweight,
+                                finalweight = state.finalweight)
+    end
+
+    for src in states(fsm1)
+        for link in links(fsm1, src)
+            link!(newfsm, smap[src], smap[link.dest], link.weight)
+        end
+    end
+
+    for src in states(fsm2)
+        for link in links(fsm2, src)
+            link!(newfsm, smap[src], smap[link.dest], link.weight)
+        end
+    end
+
+    newfsm
+end
+Base.union(f::FSM{T}, o::FSM{T}...) where T = foldl(union, o, init = f)
 
 """
     renormalize!(fsm)
@@ -109,41 +151,36 @@ function renormalize!(fsm::FSM{T}) where T
     for s in filter(isinit, states(fsm)) total += s.initweight end
     for s in filter(isinit, states(fsm)) s.initweight /= total end
 
-
-    total = zero(T)
-    for s in filter(isfinal, states(fsm)) total += s.finalweight end
-    for s in filter(isfinal, states(fsm)) s.finalweight /= total end
-
     for src in states(fsm)
-        total = zero(T)
+        total = src.finalweight
         for link in links(fsm, src) total += link.weight end
         for link in links(fsm, src) link.weight /= total end
+        src.finalweight /= total
     end
 
     fsm
 end
 
 """
-    replace(fsm, subfsms)
+    replace(fsm, subfsms, delim = "!")
 
 Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
-is done with label of the state, i.e. the state with label `l` will be
-replaced by `subfsms[l]`. States that don't have matching labels are
-left untouched.
-
-You can specify
+is done with the last tone of `label` of the state, i.e. the state
+with label `a!b!c` will be replaced by `subfsms[c]`. States that don't
+have matching labels are left untouched.
 """
-function Base.replace(fsm::FSM{T}, subfsms::Dict; matching_func=last, delim="!") where T
+function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     newfsm = FSM{T}()
+
+    matchlabel = label -> isnothing(label) ? nothing : split(label, delim)[end]
 
     smap_in = Dict()
     smap_out = Dict()
     for s in states(fsm)
-        last_label = isnothing(s.label) ? nothing : (matching_func∘split)(s.label, delim)
-        if last_label in keys(subfsms)
+        if matchlabel(s.label) in keys(subfsms)
             smap = Dict()
-            for cs in states(subfsms[last_label])
-                label = "$(s.label)$delim$(cs.label)"
+            for cs in states(subfsms[matchlabel(s.label)])
+                label = "$(s.label)$(delim)$(cs.label)"
                 ns = addstate!(newfsm, pdfindex = cs.pdfindex, label = label,
                                initweight = s.initweight * cs.initweight,
                                finalweight = s.finalweight * cs.finalweight)
@@ -153,8 +190,8 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict; matching_func=last, delim="!")
                 if isfinal(cs) smap_out[s] = ns end
             end
 
-            for cs in states(subfsms[last_label])
-                for link in links(subfsms[last_label], cs)
+            for cs in states(subfsms[matchlabel(s.label)])
+                for link in links(subfsms[matchlabel(s.label)], cs)
                     link!(newfsm, smap[cs], smap[link.dest], link.weight)
                 end
             end
@@ -178,7 +215,7 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict; matching_func=last, delim="!")
     newfsm
 end
 
-function _unique_labels(statelist, T, step)
+function _unique_labels(statelist, T, step; init = true)
     labels = Dict()
     for (s, w) in statelist
         lstates, iw, fw, tw = get(labels, (s.label, step), (Set(), zero(T), zero(T), zero(T)))
@@ -189,7 +226,7 @@ function _unique_labels(statelist, T, step)
     # Inverse the map so that the set of states is the key.
     retval = Dict()
     for (key, value) in labels
-        retval[value[1]] = (key[1], value[2], value[3], value[4])
+        retval[value[1]] = (key[1], value[2], value[3], value[4], init)
     end
     retval
 end
@@ -205,15 +242,19 @@ function determinize(fsm::FSM{T}) where T
     newlinks = Dict()
 
     initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
-    queue = _unique_labels(initstates, T, 0)
+    queue = _unique_labels(initstates, T, 0, init = true)
     while ! isempty(queue)
         key, value = pop!(queue)
         lstates = key
-        label, iw, fw, tw = value
+        label, iw, fw, tw, init = value
         step = 0
 
         if key ∉ keys(smap)
-            s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
+            if init
+                s = addstate!(newfsm, label = label, initweight = iw, finalweight = fw)
+            else
+                s = addstate!(newfsm, label = label, finalweight = fw)
+            end
             smap[key] = s
         end
 
@@ -224,12 +265,12 @@ function determinize(fsm::FSM{T}) where T
             end
         end
 
-        nextlabels = _unique_labels(nextstates, T, step+1)
+        nextlabels = _unique_labels(nextstates, T, step+1, init = false)
         for (key2, value2) in nextlabels
             w = get(newlinks, (key,key2), zero(T))
             newlinks[(key,key2)] = w+value2[end]
         end
-        queue = merge(queue, _unique_labels(nextstates, T, step+1))
+        queue = merge(queue, nextlabels)
     end
 
     for (key, value) in newlinks
