@@ -21,6 +21,7 @@ Semifield algebras.
 include("semifields.jl")
 
 export LogSemifield
+export TropicalSemifield
 
 #======================================================================
 API to build and manipulate FSM.
@@ -50,6 +51,7 @@ Inference algorithms.
 
 include("algorithms.jl")
 
-export αβrecursion
+export stateposteriors
+export bestpath
 
 end

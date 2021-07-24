@@ -1,5 +1,19 @@
 # Releases
 
+## 0.5.0
+
+* fixed duplicate initial state when determinizing
+* CompiledFSM structure stores the state -> pdf mapping to deal with
+  the case when the state id is different from the pdf index
+* added `union` function to group several fsms together
+
+## 0.4.0
+
+* added best path decoding
+* improved user api by "hiding" the conversion of the state llhs to
+  the appropriate semi-field
+* improved benchmark
+
 ## 0.3.0
 
 * added batch version of the forward-backward algorithm
