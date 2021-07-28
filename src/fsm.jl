@@ -138,7 +138,7 @@ function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
 
     newfsm
 end
-Base.union(f::FSM{T}, o::FSM{T}...) where T = foldl(union, o, init = f)
+Base.union(f1::FSM{T}, f2::FSM{T}, f3::FSM{T}...) where T = foldl(union, pushfirst!(f3, f2), init = f)
 
 """
     renormalize!(fsm)
