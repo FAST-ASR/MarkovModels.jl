@@ -205,10 +205,15 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     end
 
     for osrc in states(fsm)
+        weight = one(T)
+        if matchlabel(osrc.label) in keys(subfsms)
+            finals = filter(isfinal, states(subfsms[matchlabel(osrc.label)]))
+            weight = sum(map(s->s.finalweight, finals))
+        end
         for link in links(fsm, osrc)
             src = smap_out[osrc]
             dest = smap_in[link.dest]
-            link!(newfsm, src, dest, link.weight)
+            link!(newfsm, src, dest, link.weight * weight)
         end
     end
 
