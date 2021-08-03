@@ -51,7 +51,7 @@ Inference algorithms.
 
 include("algorithms.jl")
 
-export stateposteriors
+export pdfposteriors
 export bestpath
 
 end
