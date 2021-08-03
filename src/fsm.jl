@@ -364,7 +364,7 @@ function remove_eps(fsm::FSM{T}) where T <: Semifield
     end
     
     for eps in eps_states
-        closure = eps_closure!(fsm, eps, Vector{State}())
+        closure = eps_closure!(fsm, eps, [])
         eps_closures[eps] = unique!(closure)
     end
     
