@@ -56,7 +56,13 @@ function link!(fsm::FSM{T}, src::State{T}, dest::State{T}, weight::T = one(T)) w
     link
 end
 
-function Base.show(io, ::MIME"image/svg+xml", fsm::FSM)
+function Base.show(io::IO, fsm::FSM)
+    nstates = length(fsm.states)
+    nlinks = sum(length, values(fsm.links))
+    print(io, "$(typeof(fsm)) # states: $nstates # links: $nlinks")
+end
+
+function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
     dotpath, dotfile = mktemp()
     svgpath, svgfile = mktemp()
 
