@@ -18,7 +18,7 @@ isemitting(s::State)  = ! isnothing(s.pdfindex)
 setinit!(s::State{T}, weight::T = one(T)) where T = s.initweight = weight
 setfinal!(s::State{T}, weight::T = one(T)) where T = s.finalweight = weight
 
-mutable struct Link{T<:Semifield}
+mutable struct Arc{T<:Semifield}
     dest::State
     weight::T
 end
@@ -26,20 +26,21 @@ end
 """
     struct FSM{T<:Semifield}
         states # vector of states
-        links # Dict state -> vector of links
+        arcs # Dict state -> vector of arcs
     end
 
 Probabilistic finite state machine.
 """
 struct FSM{T<:Semifield}
     states::Vector{State{T}}
-    links::Dict{State, Vector{Link{T}}}
+    arcs::Dict{State, Vector{Arc{T}}}
 end
-FSM{T}() where T = FSM{T}(State{T}[], Dict{State, Vector{Link{T}}}())
+FSM{T}() where T = FSM{T}(State{T}[], Dict{State, Vector{Arc{T}}}())
 FSM() = FSM{LogSemifield{Float64}}()
 
 states(fsm::FSM) = fsm.states
-links(fsm::FSM{T}, state::State{T}) where T = get(fsm.links, state, Link{T}[])
+arcs(fsm::FSM{T}, state::State{T}) where T = get(fsm.arcs, state, Arc{T}[])
+@deprecate links(fsm, state) arcs(fsm, state)
 
 function addstate!(fsm::FSM{T}; initweight = zero(T), finalweight = zero(T),
                    pdfindex = nothing, label = nothing) where T
@@ -48,18 +49,20 @@ function addstate!(fsm::FSM{T}; initweight = zero(T), finalweight = zero(T),
     s
 end
 
-function link!(fsm::FSM{T}, src::State{T}, dest::State{T}, weight::T = one(T)) where T
-    list = get(fsm.links, src, Link{T}[])
-    link = Link{T}(dest, weight)
-    push!(list, link)
-    fsm.links[src] = list
-    link
+function addarc!(fsm::FSM{T}, src::State{T}, dest::State{T}, weight::T = one(T)) where T
+    list = get(fsm.arcs, src, Arc{T}[])
+    arc = Arc{T}(dest, weight)
+    push!(list, arc)
+    fsm.arcs[src] = list
+    arc
 end
+@deprecate link!(fsm, src, dest) addarc!(fsm, src, dest)
+@deprecate link!(fsm, src, dest, weight) addarc!(fsm, src, dest, weight)
 
 function Base.show(io::IO, fsm::FSM)
     nstates = length(fsm.states)
-    nlinks = sum(length, values(fsm.links))
-    print(io, "$(typeof(fsm)) # states: $nstates # links: $nlinks")
+    narcs = sum(length, values(fsm.arcs))
+    print(io, "$(typeof(fsm)) # states: $nstates # arcs: $narcs")
 end
 
 function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
@@ -89,10 +92,10 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
     end
 
     for src in states(fsm)
-        for link in links(fsm, src)
-            weight = round(convert(Float64, link.weight), digits = 3)
+        for arc in arcs(fsm, src)
+            weight = round(convert(Float64, arc.weight), digits = 3)
             srcname = "$(src.id)"
-            destname = "$(link.dest.id)"
+            destname = "$(arc.dest.id)"
             write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
         end
     end
@@ -131,14 +134,14 @@ function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
     end
 
     for src in states(fsm1)
-        for link in links(fsm1, src)
-            link!(newfsm, smap[src], smap[link.dest], link.weight)
+        for arc in arcs(fsm1, src)
+            arc!(newfsm, smap[src], smap[arc.dest], arc.weight)
         end
     end
 
     for src in states(fsm2)
-        for link in links(fsm2, src)
-            link!(newfsm, smap[src], smap[link.dest], link.weight)
+        for arc in arcs(fsm2, src)
+            addarc!(newfsm, smap[src], smap[arc.dest], arc.weight)
         end
     end
 
@@ -159,8 +162,8 @@ function renormalize!(fsm::FSM{T}) where T
 
     for src in states(fsm)
         total = src.finalweight
-        for link in links(fsm, src) total += link.weight end
-        for link in links(fsm, src) link.weight /= total end
+        for arc in arcs(fsm, src) total += arc.weight end
+        for arc in arcs(fsm, src) arc.weight /= total end
         src.finalweight /= total
     end
 
@@ -197,8 +200,8 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
             end
 
             for cs in states(subfsms[matchlabel(s.label)])
-                for link in links(subfsms[matchlabel(s.label)], cs)
-                    link!(newfsm, smap[cs], smap[link.dest], link.weight)
+                for arc in arcs(subfsms[matchlabel(s.label)], cs)
+                    addarc!(newfsm, smap[cs], smap[arc.dest], arc.weight)
                 end
             end
 
@@ -211,10 +214,10 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     end
 
     for osrc in states(fsm)
-        for link in links(fsm, osrc)
+        for arc in arcs(fsm, osrc)
             src = smap_out[osrc]
-            dest = smap_in[link.dest]
-            link!(newfsm, src, dest, link.weight)
+            dest = smap_in[arc.dest]
+            arc!(newfsm, src, dest, arc.weight)
         end
     end
 
@@ -245,7 +248,7 @@ Determinize the FSM w.r.t. the state labels.
 function determinize(fsm::FSM{T}) where T
     newfsm = FSM{T}()
     smap = Dict()
-    newlinks = Dict()
+    newarcs = Dict()
 
     initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
     queue = _unique_labels(initstates, T, 0, init = true)
@@ -266,24 +269,24 @@ function determinize(fsm::FSM{T}) where T
 
         nextstates = []
         for ls in lstates
-            for link in links(fsm, ls)
-                push!(nextstates, (link.dest, link.weight))
+            for arc in arcs(fsm, ls)
+                push!(nextstates, (arc.dest, arc.weight))
             end
         end
 
         nextlabels = _unique_labels(nextstates, T, step+1, init = false)
         for (key2, value2) in nextlabels
-            w = get(newlinks, (key,key2), zero(T))
-            newlinks[(key,key2)] = w+value2[end]
+            w = get(newarcs, (key,key2), zero(T))
+            newarcs[(key,key2)] = w+value2[end]
         end
         queue = merge(queue, nextlabels)
     end
 
-    for (key, value) in newlinks
+    for (key, value) in newarcs
         src = smap[key[1]]
         dest = smap[key[2]]
         weight = value
-        link!(newfsm, src, dest, weight)
+        addarc!(newfsm, src, dest, weight)
     end
 
     newfsm
@@ -304,8 +307,8 @@ function Base.transpose(fsm::FSM{T}) where T
     end
 
     for src in states(fsm)
-        for link in links(fsm, src)
-            link!(newfsm, smap[link.dest], smap[src], link.weight)
+        for arc in arcs(fsm, src)
+            arc!(newfsm, smap[arc.dest], smap[src], arc.weight)
         end
     end
 

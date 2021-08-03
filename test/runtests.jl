@@ -20,11 +20,11 @@ function makefsm(SF, S)
 
     prev = addstate!(fsm, pdfindex = 1)
     setinit!(prev)
-    link!(fsm, prev, prev)
+    addarc!(fsm, prev, prev)
     for s in 2:S
         state = addstate!(fsm, pdfindex = s)
-        link!(fsm, prev, state)
-        link!(fsm, state, state)
+        addarc!(fsm, prev, state)
+        addarc!(fsm, state, state)
         prev = state
     end
     setfinal!(prev)

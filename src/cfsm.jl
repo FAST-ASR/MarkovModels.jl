@@ -43,9 +43,9 @@ function compile(fsm::FSM{T}; allocator = spzeros) where T
     A = allocator(T, S, S)
     Aᵀ = allocator(T, S, S)
     for src in allstates
-        for link in links(fsm, src)
-            A[src.id, link.dest.id] = link.weight
-            Aᵀ[link.dest.id, src.id] = link.weight
+        for arc in arcs(fsm, src)
+            A[src.id, arc.dest.id] = arc.weight
+            Aᵀ[arc.dest.id, src.id] = arc.weight
         end
     end
 

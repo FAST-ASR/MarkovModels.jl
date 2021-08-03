@@ -32,7 +32,7 @@ include("fsm.jl")
 export FSM
 export addstate!
 export determinize
-export link!
+export addarc!
 export minimize
 export renormalize!
 export setinit!
