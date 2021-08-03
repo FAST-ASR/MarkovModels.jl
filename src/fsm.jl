@@ -325,7 +325,7 @@ Find eps closure from `state` in `fsm`.
 """
 function eps_closure!(
         fsm::FSM{T}, state::State, closure::Vector;
-        weight::T=one(T), visited::Vector{State} = []
+        weight::T=one(T), visited::Vector{State} = State[] 
 ) where T <: Semifield
     
     if state in visited
