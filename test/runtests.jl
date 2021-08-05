@@ -240,3 +240,49 @@ end
     end
 end
 
+@testset "remove_eps" begin
+    SF = LogSemifield{Float64}
+    fsm = FSM{SF}()
+
+    s1 = addstate!(fsm, label = "a", pdfindex = 1)
+    s2 = addstate!(fsm)
+    s3 = addstate!(fsm, label = "c", pdfindex = 2)
+    setinit!(s1)
+    setfinal!(s3)
+
+    link!(fsm, s1, s2)
+    link!(fsm, s2, s3)
+    link!(fsm, s3, s1)
+
+    ns = collect(filter(s -> ! MarkovModels.isemitting(s),
+                        MarkovModels.states(fsm |> remove_eps)))
+    @test length(ns) == 0
+
+    setinit!(s2)
+    @test_throws MarkovModels.InvalidFSMError remove_eps(fsm)
+
+    setinit!(s2, zero(SF))
+    setfinal!(s2)
+    @test_throws MarkovModels.InvalidFSMError remove_eps(fsm)
+
+    setfinal!(s2, zero(SF))
+    s2.label = "b"
+    @test_throws MarkovModels.InvalidFSMError remove_eps(fsm)
+end
+
+@testset "determinize" begin
+    fsm = FSM()
+
+    s1 = addstate!(fsm, label = "a", pdfindex = 1)
+    s2 = addstate!(fsm)
+    s3 = addstate!(fsm, label = "c", pdfindex = 2)
+    setinit!(s1)
+    setfinal!(s3)
+
+    link!(fsm, s1, s2)
+    link!(fsm, s2, s3)
+    link!(fsm, s3, s1)
+
+    @test_throws MarkovModels.InvalidFSMError determinize(fsm)
+end
+

@@ -107,6 +107,11 @@ end
 FSM operations
 ======================================================================#
 
+struct InvalidFSMError <: Exception
+    msg
+end
+Base.show(io::IO, e::InvalidFSMError) = print(io, "invalid input FSM: $(e.msg)")
+
 """
     union(fsm1, fsm2, ...)
 
@@ -239,9 +244,8 @@ end
 """
     determinize(fsm)
 
-Determinize the FSM w.r.t. the state labels. Note that the pdf-indices
-will be ignore and the resulting fsm will have all its states' pdfindex
-set to `nothing`.
+Determinize the FSM w.r.t. the state labels. An error will be raised
+if the fsm has emitting states.
 """
 function determinize(fsm::FSM{T}) where T
     newfsm = FSM{T}()
@@ -249,8 +253,13 @@ function determinize(fsm::FSM{T}) where T
     newlinks = Dict()
     visited = Set()
 
+    if length(collect(filter(isemitting, states(fsm)))) > 0
+        throw(InvalidFSMError("cannot determinize FSM with emitting states."))
+    end
+
     initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
     queue = _unique_labels(initstates, T, 0, init = true)
+    for key in keys(queue) push!(visited, key) end
     while ! isempty(queue)
         key, value = pop!(queue)
         lstates = key
@@ -331,14 +340,14 @@ Find eps closure from `state` in `fsm`.
 """
 function eps_closure!(
         fsm::FSM{T}, state::State, closure::Vector;
-        weight::T=one(T), visited::Vector{State} = State[] 
+        weight::T=one(T), visited::Vector{State} = State[]
 ) where T <: Semifield
-    
+
     if state in visited
         return closure
     end
 	push!(visited, state)
-    
+
     for l in links(fsm, state)
         if isemitting(l.dest)
             push!(closure, (l.dest, l.weight * weight))
@@ -365,15 +374,27 @@ function remove_eps(fsm::FSM{T}) where T <: Semifield
                 initweight=s.initweight, finalweight=s.finalweight,
                 pdfindex=s.pdfindex, label=s.label)
         else
+            # Some checks to make sure the resulting FSM will be
+            # equivalent to the input one.
+            if islabeled(s)
+                throw(InvalidFSMError("cannot remove labeled non-emitting state"))
+            end
+            if isinit(s)
+                throw(InvalidFSMError("cannot remove starting non-emitting state"))
+            end
+            if isfinal(s)
+                throw(InvalidFSMError("cannot remove final non-emitting state"))
+            end
+
             push!(eps_states, s)
         end
     end
-    
+
     for eps in eps_states
         closure = eps_closure!(fsm, eps, [])
         eps_closures[eps] = unique!(closure)
     end
-    
+
     for s in states(fsm)
         for l in links(fsm, s)
             if isemitting(s) && isemitting(l.dest)
