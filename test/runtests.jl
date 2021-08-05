@@ -9,6 +9,7 @@ using Test
 const D = 5 # vector/matrix dimension
 const B = 2 # batch size
 const S = 3 # number of states
+const K = 3 # Number of emissions
 const N = 5 # number of frames
 
 const T = Float64
@@ -20,11 +21,11 @@ function makefsm(SF, S)
 
     prev = addstate!(fsm, pdfindex = 1)
     setinit!(prev)
-    link!(fsm, prev, prev)
+    addarc!(fsm, prev, prev)
     for s in 2:S
         state = addstate!(fsm, pdfindex = s)
-        link!(fsm, prev, state)
-        link!(fsm, state, state)
+        addarc!(fsm, prev, state)
+        addarc!(fsm, state, state)
         prev = state
     end
     setfinal!(prev)
@@ -164,33 +165,23 @@ end
     lhs = ones(T, S, N)
 
     fsm = makefsm(SF, S)
-    cfsm = compile(fsm, allocator = zeros)
+    cfsm = compile(fsm, K)
 
     γ_ref, ttl_ref = forward_backward(
-        convert(Matrix{T}, cfsm.A),
-        convert(Matrix{T}, cfsm.Aᵀ),
+        convert(Matrix{T}, cfsm.T),
+        convert(Matrix{T}, cfsm.Tᵀ),
         convert(Vector{T}, cfsm.π),
         convert(Vector{T}, cfsm.ω),
         convert(Matrix{T}, lhs)
     )
 
-    γ_dcpu, ttl_dcpu = @inferred stateposteriors(cfsm, lhs)
-    @test all(γ_ref .≈ γ_dcpu)
-    @test ttl_ref ≈ ttl_dcpu
-
-    cfsm = compile(fsm, allocator = spzeros)
-    γ_scpu, ttl_scpu = @inferred stateposteriors(cfsm, lhs)
+    γ_scpu, ttl_scpu = pdfposteriors(cfsm, lhs)
     @test all(γ_ref .≈ γ_scpu)
     @test ttl_ref ≈ ttl_scpu
 
     if CUDA.functional()
-        cfsm = compile(fsm, allocator = zeros) |> gpu
-        γ_dgpu, ttl_dgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
-        @test all(γ_ref .≈ convert(Matrix{T}, γ_dgpu))
-        @test ttl_ref ≈ ttl_dgpu
-
-        cfsm = compile(fsm, allocator = spzeros) |> gpu
-        γ_sgpu, ttl_sgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
+        cfsm = cfsm |> gpu
+        γ_sgpu, ttl_sgpu = pdfposteriors(cfsm, CuArray(lhs))
         @test all(γ_ref .≈ convert(Matrix{T}, γ_sgpu))
         @test ttl_ref ≈ ttl_sgpu
     end
@@ -200,39 +191,26 @@ end
     lhs = ones(T, S, N, B)
 
     fsm = makefsm(SF, S)
-    cfsm = compile(fsm, allocator = zeros)
+    cfsm = compile(fsm, K)
 
     γ_ref, ttl_ref = forward_backward(
-        convert(Matrix{T}, cfsm.A),
-        convert(Matrix{T}, cfsm.Aᵀ),
+        convert(Matrix{T}, cfsm.T),
+        convert(Matrix{T}, cfsm.Tᵀ),
         convert(Vector{T}, cfsm.π),
         convert(Vector{T}, cfsm.ω),
         convert(Matrix{T}, lhs[:, :, 1])
     )
 
-    γ_dcpu, ttl_dcpu = @inferred stateposteriors(cfsm, lhs)
-    for b in 1:B
-        @test all(γ_ref .≈ γ_dcpu[:,:,b])
-        @test ttl_ref ≈ ttl_dcpu[b]
-    end
-
-    cfsm = compile(fsm, allocator = spzeros)
-    γ_scpu, ttl_scpu = @inferred stateposteriors(cfsm, lhs)
+    cfsms = union([cfsm for i in 1:B]...)
+    γ_scpu, ttl_scpu = pdfposteriors(cfsms, lhs)
     for b in 1:B
         @test all(γ_ref .≈ γ_scpu[:,:,b])
         @test ttl_ref ≈ ttl_scpu[b]
     end
 
     if CUDA.functional()
-        cfsm = compile(fsm, allocator = zeros) |> gpu
-        γ_dgpu, ttl_dgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
-        for b in 1:B
-            @test all(γ_ref .≈ convert(Array{T,3}, γ_dgpu)[:,:,b])
-            @test ttl_ref ≈ convert(Vector{T}, ttl_dgpu)[b]
-        end
-
-        cfsm = compile(fsm, allocator = spzeros) |> gpu
-        γ_sgpu, ttl_sgpu = @inferred stateposteriors(cfsm, CuArray(lhs))
+        cfsms = cfsms |> gpu
+        γ_sgpu, ttl_sgpu = pdfposteriors(cfsms, CuArray(lhs))
         for b in 1:B
             @test all(γ_ref .≈ convert(Array{T,3}, γ_sgpu)[:,:,b])
             @test ttl_ref ≈ convert(Vector{T}, ttl_sgpu)[b]
@@ -250,9 +228,9 @@ end
     setinit!(s1)
     setfinal!(s3)
 
-    link!(fsm, s1, s2)
-    link!(fsm, s2, s3)
-    link!(fsm, s3, s1)
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s2, s3)
+    addarc!(fsm, s3, s1)
 
     ns = collect(filter(s -> ! MarkovModels.isemitting(s),
                         MarkovModels.states(fsm |> remove_eps)))
@@ -279,9 +257,9 @@ end
     setinit!(s1)
     setfinal!(s3)
 
-    link!(fsm, s1, s2)
-    link!(fsm, s2, s3)
-    link!(fsm, s3, s1)
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s2, s3)
+    addarc!(fsm, s3, s1)
 
     @test_throws MarkovModels.InvalidFSMError determinize(fsm)
 end

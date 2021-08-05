@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 
-# Stable implemenation of the log(exp(x) + exp(y)).
+# Stable implementation of the log(exp(x) + exp(y)).
 function logaddexp(x::T, y::T) where T
     diff = zero(T)
     if x < y
@@ -19,8 +19,7 @@ end
 abstract type Semifield <: Number end
 
 Base.convert(T::Type{<:Number}, x::Semifield) = T(x.val)
-Base.promote(x::SF, y::Real) where SF <: Semifield = x, SF(y)
-Base.promote(x::Real, y::SF) where SF <: Semifield = SF(x), y
+Base.promote_rule(x::Type{T}, y::Type{<:Real}) where T <: Semifield = T
 Base.show(io::IO, x::Semifield) = print(io, x.val)
 
 #======================================================================
