@@ -172,7 +172,7 @@ have matching labels are left untouched.
 function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     newfsm = FSM{T}()
 
-    matchlabel = label -> split(label, delim)[end]
+    matchlabel = label -> isnothing(label) ? nothing : split(label, delim)[end]
 
     smap_in = Dict()
     smap_out = Dict()
@@ -205,10 +205,15 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     end
 
     for osrc in states(fsm)
+        weight = one(T)
+        if matchlabel(osrc.label) in keys(subfsms)
+            finals = filter(isfinal, states(subfsms[matchlabel(osrc.label)]))
+            weight = sum(map(s->s.finalweight, finals))
+        end
         for link in links(fsm, osrc)
             src = smap_out[osrc]
             dest = smap_in[link.dest]
-            link!(newfsm, src, dest, link.weight)
+            link!(newfsm, src, dest, link.weight * weight)
         end
     end
 
@@ -318,4 +323,68 @@ end
 Return a minimal equivalent fsm.
 """
 minimize(fsm::FSM{T}) where T = (transpose ∘ determinize ∘ transpose ∘ determinize)(fsm)
+
+"""
+	eps_closure!(fsm, state, closure; [weight=1], [visited=[]])
+
+Find eps closure from `state` in `fsm`.
+"""
+function eps_closure!(
+        fsm::FSM{T}, state::State, closure::Vector;
+        weight::T=one(T), visited::Vector{State} = State[] 
+) where T <: Semifield
+    
+    if state in visited
+        return closure
+    end
+	push!(visited, state)
+    
+    for l in links(fsm, state)
+        if isemitting(l.dest)
+            push!(closure, (l.dest, l.weight * weight))
+        else
+            eps_closure!(fsm, l.dest, closure; weight=l.weight * weight, visited=visited)
+        end
+    end
+    return closure
+end
+
+"""
+	remove_eps(fsm)
+
+Removes non-emitting states from `fsm`.
+"""
+function remove_eps(fsm::FSM{T}) where T <: Semifield
+    nfsm = FSM{T}()
+    smap = Dict{State, State}()
+    eps_states = []
+    eps_closures = Dict{State, Vector}()
+    for s in states(fsm)
+        if isemitting(s)
+            smap[s] = addstate!(nfsm;
+                initweight=s.initweight, finalweight=s.finalweight,
+                pdfindex=s.pdfindex, label=s.label)
+        else
+            push!(eps_states, s)
+        end
+    end
+    
+    for eps in eps_states
+        closure = eps_closure!(fsm, eps, [])
+        eps_closures[eps] = unique!(closure)
+    end
+    
+    for s in states(fsm)
+        for l in links(fsm, s)
+            if isemitting(s) && isemitting(l.dest)
+                link!(nfsm, smap[s], smap[l.dest], l.weight)
+            elseif isemitting(s)
+                for (ns, w) in eps_closures[l.dest]
+                    link!(nfsm, smap[s], smap[ns], l.weight * w)
+                end
+            end
+        end
+    end
+    return nfsm
+end
 

@@ -17,7 +17,7 @@ struct CompiledFSM{T<:Semifield}
     ω::AbstractVector{T}
     A::AbstractMatrix{T}
     Aᵀ::AbstractMatrix{T}
-    pdfmap::AbstractVector{Int}
+    pdfmap::AbstractVector{PdfIndex}
 end
 
 """
