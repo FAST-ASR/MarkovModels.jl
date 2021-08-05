@@ -82,9 +82,9 @@ link!(fsm, s3, s4)
 ```@docs
 compile
 determinize
-gpu
 minimize
 renormalize!
+remove_eps
 replace(::FSM{T}, ::Dict) where T
 transpose
 ```
