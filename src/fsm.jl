@@ -234,12 +234,15 @@ end
 """
     determinize(fsm)
 
-Determinize the FSM w.r.t. the state labels.
+Determinize the FSM w.r.t. the state labels. Note that the pdf-indices
+will be ignore and the resulting fsm will have all its states' pdfindex
+set to `nothing`.
 """
 function determinize(fsm::FSM{T}) where T
     newfsm = FSM{T}()
     smap = Dict()
     newlinks = Dict()
+    visited = Set()
 
     initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
     queue = _unique_labels(initstates, T, 0, init = true)
@@ -269,8 +272,11 @@ function determinize(fsm::FSM{T}) where T
         for (key2, value2) in nextlabels
             w = get(newlinks, (key,key2), zero(T))
             newlinks[(key,key2)] = w+value2[end]
+            if key2 ∉ visited
+                queue[key2] = value2
+                push!(visited, key2)
+            end
         end
-        queue = merge(queue, nextlabels)
     end
 
     for (key, value) in newlinks

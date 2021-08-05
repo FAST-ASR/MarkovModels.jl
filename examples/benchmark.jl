@@ -46,6 +46,16 @@ function main(T, B, S, N; warmup)
     stateposteriors(cfsm, lhs)
     etime = (time_ns() - etime) / 1e9
     println("julia\t$precision\t$B\t$S\t$N\tsemifield\tsparse\tgpu\t$etime")
+
+    cfsm = compile(fsm, allocator = spzeros) |> gpu
+    lhs = CuArray(lhs)
+    if warmup stateposteriors(cfsm, lhs[:, :, 1]) end
+    etime = time_ns()
+    for i in 1:size(lhs, 3)
+        stateposteriors(cfsm, lhs[:, :, i])
+    end
+    etime = (time_ns() - etime) / 1e9
+    println("julia\t$precision\t$B\t$S\t$N\tsemifield\tsparse\tgpu\t$etime")
 end
 
 const T = Float32
