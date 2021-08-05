@@ -228,9 +228,9 @@ end
     setinit!(s1)
     setfinal!(s3)
 
-    link!(fsm, s1, s2)
-    link!(fsm, s2, s3)
-    link!(fsm, s3, s1)
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s2, s3)
+    addarc!(fsm, s3, s1)
 
     ns = collect(filter(s -> ! MarkovModels.isemitting(s),
                         MarkovModels.states(fsm |> remove_eps)))
@@ -257,9 +257,9 @@ end
     setinit!(s1)
     setfinal!(s3)
 
-    link!(fsm, s1, s2)
-    link!(fsm, s2, s3)
-    link!(fsm, s3, s1)
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s2, s3)
+    addarc!(fsm, s3, s1)
 
     @test_throws MarkovModels.InvalidFSMError determinize(fsm)
 end
