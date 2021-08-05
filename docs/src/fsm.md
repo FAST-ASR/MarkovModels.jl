@@ -77,8 +77,6 @@ link!(fsm, s3, s4)
 
 ## FSM operations
 
-### Composition
-
 ```@docs
 compile
 determinize
