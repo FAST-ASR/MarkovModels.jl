@@ -2,6 +2,7 @@
 
 ## 0.5.0
 
+* added batch computation of the forward-backward algorithm
 * added `remove_eps` function to remove emitting states
 * CompiledFSM structure stores the state -> pdf mapping (and pdf ->
   state mapping) as two sparse matrices to deal with
