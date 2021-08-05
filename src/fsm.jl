@@ -170,7 +170,7 @@ end
     replace(fsm, subfsms, delim = "!")
 
 Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
-is done with the last tone of `label` of the state, i.e. the state
+is done with the last token of `label` of the state, i.e. the state
 with label `a!b!c` will be replaced by `subfsms[c]`. States that don't
 have matching labels are left untouched.
 """
