@@ -116,6 +116,11 @@ end
 FSM operations
 ======================================================================#
 
+struct InvalidFSMError <: Exception
+    msg
+end
+Base.show(io::IO, e::InvalidFSMError) = print(io, "invalid input FSM: $(e.msg)")
+
 """
     union(fsm1, fsm2, ...)
 
@@ -174,14 +179,14 @@ end
     replace(fsm, subfsms, delim = "!")
 
 Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
-is done with the last tone of `label` of the state, i.e. the state
+is done with the last token of `label` of the state, i.e. the state
 with label `a!b!c` will be replaced by `subfsms[c]`. States that don't
 have matching labels are left untouched.
 """
 function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     newfsm = FSM{T}()
 
-    matchlabel = label -> split(label, delim)[end]
+    matchlabel = label -> isnothing(label) ? nothing : split(label, delim)[end]
 
     smap_in = Dict()
     smap_out = Dict()
@@ -214,10 +219,15 @@ function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
     end
 
     for osrc in states(fsm)
+        weight = one(T)
+        if matchlabel(osrc.label) in keys(subfsms)
+            finals = filter(isfinal, states(subfsms[matchlabel(osrc.label)]))
+            weight = sum(map(s->s.finalweight, finals))
+        end
         for arc in arcs(fsm, osrc)
             src = smap_out[osrc]
             dest = smap_in[arc.dest]
-            arc!(newfsm, src, dest, arc.weight)
+            addarc!(newfsm, src, dest, arc.weight * weight)
         end
     end
 
@@ -243,15 +253,22 @@ end
 """
     determinize(fsm)
 
-Determinize the FSM w.r.t. the state labels.
+Determinize the FSM w.r.t. the state labels. An error will be raised
+if the fsm has emitting states.
 """
 function determinize(fsm::FSM{T}) where T
     newfsm = FSM{T}()
     smap = Dict()
     newarcs = Dict()
+    visited = Set()
+
+    if length(collect(filter(isemitting, states(fsm)))) > 0
+        throw(InvalidFSMError("cannot determinize FSM with emitting states."))
+    end
 
     initstates = [(s, zero(T)) for s in filter(isinit, collect(states(fsm)))]
     queue = _unique_labels(initstates, T, 0, init = true)
+    for key in keys(queue) push!(visited, key) end
     while ! isempty(queue)
         key, value = pop!(queue)
         lstates = key
@@ -278,8 +295,11 @@ function determinize(fsm::FSM{T}) where T
         for (key2, value2) in nextlabels
             w = get(newarcs, (key,key2), zero(T))
             newarcs[(key,key2)] = w+value2[end]
+            if key2 ∉ visited
+                queue[key2] = value2
+                push!(visited, key2)
+            end
         end
-        queue = merge(queue, nextlabels)
     end
 
     for (key, value) in newarcs
@@ -321,4 +341,82 @@ end
 Return a minimal equivalent fsm.
 """
 minimize(fsm::FSM{T}) where T = (transpose ∘ determinize ∘ transpose ∘ determinize)(fsm)
+
+"""
+	eps_closure!(fsm, state, closure; [weight=1], [visited=[]])
+
+Find eps closure from `state` in `fsm`.
+"""
+function eps_closure!(
+        fsm::FSM{T}, state::State, closure::Vector;
+        weight::T=one(T), visited::Vector{State} = State[]
+) where T <: Semifield
+
+    if state in visited
+        return closure
+    end
+	push!(visited, state)
+
+    for l in arcs(fsm, state)
+        if isemitting(l.dest)
+            push!(closure, (l.dest, l.weight * weight))
+        else
+            eps_closure!(fsm, l.dest, closure; weight=l.weight * weight, visited=visited)
+        end
+    end
+    return closure
+end
+
+"""
+	remove_eps(fsm)
+
+Removes non-emitting states from `fsm`. An error will be raised if
+a non-emitting states has a label and/or it is an initial or final
+state.
+"""
+function remove_eps(fsm::FSM{T}) where T <: Semifield
+    nfsm = FSM{T}()
+    smap = Dict{State, State}()
+    eps_states = []
+    eps_closures = Dict{State, Vector}()
+    for s in states(fsm)
+        if isemitting(s)
+            smap[s] = addstate!(nfsm;
+                initweight=s.initweight, finalweight=s.finalweight,
+                pdfindex=s.pdfindex, label=s.label)
+        else
+            # Some checks to make sure the resulting FSM will be
+            # equivalent to the input one.
+            if islabeled(s)
+                throw(InvalidFSMError("cannot remove labeled non-emitting state"))
+            end
+            if isinit(s)
+                throw(InvalidFSMError("cannot remove starting non-emitting state"))
+            end
+            if isfinal(s)
+                throw(InvalidFSMError("cannot remove final non-emitting state"))
+            end
+
+            push!(eps_states, s)
+        end
+    end
+
+    for eps in eps_states
+        closure = eps_closure!(fsm, eps, [])
+        eps_closures[eps] = unique!(closure)
+    end
+
+    for s in states(fsm)
+        for l in arcs(fsm, s)
+            if isemitting(s) && isemitting(l.dest)
+                addarc!(nfsm, smap[s], smap[l.dest], l.weight)
+            elseif isemitting(s)
+                for (ns, w) in eps_closures[l.dest]
+                    addarc!(nfsm, smap[s], smap[ns], l.weight * w)
+                end
+            end
+        end
+    end
+    return nfsm
+end
 

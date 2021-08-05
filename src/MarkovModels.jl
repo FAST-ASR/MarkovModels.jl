@@ -38,6 +38,7 @@ export renormalize!
 export setinit!
 export setfinal!
 export states
+export remove_eps
 
 include("cfsm.jl")
 

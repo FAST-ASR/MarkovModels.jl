@@ -1,7 +1,7 @@
 name = "MarkovModels"
 uuid = "c2ae6250-d0a1-11ea-0991-234599ce5244"
 authors = ["Lucas Ondel <lucas.ondel@gmail.com>"]
-version = "0.4.0"
+version = "0.5.0"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
