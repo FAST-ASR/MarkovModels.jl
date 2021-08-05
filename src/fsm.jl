@@ -361,7 +361,9 @@ end
 """
 	remove_eps(fsm)
 
-Removes non-emitting states from `fsm`.
+Removes non-emitting states from `fsm`. An error will be raised if
+a non-emitting states has a label and/or it is an initial or final
+state.
 """
 function remove_eps(fsm::FSM{T}) where T <: Semifield
     nfsm = FSM{T}()
