@@ -46,8 +46,8 @@ Specialized algorithms
     pdfposteriors(cfsm, lhs)
     pdfposteriors(union(cfsm1, cfsm2, ...), batch_lhs)
 
-Calculate the conditional posterior of "assigning" the $n$th frame
-to the $i$th pdf. The output is a tuple `γ, ttl` where `γ` is a matrix
+Calculate the conditional posterior of "assigning" the \$n\$th frame
+to the \$i\$th pdf. The output is a tuple `γ, ttl` where `γ` is a matrix
 (# pdf x # frames) and `ttl` is the total probability of the sequence.
 This function can also be caused in "batch-mode" by providing a union
 of compiled fsm and a 3D tensor containing the per-state, per-frame
