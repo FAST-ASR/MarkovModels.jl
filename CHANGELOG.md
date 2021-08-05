@@ -6,6 +6,7 @@
 * CompiledFSM structure stores the state -> pdf mapping to deal with
   the case when the state id is different from the pdf index
 * added `union` function to group several fsms together
+* fixed determinize never end for FSM with cycles (issue #16)
 
 ## 0.4.0
 
