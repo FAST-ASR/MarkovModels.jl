@@ -45,6 +45,7 @@ Base.one(::LogSemifield{T}) where T = LogSemifield{T}(T(0))
 Base.isless(x::LogSemifield, y::LogSemifield) = isless(x.val, y.val)
 Base.typemin(x::Type{LogSemifield{T}}) where T = LogSemifield{T}(typemin(T))
 Base.typemax(x::Type{LogSemifield{T}}) where T = LogSemifield{T}(typemax(T))
+Base.conj(x::LogSemifield) = conj(x.val)
 
 #======================================================================
 Tropical-semifield:
@@ -72,4 +73,4 @@ Base.typemin(x::Type{TropicalSemifield{T}}) where T =
     TropicalSemifield{T}(typemin(T))
 Base.typemax(x::Type{TropicalSemifield{T}}) where T =
     TropicalSemifield{T}(typemax(T))
-
+Base.conj(x::TropicalSemifield) = conj(x.val)
