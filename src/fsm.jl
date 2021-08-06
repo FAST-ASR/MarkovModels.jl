@@ -37,6 +37,7 @@ struct FSM{T<:Semifield}
 end
 FSM{T}() where T = FSM{T}(State{T}[], Dict{State, Vector{Link{T}}}())
 FSM() = FSM{LogSemifield{Float64}}()
+fsmtype(::FSM{T}) where T<:Semifield = T
 
 states(fsm::FSM) = fsm.states
 links(fsm::FSM{T}, state::State{T}) where T = get(fsm.links, state, Link{T}[])

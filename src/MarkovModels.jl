@@ -39,12 +39,14 @@ export setinit!
 export setfinal!
 export states
 export remove_eps
+export fsmtype
 
 include("cfsm.jl")
 
 export CompiledFSM
 export compile
 export gpu
+export cfsmtype
 
 #======================================================================
 Inference algorithms.
@@ -54,5 +56,12 @@ include("algorithms.jl")
 
 export stateposteriors
 export bestpath
+
+#======================================================================
+FSM IO
+======================================================================#
+
+include("io.jl")
+export read, write
 
 end
