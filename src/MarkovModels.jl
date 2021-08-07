@@ -46,7 +46,7 @@ include("cfsm.jl")
 export CompiledFSM
 export compile
 export gpu
-export cfsmtype
+export fsmtype
 
 #======================================================================
 Inference algorithms.
