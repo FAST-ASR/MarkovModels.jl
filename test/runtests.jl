@@ -165,7 +165,7 @@ end
     lhs = ones(T, S, N)
 
     fsm = makefsm(SF, S)
-    cfsm = compile(fsm, K)
+    cfsm, _ = compile(fsm, K)
 
     γ_ref, ttl_ref = forward_backward(
         convert(Matrix{T}, cfsm.T),
@@ -191,7 +191,7 @@ end
     lhs = ones(T, S, N, B)
 
     fsm = makefsm(SF, S)
-    cfsm = compile(fsm, K)
+    cfsm, _ = compile(fsm, K)
 
     γ_ref, ttl_ref = forward_backward(
         convert(Matrix{T}, cfsm.T),
@@ -262,5 +262,29 @@ end
     addarc!(fsm, s3, s1)
 
     @test_throws MarkovModels.InvalidFSMError determinize(fsm)
+end
+
+@testset "bestpath" begin
+    fsm = FSM()
+
+    s1 = addstate!(fsm, label = "a", pdfindex = 1)
+    s2 = addstate!(fsm, label = "b", pdfindex = 2)
+    s3 = addstate!(fsm, label = "c", pdfindex = 3)
+    s4 = addstate!(fsm, label = "d", pdfindex = 4)
+    setinit!(s1)
+    setfinal!(s4)
+
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s2, s3)
+    addarc!(fsm, s3, s4)
+
+    lhs = ones(T, 4, 4)
+
+    cfsm, labels = compile(fsm, 4)
+    cfsm = convert(CompiledFSM{TropicalSemiring{T}}, cfsm)
+    μ = maxstateposteriors(cfsm, lhs)
+    path = bestpath(cfsm, μ)
+
+    @test join(labels[path], " ") == "a b c d"
 end
 

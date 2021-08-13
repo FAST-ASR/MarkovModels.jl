@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: MIT
 
+
+#Base.similar(x::CuSparseVector, T::Type) =
+#    CuSparseVector{T}(copy(CUSPARSE.nonzeroinds(x)), similar(nonzeros(x)), x.dims[1])
+#Base.similar(M::CuSparseMatrixCSR, T::Type) =
+#    CuSparseMatrixCSR{T}(copy(M.rowPtr), copy(M.colVal), similar(nonzeros(M), T), M.dims)
+
 #======================================================================
 This file wrapped a few basic linear algebra operations in order to
 have more fine-grained control between CPU/GPU code and different

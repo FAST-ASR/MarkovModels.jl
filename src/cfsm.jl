@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 """
-    struct CompiledFSM{T<:Semifield}
+    struct CompiledFSM{T<:Semiring}
         π        # vector of initial probabilities
         ω        # vector of final probabilities
         T        # matrix of transition probabilities
@@ -13,7 +13,7 @@
 Compiled FSM: matrix/vector format of an FSM used by inference
 algorithms. All the fields are stored in sparse containers.
 """
-struct CompiledFSM{SF<:Semifield}
+struct CompiledFSM{SF<:Semiring}
     π::AbstractSparseVector{SF}
     ω::AbstractSparseVector{SF}
     T::AbstractSparseMatrix{SF}
@@ -29,11 +29,13 @@ function Base.show(io::IO, cfsm::CompiledFSM)
 end
 
 """
-    compile(fsm, K)
+    compile(fsm, K) -> cfsm, labels
 
 Compile `fsm` into a inference-friendly format [`CompiledFSM`](@ref).
 `K` is the total number of emission pdfs. Note that the fsm, is not
-requested to use all the pdf indices.
+requested to use all the pdf indices. In addition to the compiled
+fsm `cfsm`, the function also returns `labels`, i.e. the mapping state
+index -> label.
 
 !!! warning
     This function assumes that all states of `fsm` are associated to a
@@ -65,12 +67,14 @@ function compile(fsm::FSM{SF}, K::Integer) where SF
     # Connection matrix.
     C = spzeros(SF, S, K)
     Cᵀ = spzeros(SF, K, S)
+    labels = Vector{Label}(undef, S)
     for s in allstates
         C[s.id, s.pdfindex] = one(SF)
         Cᵀ[s.pdfindex, s.id] = one(SF)
+        labels[s.id] = s.label
     end
 
-    CompiledFSM{SF}(π, ω, T, Tᵀ, C, Cᵀ)
+    CompiledFSM{SF}(π, ω, T, Tᵀ, C, Cᵀ), labels
 end
 
 """
@@ -93,7 +97,7 @@ function gpu(cfsm::CompiledFSM{SF}) where SF
     )
 end
 
-function Base.convert(::Type{CompiledFSM{NT}}, cfsm) where NT <: Semifield
+function Base.convert(::Type{CompiledFSM{NT}}, cfsm) where NT <: Semiring
     CompiledFSM{NT}(
         copyto!(similar(cfsm.π, NT), cfsm.π),
         copyto!(similar(cfsm.ω, NT), cfsm.ω),
@@ -105,7 +109,7 @@ function Base.convert(::Type{CompiledFSM{NT}}, cfsm) where NT <: Semifield
 end
 Base.convert(::Type{T}, cfsm::T) where T <: CompiledFSM = cfsm
 
-struct UnionCompiledFSM{SF<:Semifield,U}
+struct UnionCompiledFSM{SF<:Semiring,U}
     cfsm::CompiledFSM{SF}
 end
 

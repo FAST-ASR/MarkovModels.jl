@@ -16,11 +16,14 @@ function logaddexp(x::T, y::T) where T
     return x
 end
 
-abstract type Semifield <: Number end
+abstract type Semiring <: Number end
+abstract type Semifield <: Semiring end
 
-Base.convert(T::Type{<:Number}, x::Semifield) = T(x.val)
+Base.zero(x::T) where T<:Semiring = zero(T)
+Base.convert(::Type{T}, x::T) where T<:Semiring = x
+Base.convert(T::Type{<:Number}, x::Semiring) = T(x.val)
 Base.promote_rule(x::Type{T}, y::Type{<:Real}) where T <: Semifield = T
-Base.show(io::IO, x::Semifield) = print(io, x.val)
+Base.show(io::IO, x::Semiring) = print(io, x.val)
 
 #======================================================================
 Log-semifield:
@@ -38,9 +41,7 @@ Base.:+(x::LogSemifield{T}, y::LogSemifield{T}) where T =
 Base.:*(x::LogSemifield, y::LogSemifield) = LogSemifield(x.val + y.val)
 Base.:/(x::LogSemifield, y::LogSemifield) = LogSemifield(x.val - y.val)
 Base.zero(::Type{LogSemifield{T}}) where T = LogSemifield{T}(T(-Inf))
-Base.zero(::LogSemifield{T}) where T = LogSemifield{T}(T(-Inf))
 Base.one(::Type{LogSemifield{T}}) where T = LogSemifield{T}(T(0))
-Base.one(::LogSemifield{T}) where T = LogSemifield{T}(T(0))
 Base.isless(x::LogSemifield, y::LogSemifield) = isless(x.val, y.val)
 Base.typemin(x::Type{LogSemifield{T}}) where T = LogSemifield{T}(typemin(T))
 Base.typemax(x::Type{LogSemifield{T}}) where T = LogSemifield{T}(typemax(T))
@@ -49,26 +50,44 @@ Base.typemax(x::Type{LogSemifield{T}}) where T = LogSemifield{T}(typemax(T))
 Tropical-semifield:
     x ⊕ y := max(x, y)
     x ⊗ y := x + y
-    x ⊘ y := x - y
 ======================================================================#
 
-struct TropicalSemifield{T<:AbstractFloat} <: Semifield
+struct TropicalSemiring{T<:AbstractFloat} <: Semiring
     val::T
 end
 
-Base.:+(x::TropicalSemifield, y::TropicalSemifield) =
-    TropicalSemifield(max(x.val, y.val))
-Base.:*(x::TropicalSemifield, y::TropicalSemifield) =
-    TropicalSemifield(x.val + y.val)
-Base.:/(x::TropicalSemifield, y::TropicalSemifield) =
-    TropicalSemifield(x.val - y.val)
-Base.zero(::Type{TropicalSemifield{T}}) where T = TropicalSemifield{T}(T(-Inf))
-Base.zero(::TropicalSemifield{T}) where T = TropicalSemifield{T}(T(-Inf))
-Base.one(::Type{TropicalSemifield{T}}) where T = TropicalSemifield{T}(T(0))
-Base.one(::TropicalSemifield{T}) where T = TropicalSemifield{T}(T(0))
-Base.isless(x::TropicalSemifield, y::TropicalSemifield) = isless(x.val, y.val)
-Base.typemin(x::Type{TropicalSemifield{T}}) where T =
-    TropicalSemifield{T}(typemin(T))
-Base.typemax(x::Type{TropicalSemifield{T}}) where T =
-    TropicalSemifield{T}(typemax(T))
+Base.:+(x::TropicalSemiring, y::TropicalSemiring) =
+    TropicalSemiring(max(x.val, y.val))
+Base.:*(x::TropicalSemiring, y::TropicalSemiring) =
+    TropicalSemiring(x.val + y.val)
+Base.zero(::Type{TropicalSemiring{T}}) where T = TropicalSemiring{T}(T(-Inf))
+Base.one(::Type{TropicalSemiring{T}}) where T = TropicalSemiring{T}(T(0))
+Base.isless(x::TropicalSemiring, y::TropicalSemiring) = isless(x.val, y.val)
+Base.typemin(x::Type{TropicalSemiring{T}}) where T =
+    TropicalSemiring{T}(typemin(T))
+Base.typemax(x::Type{TropicalSemiring{T}}) where T =
+    TropicalSemiring{T}(typemax(T))
 
+#======================================================================
+Viterbi-semiring:
+    x ⊕ y := max(x, y)
+    x ⊗ y := x + y
+======================================================================#
+
+struct ViterbiSemiring{Tv<:AbstractFloat,Ts} <: Semiring
+    val::Tv
+    seq::Tuple{Vararg{Tv}}
+end
+
+function Base.:+(x::ViterbiSemiring, y::ViterbiSemiring)
+    tup = x.val ≥ y.val ? (x.val, x.seq) : (y.val, y.seq)
+    ViterbiSemiring(tup...)
+end
+
+Base.:*(x::ViterbiSemiring, y::ViterbiSemiring) =
+    ViterbiSemiring(x.val + y.val, tuple(x.seq..., y.seq...))
+Base.zero(::Type{ViterbiSemiring{Tv,Ts}}) where {Tv,Ts} =
+    ViterbiSemiring{Tv,Ts}(-Inf, tuple())
+Base.one(::Type{ViterbiSemiring{Tv,Ts}}) where {Tv,Ts} =
+    ViterbiSemiring{Tv,Ts}(0, tuple())
+Base.isless(x::ViterbiSemiring, y::ViterbiSemiring) = isless(x.val, y.val)
