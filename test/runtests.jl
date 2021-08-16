@@ -174,9 +174,23 @@ if CUDA.functional()
 
             gX₁ = CuSparseMatrixCSR(cu(X₁))
             gX₂ = CuSparseMatrixCSR(cu(X₂))
-            gY = MarkovModels.blockdiag(gX₁, gX₂)
+            gY = blockdiag(gX₁, gX₂)
 
             @test all(convert(Array{T}, gY) .≈ convert(Array{T}, Y))
+
+            x₁ = spzeros(T, 3)
+            x₂ = spzeros(T, 2)
+
+            x₁[2] = T(1)
+            x₂[1] = T(2)
+            y = vcat(x₁, x₂)
+
+            gx₁ = cu(x₁)
+            gx₂ = cu(x₂)
+            gy = vcat(gx₁, gx₂)
+
+            gy = CUDA.@allowscalar Array(gy)
+            @test all(gy .≈ y)
         end
     end
 end

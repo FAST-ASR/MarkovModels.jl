@@ -41,7 +41,7 @@ matmul!(out, X::CuSparseMatrixCSR{T}, Y::AbstractMatrix{T}) where T =
 # Construct a block diagonal matrix with CUDA CSR matrix.
 # Adapted from:
 #   https://github.com/JuliaLang/julia/blob/1b93d53fc4bb59350ada898038ed4de2994cce33/stdlib/SparseArrays/src/sparsematrix.jl#L3396
-function blockdiag(X::CuSparseMatrixCSR{T}...) where T
+function SparseArrays.blockdiag(X::CuSparseMatrixCSR{T}...) where T
     num = length(X)
     mX = Int[ size(x, 1) for x in X ]
     nX = Int[ size(x, 2) for x in X ]
@@ -69,4 +69,26 @@ function blockdiag(X::CuSparseMatrixCSR{T}...) where T
     CUDA.@allowscalar rowPtr[m+1] = nnz_sofar + 1
 
     CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, (m, n))
+end
+
+function Base.vcat(X::CuSparseVector{T}...) where T
+    num = length(X)
+    nX = Int[ length(x) for x in X ]
+    n = sum(nX)
+
+    nnzX = Int[ nnz(x) for x in X ]
+    nnz_total = sum(nnzX)
+    iPtr = CuVector{Cint}(undef, nnz_total)
+    nzVal = CuVector{T}(undef, nnz_total)
+
+    nX_sofar = 0
+    nnz_sofar = 0
+    for i = 1:num
+        iPtr[ (1:nnzX[i]) .+ nnz_sofar ] = X[i].iPtr .+ nX_sofar
+        nzVal[ (1:nnzX[i]) .+ nnz_sofar ] = nonzeros(X[i])
+        nX_sofar += nX[i]
+        nnz_sofar += nnzX[i]
+    end
+
+    CuSparseVector{T}(iPtr, nzVal, n)
 end
