@@ -8,14 +8,15 @@ using LinearAlgebra
 using SparseArrays
 
 #======================================================================
-Redefinition of some linear operations to work on GPU.
+Redefinition of some array/linear operations to work on GPU.
 ======================================================================#
 
+include("array.jl")
 include("linalg.jl")
 include("culinalg.jl")
 
 #======================================================================
-Semifield algebras.
+Semiring algebras.
 ======================================================================#
 
 include("semifields.jl")
