@@ -243,7 +243,9 @@ end
     end
 
     if CUDA.functional()
-        cfsms = cfsms |> gpu
+        cfsm = cfsm |> gpu
+        cfsms = union([cfsm for i in 1:B]...)
+        #cfsms = cfsms |> gpu
         γ_sgpu, ttl_sgpu = pdfposteriors(cfsms, CuArray(lhs))
         for b in 1:B
             @test all(γ_ref .≈ convert(Array{T,3}, γ_sgpu)[:,:,b])
