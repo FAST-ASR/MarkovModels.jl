@@ -158,40 +158,40 @@ if CUDA.functional()
         out = similar(Ag, 3, 3)
         MarkovModels.mul_dmdm!(out, Ag, Bg)
         @test all(convert(Matrix{T}, out) .≈ A * B)
+    end
 
-        if CUDA.functional()
-            X₁ = spzeros(T, 4, 3)
-            X₂ = spzeros(T, 3, 2)
+    @testset "array" begin
+        X₁ = spzeros(T, 4, 3)
+        X₂ = spzeros(T, 3, 2)
 
-            X₁[1, 1] = T(2)
-            X₁[3, 3] = T(3)
-            X₁[4, 2] = T(-1)
+        X₁[1, 1] = T(2)
+        X₁[3, 3] = T(3)
+        X₁[4, 2] = T(-1)
 
-            X₂[2, 1] = T(2)
-            X₂[2, 2] = T(3)
+        X₂[2, 1] = T(2)
+        X₂[2, 2] = T(3)
 
-            Y = blockdiag(X₁, X₂)
+        Y = blockdiag(X₁, X₂)
 
-            gX₁ = CuSparseMatrixCSR(cu(X₁))
-            gX₂ = CuSparseMatrixCSR(cu(X₂))
-            gY = blockdiag(gX₁, gX₂)
+        gX₁ = CuSparseMatrixCSR(cu(X₁))
+        gX₂ = CuSparseMatrixCSR(cu(X₂))
+        gY = blockdiag(gX₁, gX₂)
 
-            @test all(convert(Array{T}, gY) .≈ convert(Array{T}, Y))
+        @test all(convert(Array{T}, gY) .≈ convert(Array{T}, Y))
 
-            x₁ = spzeros(T, 3)
-            x₂ = spzeros(T, 2)
+        x₁ = spzeros(T, 3)
+        x₂ = spzeros(T, 2)
 
-            x₁[2] = T(1)
-            x₂[1] = T(2)
-            y = vcat(x₁, x₂)
+        x₁[2] = T(1)
+        x₂[1] = T(2)
+        y = vcat(x₁, x₂)
 
-            gx₁ = cu(x₁)
-            gx₂ = cu(x₂)
-            gy = vcat(gx₁, gx₂)
+        gx₁ = cu(x₁)
+        gx₂ = cu(x₂)
+        gy = vcat(gx₁, gx₂)
 
-            gy = CUDA.@allowscalar Array(gy)
-            @test all(gy .≈ y)
-        end
+        gy = CUDA.@allowscalar Array(gy)
+        @test all(gy .≈ y)
     end
 end
 
