@@ -3,7 +3,7 @@
 const PdfIndex = Union{Int,Nothing}
 const Label = Union{AbstractString,Nothing}
 
-mutable struct State{T<:Semifield}
+mutable struct State{T<:Semiring}
     id::Int
     initweight::T
     finalweight::T
@@ -18,20 +18,20 @@ isemitting(s::State)  = ! isnothing(s.pdfindex)
 setinit!(s::State{T}, weight::T = one(T)) where T = s.initweight = weight
 setfinal!(s::State{T}, weight::T = one(T)) where T = s.finalweight = weight
 
-mutable struct Arc{T<:Semifield}
+mutable struct Arc{T<:Semiring}
     dest::State
     weight::T
 end
 
 """
-    struct FSM{T<:Semifield}
+    struct FSM{T<:Semiring}
         states # vector of states
         arcs # Dict state -> vector of arcs
     end
 
 Probabilistic finite state machine.
 """
-struct FSM{T<:Semifield}
+struct FSM{T<:Semiring}
     states::Vector{State{T}}
     arcs::Dict{State, Vector{Arc{T}}}
 end
@@ -350,7 +350,7 @@ Find eps closure from `state` in `fsm`.
 function eps_closure!(
         fsm::FSM{T}, state::State, closure::Vector;
         weight::T=one(T), visited::Vector{State} = State[]
-) where T <: Semifield
+) where T <: Semiring
 
     if state in visited
         return closure
@@ -374,7 +374,7 @@ Removes non-emitting states from `fsm`. An error will be raised if
 a non-emitting states has a label and/or it is an initial or final
 state.
 """
-function remove_eps(fsm::FSM{T}) where T <: Semifield
+function remove_eps(fsm::FSM{T}) where T <: Semiring
     nfsm = FSM{T}()
     smap = Dict{State, State}()
     eps_states = []

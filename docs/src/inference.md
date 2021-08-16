@@ -4,4 +4,6 @@
 
 ```@docs
 pdfposteriors
+maxstateposteriors
+bestpath
 ```
