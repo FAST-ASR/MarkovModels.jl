@@ -12,7 +12,7 @@ const S = 3 # number of states
 const K = 3 # Number of emissions
 const N = 5 # number of frames
 
-const T = Float64
+const T = Float32
 const SF = LogSemifield{T}
 
 
@@ -158,6 +158,26 @@ if CUDA.functional()
         out = similar(Ag, 3, 3)
         MarkovModels.mul_dmdm!(out, Ag, Bg)
         @test all(convert(Matrix{T}, out) .≈ A * B)
+
+        if CUDA.functional()
+            X₁ = spzeros(T, 4, 3)
+            X₂ = spzeros(T, 3, 2)
+
+            X₁[1, 1] = T(2)
+            X₁[3, 3] = T(3)
+            X₁[4, 2] = T(-1)
+
+            X₂[2, 1] = T(2)
+            X₂[2, 2] = T(3)
+
+            Y = blockdiag(X₁, X₂)
+
+            gX₁ = CuSparseMatrixCSR(cu(X₁))
+            gX₂ = CuSparseMatrixCSR(cu(X₂))
+            gY = MarkovModels.blockdiag(gX₁, gX₂)
+
+            @test all(convert(Array{T}, gY) .≈ convert(Array{T}, Y))
+        end
     end
 end
 
