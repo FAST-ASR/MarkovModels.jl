@@ -1,5 +1,9 @@
 # Releases
 
+## 0.6.0
+* added `maxstateposteriors` and `bestpath` algorithms
+* can make union of compiled FSMs on GPU.
+
 ## 0.5.0
 
 * added batch computation of the forward-backward algorithm
