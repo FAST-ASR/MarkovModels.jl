@@ -328,7 +328,7 @@ function Base.transpose(fsm::FSM{T}) where T
 
     for src in states(fsm)
         for arc in arcs(fsm, src)
-            arc!(newfsm, smap[arc.dest], smap[src], arc.weight)
+            addarc!(newfsm, smap[arc.dest], smap[src], arc.weight)
         end
     end
 
