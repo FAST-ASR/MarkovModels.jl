@@ -1,5 +1,8 @@
 # Releases
 
+## 0.6.1
+* fixed typo `arc!` instead of `addarc!`
+
 ## 0.6.0
 * added `maxstateposteriors` and `bestpath` algorithms
 * can make union of compiled FSMs on GPU.
