@@ -140,7 +140,7 @@ function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
 
     for src in states(fsm1)
         for arc in arcs(fsm1, src)
-            arc!(newfsm, smap[src], smap[arc.dest], arc.weight)
+            addarc!(newfsm, smap[src], smap[arc.dest], arc.weight)
         end
     end
 
@@ -328,7 +328,7 @@ function Base.transpose(fsm::FSM{T}) where T
 
     for src in states(fsm)
         for arc in arcs(fsm, src)
-            arc!(newfsm, smap[arc.dest], smap[src], arc.weight)
+            addarc!(newfsm, smap[arc.dest], smap[src], arc.weight)
         end
     end
 
