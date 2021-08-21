@@ -11,9 +11,9 @@ using SparseArrays
 Redefinition of some array/linear operations to work on GPU.
 ======================================================================#
 
-include("array.jl")
-include("linalg.jl")
-include("culinalg.jl")
+#include("array.jl")
+#include("linalg.jl")
+#include("culinalg.jl")
 
 #======================================================================
 Semiring algebras.
@@ -28,19 +28,25 @@ export TropicalSemiring
 API to build and manipulate FSM.
 ======================================================================#
 
-include("fsm.jl")
-
-export FSM
-export addstate!
-export determinize
-export addarc!
-export minimize
-export renormalize!
-export setinit!
-export setfinal!
+include("fsms/abstractfsm.jl")
+export AbstractFSM
+export AbstractMutableFSM
 export states
+export arcs
+export addstate!
+export addarc!
+
+include("fsms/vectorfsm.jl")
+export VectorFSM
+
+include("fsms/fsmop.jl")
+export determinize
+export minimize
+export renormalize
 export remove_eps
 
+#=
+#
 include("cfsm.jl")
 
 export CompiledFSM
@@ -56,5 +62,7 @@ include("algorithms.jl")
 export pdfposteriors
 export maxstateposteriors
 export bestpath
+
+=#
 
 end

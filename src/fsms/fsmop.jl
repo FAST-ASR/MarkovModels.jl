@@ -1,179 +1,77 @@
 # SPDX-License-Identifier: MIT
 
-const PdfIndex = Union{Int,Nothing}
-const Label = Union{AbstractString,Nothing}
+function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
+    allstates = union(collect(states(fsm1)), collect(states(fsm2)))
+    newfsm = VectorFSM{T}()
 
-mutable struct State{T<:Semiring}
-    id::Int
-    initweight::T
-    finalweight::T
-    pdfindex::PdfIndex
-    label::Label
-end
-
-isinit(s::State{T}) where T = s.initweight ≠ zero(T)
-isfinal(s::State{T}) where T = s.finalweight ≠ zero(T)
-islabeled(s::State) = ! isnothing(s.label)
-isemitting(s::State)  = ! isnothing(s.pdfindex)
-setinit!(s::State{T}, weight::T = one(T)) where T = s.initweight = weight
-setfinal!(s::State{T}, weight::T = one(T)) where T = s.finalweight = weight
-
-mutable struct Arc{T<:Semiring}
-    dest::State
-    weight::T
-end
-
-"""
-    struct FSM{T<:Semiring}
-        states # vector of states
-        arcs # Dict state -> vector of arcs
+    smap1 = Dict()
+    for state in states(fsm1)
+        smap1[state] = addstate!(newfsm, state.label,
+                                initweight = state.initweight,
+                                finalweight = state.finalweight)
     end
 
-Probabilistic finite state machine.
-"""
-struct FSM{T<:Semiring}
-    states::Vector{State{T}}
-    arcs::Dict{State, Vector{Arc{T}}}
-end
-FSM{T}() where T = FSM{T}(State{T}[], Dict{State, Vector{Arc{T}}}())
-FSM() = FSM{LogSemifield{Float64}}()
-
-states(fsm::FSM) = fsm.states
-arcs(fsm::FSM{T}, state::State{T}) where T = get(fsm.arcs, state, Arc{T}[])
-@deprecate links(fsm, state) arcs(fsm, state)
-
-function addstate!(fsm::FSM{T}; initweight = zero(T), finalweight = zero(T),
-                   pdfindex = nothing, label = nothing) where T
-    s = State(length(fsm.states)+1, initweight, finalweight, pdfindex, label)
-    push!(fsm.states, s)
-    s
-end
-
-function addarc!(fsm::FSM{T}, src::State{T}, dest::State{T}, weight::T = one(T)) where T
-    list = get(fsm.arcs, src, Arc{T}[])
-    arc = Arc{T}(dest, weight)
-    push!(list, arc)
-    fsm.arcs[src] = list
-    arc
-end
-@deprecate link!(fsm, src, dest) addarc!(fsm, src, dest)
-@deprecate link!(fsm, src, dest, weight) addarc!(fsm, src, dest, weight)
-
-function Base.show(io::IO, fsm::FSM)
-    nstates = length(fsm.states)
-    narcs = sum(length, values(fsm.arcs))
-    print(io, "$(typeof(fsm)) # states: $nstates # arcs: $narcs")
-end
-
-function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
-    dotpath, dotfile = mktemp()
-    svgpath, svgfile = mktemp()
-
-    write(dotfile, "Digraph {\n")
-    write(dotfile, "rankdir=LR;")
-
-    for s in states(fsm)
-        name = "$(s.id)"
-        label = islabeled(s) ? "$(s.label)" : "ϵ"
-        label *= isemitting(s) ? ":$(s.pdfindex)" : ":ϵ"
-        if s.initweight ≠ zero(typeof(s.initweight))
-            weight = round(convert(Float64, s.initweight), digits = 3)
-            label *= "/$(weight)"
-        end
-        if s.finalweight ≠ zero(typeof(s.finalweight))
-            weight = round(convert(Float64, s.finalweight), digits = 3)
-            label *= "/$(weight)"
-        end
-        attrs = "shape=" * (isfinal(s) ? "doublecircle" : "circle")
-        attrs *= " penwidth=" * (isinit(s) ? "2" : "1")
-        attrs *= " label=\"" * label * "\""
-        attrs *= " style=filled fillcolor=" * (isemitting(s) ? "lightblue" : "none")
-        write(dotfile, "$name [ $attrs ];\n")
-    end
-
-    for src in states(fsm)
-        for arc in arcs(fsm, src)
-            weight = round(convert(Float64, arc.weight), digits = 3)
-            srcname = "$(src.id)"
-            destname = "$(arc.dest.id)"
-            write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
-        end
-    end
-    write(dotfile, "}\n")
-    close(dotfile)
-    run(`dot -Tsvg $(dotpath) -o $(svgpath)`)
-
-    xml = read(svgfile, String)
-    write(io, xml)
-
-    close(svgfile)
-
-    rm(dotpath)
-    rm(svgpath)
-end
-
-#======================================================================
-FSM operations
-======================================================================#
-
-struct InvalidFSMError <: Exception
-    msg
-end
-Base.show(io::IO, e::InvalidFSMError) = print(io, "invalid input FSM: $(e.msg)")
-
-"""
-    union(fsm1, fsm2, ...)
-
-Merge all the fsms into a single one.
-"""
-function Base.union(fsm1::FSM{T}, fsm2::FSM{T}) where T
-    allstates = union(states(fsm1), states(fsm2))
-    newfsm = FSM{T}()
-
-    smap = Dict()
-    for state in allstates
-        smap[state] = addstate!(newfsm, label = state.label,
-                                pdfindex = state.pdfindex,
+    smap2 = Dict()
+    for state in states(fsm2)
+        smap2[state] = addstate!(newfsm, state.label,
                                 initweight = state.initweight,
                                 finalweight = state.finalweight)
     end
 
     for src in states(fsm1)
         for arc in arcs(fsm1, src)
-            addarc!(newfsm, smap[src], smap[arc.dest], arc.weight)
+            addarc!(newfsm, smap1[src], smap1[arc.dest], arc.weight)
         end
     end
 
     for src in states(fsm2)
         for arc in arcs(fsm2, src)
-            addarc!(newfsm, smap[src], smap[arc.dest], arc.weight)
+            addarc!(newfsm, smap2[src], smap2[arc.dest], arc.weight)
         end
     end
 
     newfsm
 end
-Base.union(f::FSM{T}, o::FSM{T}...) where T = foldl(union, o, init = f)
+Base.union(f::AbstractFSM{T}, o::AbstractFSM{T}...) where T =
+    foldl(union, o, init = f)
 
 """
-    renormalize!(fsm)
+    renormalize!(fsm::AbstractFSM{T})
 
-Ensure the that all the weights of all the outgoing arcs leaving a
-state sum up to 1.
+Ensure the that the weights of all the outgoing arcs leaving a
+state sum up to `one(T)`.
 """
-function renormalize!(fsm::FSM{T}) where T
-    total = zero(T)
-    for s in filter(isinit, states(fsm)) total += s.initweight end
-    for s in filter(isinit, states(fsm)) s.initweight /= total end
+function renormalize(fsm::AbstractFSM{T}) where T<:Semifield
+    total_initweight = zero(T)
+    for s in filter(isinit, states(fsm)) total_initweight += s.initweight end
 
-    for src in states(fsm)
-        total = src.finalweight
-        for arc in arcs(fsm, src) total += arc.weight end
-        for arc in arcs(fsm, src) arc.weight /= total end
-        src.finalweight /= total
+    totals = Dict()
+    for s in states(fsm)
+        v = s.finalweight
+        for a in arcs(fsm, s)
+            v += a.weight
+        end
+        totals[s] = v
     end
 
-    fsm
+    newfsm = VectorFSM{T}()
+    smap = Dict()
+    for s in states(fsm)
+        iw = total_initweight == zero(T) ? zero(T) : s.initweight / total_initweight
+        fw = totals[s] == zero(T) ? zero(T) : s.finalweight / totals[s]
+        smap[s] = addstate!(newfsm, s.label, initweight = iw, finalweight = fw)
+    end
+
+    for s in states(fsm)
+        for a in arcs(fsm, s)
+            addarc!(newfsm, smap[s], smap[a.dest], a.weight / totals[s])
+        end
+    end
+
+    newfsm
 end
+
+#=
 
 """
     replace(fsm, subfsms, delim = "!")
@@ -420,3 +318,4 @@ function remove_eps(fsm::FSM{T}) where T <: Semiring
     return nfsm
 end
 
+=#
