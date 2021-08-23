@@ -21,6 +21,7 @@ Semiring algebras.
 
 include("semifields.jl")
 
+export ProbabilitySemifield
 export LogSemifield
 export TropicalSemiring
 
@@ -35,6 +36,12 @@ export states
 export arcs
 export addstate!
 export addarc!
+
+export State
+export isinit
+export isfinal
+
+export Arc
 
 include("fsms/vectorfsm.jl")
 export VectorFSM
