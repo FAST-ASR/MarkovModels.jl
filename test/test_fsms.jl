@@ -17,7 +17,7 @@ function generate_strings(fsm::AbstractFSM)
             if a.dest ∉ visited
                 push!(visited, a.dest)
                 newstrings = [str*a.dest.label for str in strings]
-                push!(queue, (newstrings, a.dest, w*a.weight, visited))
+                push!(queue, (newstrings, a.dest, w*a.weight, Set(visited)))
             end
         end
     end
@@ -66,20 +66,131 @@ end
     @test fsmequal(fsm, rfsm |> renormalize)
 end
 
-#=
-@testset "determinize" begin
-    fsm = FSM()
+@testset "union" begin
+    SR = LogSemifield{Float32}
 
-    s1 = addstate!(fsm, label = "a", pdfindex = 1)
-    s2 = addstate!(fsm)
-    s3 = addstate!(fsm, label = "c", pdfindex = 2)
-    setinit!(s1)
-    setfinal!(s3)
-
+    fsm = VectorFSM{SR}()
+    s1 = addstate!(fsm, "a"; initweight = one(SR), finalweight = one(SR))
+    s2 = addstate!(fsm, "b")
+    s3 = addstate!(fsm, "b")
+    s4 = addstate!(fsm, "c", finalweight = one(SR))
     addarc!(fsm, s1, s2)
-    addarc!(fsm, s2, s3)
-    addarc!(fsm, s3, s1)
+    addarc!(fsm, s1, s3)
+    addarc!(fsm, s2, s1)
+    addarc!(fsm, s1, s4)
 
-    @test_throws MarkovModels.InvalidFSMError determinize(fsm)
+    ufsm = VectorFSM{SR}()
+    for i in 1:2
+        s1 = addstate!(ufsm, "a"; initweight = one(SR), finalweight = one(SR))
+        s2 = addstate!(ufsm, "b")
+        s3 = addstate!(ufsm, "b")
+        s4 = addstate!(ufsm, "c", finalweight = one(SR))
+
+        addarc!(ufsm, s1, s2)
+        addarc!(ufsm, s1, s3)
+        addarc!(ufsm, s2, s1)
+        addarc!(ufsm, s1, s4)
+    end
+
+    @test fsmequal(ufsm, union(fsm, fsm))
+
 end
-=#
+
+@testset "determinize" begin
+    SR = ProbabilitySemifield{Float64}
+
+    fsm = VectorFSM{SR}()
+    s1 = addstate!(fsm, "a"; initweight = SR(0.5))
+    s2 = addstate!(fsm, "b"; initweight = SR(0.5))
+    s3 = addstate!(fsm, "c"; finalweight = SR(0.25))
+    addarc!(fsm, s1, s1, SR(0.75))
+    addarc!(fsm, s1, s2, SR(0.25))
+    addarc!(fsm, s2, s2, SR(0.75))
+    addarc!(fsm, s2, s3, SR(0.25))
+    addarc!(fsm, s3, s3, SR(0.75))
+    @test fsmequal(fsm, fsm |> determinize)
+
+    fsm = VectorFSM{SR}()
+    s1 = addstate!(fsm, "a"; initweight = one(SR), finalweight = one(SR))
+    s2 = addstate!(fsm, "b")
+    s3 = addstate!(fsm, "b")
+    s4 = addstate!(fsm, "c", finalweight = one(SR))
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s1, s3)
+    addarc!(fsm, s2, s1)
+    addarc!(fsm, s1, s4)
+    @test fsmequal(fsm |> renormalize, fsm |> determinize)
+end
+
+@testset "minimize" begin
+    SR = ProbabilitySemifield{Float64}
+
+    fsm = VectorFSM{SR}()
+    s1 = addstate!(fsm, "a"; initweight = SR(0.5))
+    s2 = addstate!(fsm, "b"; initweight = SR(0.5))
+    s3 = addstate!(fsm, "c"; finalweight = SR(0.25))
+    s4 = addstate!(fsm, "a"; initweight = SR(0.5))
+    s5 = addstate!(fsm, "d")
+    s6 = addstate!(fsm, "c"; finalweight = SR(0.25))
+    s7 = addstate!(fsm, "e")
+    addarc!(fsm, s1, s1, SR(0.75))
+    addarc!(fsm, s1, s2, SR(0.25))
+    addarc!(fsm, s2, s2, SR(0.75))
+    addarc!(fsm, s2, s3, SR(0.25))
+    addarc!(fsm, s3, s3, SR(0.75))
+    addarc!(fsm, s4, s4, SR(0.75))
+    addarc!(fsm, s4, s5, SR(0.25))
+    addarc!(fsm, s5, s5, SR(0.75))
+    addarc!(fsm, s5, s6, SR(0.25))
+    addarc!(fsm, s6, s6, SR(0.75))
+    addarc!(fsm, s7, s7, SR(0.75))
+    addarc!(fsm, s4, s7, SR(0.75))
+    addarc!(fsm, s7, s3, SR(0.25))
+
+    mfsm = VectorFSM{SR}()
+    s1 = addstate!(mfsm, "a"; initweight = SR(1.0))
+    s2 = addstate!(mfsm, "b"; initweight = SR(0.5))
+    s3 = addstate!(mfsm, "e")
+    s4 = addstate!(mfsm, "d")
+    s5 = addstate!(mfsm, "c"; finalweight = SR(0.5))
+    addarc!(mfsm, s1, s1, SR(1.5))
+    addarc!(mfsm, s1, s2, SR(0.25))
+    addarc!(mfsm, s1, s3, SR(0.75))
+    addarc!(mfsm, s1, s4, SR(0.25))
+    addarc!(mfsm, s2, s2, SR(0.75))
+    addarc!(mfsm, s2, s5, SR(0.25))
+    addarc!(mfsm, s3, s3, SR(0.75))
+    addarc!(mfsm, s3, s5, SR(0.25))
+    addarc!(mfsm, s4, s4, SR(0.75))
+    addarc!(mfsm, s4, s5, SR(0.25))
+    addarc!(mfsm, s5, s5, SR(1.5))
+    mfsm = mfsm |> renormalize
+
+    @test fsmequal(mfsm, fsm |> minimize)
+end
+
+@testset "transpose" begin
+    SR = ProbabilitySemifield{Float64}
+
+    fsm = VectorFSM{SR}()
+    s1 = addstate!(fsm, "a"; initweight = SR(0.5))
+    s2 = addstate!(fsm, "b"; initweight = SR(0.5))
+    s3 = addstate!(fsm, "c"; finalweight = SR(0.25))
+    addarc!(fsm, s1, s1, SR(0.75))
+    addarc!(fsm, s1, s2, SR(0.25))
+    addarc!(fsm, s2, s2, SR(0.75))
+    addarc!(fsm, s2, s3, SR(0.25))
+    addarc!(fsm, s3, s3, SR(0.75))
+
+    rfsm = VectorFSM{SR}()
+    s1 = addstate!(rfsm, "a"; finalweight = SR(0.5))
+    s2 = addstate!(rfsm, "b"; finalweight = SR(0.5))
+    s3 = addstate!(rfsm, "c"; initweight = SR(0.25))
+    addarc!(rfsm, s1, s1, SR(0.75))
+    addarc!(rfsm, s2, s1, SR(0.25))
+    addarc!(rfsm, s2, s2, SR(0.75))
+    addarc!(rfsm, s3, s2, SR(0.25))
+    addarc!(rfsm, s3, s3, SR(0.75))
+    @test fsmequal(rfsm, fsm |> transpose)
+    @test fsmequal(fsm, fsm |> transpose |> transpose)
+end

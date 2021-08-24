@@ -8,7 +8,13 @@ using Test
 const T = Float32
 const ST = LogSemifield{T}
 
-include("test_semirings.jl")
-include("test_fsms.jl")
+@testset verbose = true "Semirings" begin
+    include("test_semirings.jl")
+end
+
+@testset verbose = true "FSMs" begin
+    include("test_fsms.jl")
+end
+
 #include("test_algorithms.jl")
 
