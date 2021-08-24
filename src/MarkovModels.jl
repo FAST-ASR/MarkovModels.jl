@@ -46,6 +46,9 @@ export Arc
 include("fsms/vectorfsm.jl")
 export VectorFSM
 
+include("fsms/hierarchicalfsm.jl")
+export HierarchicalFSM
+
 include("fsms/fsmop.jl")
 export determinize
 export minimize
@@ -53,7 +56,6 @@ export renormalize
 export remove_eps
 
 #=
-#
 include("cfsm.jl")
 
 export CompiledFSM

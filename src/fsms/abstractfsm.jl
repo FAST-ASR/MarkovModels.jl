@@ -9,14 +9,14 @@ abstract type AbstractFSM{T<:Semiring} end
 """
     states(fsm)
 
-Return an iterator over the states of the FSM.
+return an iterator over the states of the fsm.
 """
 states
 
 """
     arcs(fsm, state)
 
-Return all arcs leaving `state`.
+return all arcs leaving `state`.
 """
 arcs
 @deprecate links(fsm, state) arcs(fsm, state)
@@ -50,9 +50,9 @@ addarc!
 State of a FSM.
 ======================================================================#
 
-struct State{T<:Semiring}
-    id::Int
-    label::String
+struct State{T<:Semiring, Ti, Tl}
+    id::Ti
+    label::Tl
     initweight::T
     finalweight::T
 end
@@ -63,14 +63,13 @@ end
 Return `true` is the state is a starting state.
 """
 isinit(state::State{T}) where T = state.initweight ≠ zero(T)
-isfinal(state::State{T}) where T = state.finalweight ≠ zero(T)
 
 """
     isfinal(state)
 
 Return `true` is the state is a final state.
 """
-isinit
+isfinal(state::State{T}) where T = state.finalweight ≠ zero(T)
 
 #======================================================================
 Arc of a FSM.
@@ -97,6 +96,13 @@ function Base.show(io::IO, fsm::AbstractFSM)
     print(io, "$(typeof(fsm)) # states: $nstates # arcs: $narcs")
 end
 
+function showlabel(label)
+    if typeof(label) <: Tuple
+        return "($(join([showlabel(l) for l in label], ",")))"
+    end
+    "$(label)"
+end
+
 function Base.show(io::IO, ::MIME"image/svg+xml", fsm::AbstractFSM)
     dotpath, dotfile = mktemp()
     svgpath, svgfile = mktemp()
@@ -104,9 +110,14 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsm::AbstractFSM)
     write(dotfile, "Digraph {\n")
     write(dotfile, "rankdir=LR;")
 
+    smap = Dict()
+    for (i, s) in enumerate(states(fsm))
+        smap[s] = i
+    end
+
     for s in states(fsm)
-        name = "$(s.id)"
-        label = s.label
+        name = "$(smap[s])"
+        label = showlabel(s.label)
         if isinit(s)
             weight = round(convert(Float64, s.initweight), digits = 3)
             label *= "/$(weight)"
@@ -124,8 +135,8 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsm::AbstractFSM)
     for src in states(fsm)
         for arc in arcs(fsm, src)
             weight = round(convert(Float64, arc.weight), digits = 3)
-            srcname = "$(src.id)"
-            destname = "$(arc.dest.id)"
+            srcname = "$(smap[src])"
+            destname = "$(smap[arc.dest])"
             write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
         end
     end
