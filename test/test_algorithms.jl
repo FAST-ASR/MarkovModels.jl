@@ -1,11 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-using CUDA, CUDA.CUSPARSE, SparseArrays
-import LogExpFunctions: logsumexp
-using MarkovModels
-import MarkovModels: logaddexp
-using Test
-
 const D = 5 # vector/matrix dimension
 const B = 2 # batch size
 const S = 3 # number of states
@@ -17,20 +11,18 @@ const SF = LogSemifield{T}
 
 
 function makefsm(SF, S)
-    fsm = FSM{SF}()
+    fsm = VectorFSM{SF}()
 
-    prev = addstate!(fsm, pdfindex = 1)
-    setinit!(prev)
+    prev = addstate!(fsm, 1, initweight = one(SF))
     addarc!(fsm, prev, prev)
     for s in 2:S
-        state = addstate!(fsm, pdfindex = s)
+        fw = s == S ? one(SF) : zero(SF)
+        state = addstate!(fsm, s, finalweight = fw)
         addarc!(fsm, prev, state)
         addarc!(fsm, state, state)
         prev = state
     end
-    setfinal!(prev)
-    renormalize!(fsm)
-    fsm
+    fsm |> renormalize
 end
 
 function forward(A, init, lhs::AbstractMatrix{T}) where T
@@ -197,25 +189,26 @@ end
 
 @testset "forward_backward" begin
     lhs = ones(T, S, N)
+    label2pdfid = Dict(1 => 1, 2 => 2, 3 => 3)
 
     fsm = makefsm(SF, S)
-    cfsm, _ = compile(fsm, K)
+    mfsm = MatrixFSM(fsm, label2pdfid)
 
     γ_ref, ttl_ref = forward_backward(
-        convert(Matrix{T}, cfsm.T),
-        convert(Matrix{T}, cfsm.Tᵀ),
-        convert(Vector{T}, cfsm.π),
-        convert(Vector{T}, cfsm.ω),
+        convert(Matrix{T}, mfsm.T),
+        convert(Matrix{T}, mfsm.Tᵀ),
+        convert(Vector{T}, mfsm.π),
+        convert(Vector{T}, mfsm.ω),
         convert(Matrix{T}, lhs)
     )
 
-    γ_scpu, ttl_scpu = pdfposteriors(cfsm, lhs)
+    γ_scpu, ttl_scpu = pdfposteriors(mfsm, lhs)
     @test all(γ_ref .≈ γ_scpu)
     @test ttl_ref ≈ ttl_scpu
 
     if CUDA.functional()
-        cfsm = cfsm |> gpu
-        γ_sgpu, ttl_sgpu = pdfposteriors(cfsm, CuArray(lhs))
+        mfsm = mfsm |> gpu
+        γ_sgpu, ttl_sgpu = pdfposteriors(mfsm, CuArray(lhs))
         @test all(γ_ref .≈ convert(Matrix{T}, γ_sgpu))
         @test ttl_ref ≈ ttl_sgpu
     end
@@ -224,29 +217,30 @@ end
 @testset "batch forward_backward" begin
     lhs = ones(T, S, N, B)
 
+    label2pdfid = Dict(1 => 1, 2 => 2, 3 => 3)
+
     fsm = makefsm(SF, S)
-    cfsm, _ = compile(fsm, K)
+    mfsm = MatrixFSM(fsm, label2pdfid)
 
     γ_ref, ttl_ref = forward_backward(
-        convert(Matrix{T}, cfsm.T),
-        convert(Matrix{T}, cfsm.Tᵀ),
-        convert(Vector{T}, cfsm.π),
-        convert(Vector{T}, cfsm.ω),
+        convert(Matrix{T}, mfsm.T),
+        convert(Matrix{T}, mfsm.Tᵀ),
+        convert(Vector{T}, mfsm.π),
+        convert(Vector{T}, mfsm.ω),
         convert(Matrix{T}, lhs[:, :, 1])
     )
 
-    cfsms = union([cfsm for i in 1:B]...)
-    γ_scpu, ttl_scpu = pdfposteriors(cfsms, lhs)
+    mfsms = union([mfsm for i in 1:B]...)
+    γ_scpu, ttl_scpu = pdfposteriors(mfsms, lhs)
     for b in 1:B
         @test all(γ_ref .≈ γ_scpu[:,:,b])
         @test ttl_ref ≈ ttl_scpu[b]
     end
 
     if CUDA.functional()
-        cfsm = cfsm |> gpu
-        cfsms = union([cfsm for i in 1:B]...)
-        #cfsms = cfsms |> gpu
-        γ_sgpu, ttl_sgpu = pdfposteriors(cfsms, CuArray(lhs))
+        mfsm = mfsm |> gpu
+        mfsms = union([mfsm for i in 1:B]...)
+        γ_sgpu, ttl_sgpu = pdfposteriors(mfsms, CuArray(lhs))
         for b in 1:B
             @test all(γ_ref .≈ convert(Array{T,3}, γ_sgpu)[:,:,b])
             @test ttl_ref ≈ convert(Vector{T}, ttl_sgpu)[b]
@@ -254,61 +248,13 @@ end
     end
 end
 
-@testset "remove_eps" begin
-    SF = LogSemifield{Float64}
-    fsm = FSM{SF}()
-
-    s1 = addstate!(fsm, label = "a", pdfindex = 1)
-    s2 = addstate!(fsm)
-    s3 = addstate!(fsm, label = "c", pdfindex = 2)
-    setinit!(s1)
-    setfinal!(s3)
-
-    addarc!(fsm, s1, s2)
-    addarc!(fsm, s2, s3)
-    addarc!(fsm, s3, s1)
-
-    ns = collect(filter(s -> ! MarkovModels.isemitting(s),
-                        MarkovModels.states(fsm |> remove_eps)))
-    @test length(ns) == 0
-
-    setinit!(s2)
-    @test_throws MarkovModels.InvalidFSMError remove_eps(fsm)
-
-    setinit!(s2, zero(SF))
-    setfinal!(s2)
-    @test_throws MarkovModels.InvalidFSMError remove_eps(fsm)
-
-    setfinal!(s2, zero(SF))
-    s2.label = "b"
-    @test_throws MarkovModels.InvalidFSMError remove_eps(fsm)
-end
-
-@testset "determinize" begin
-    fsm = FSM()
-
-    s1 = addstate!(fsm, label = "a", pdfindex = 1)
-    s2 = addstate!(fsm)
-    s3 = addstate!(fsm, label = "c", pdfindex = 2)
-    setinit!(s1)
-    setfinal!(s3)
-
-    addarc!(fsm, s1, s2)
-    addarc!(fsm, s2, s3)
-    addarc!(fsm, s3, s1)
-
-    @test_throws MarkovModels.InvalidFSMError determinize(fsm)
-end
-
 @testset "bestpath" begin
-    fsm = FSM()
+    fsm = VectorFSM{SF}()
 
-    s1 = addstate!(fsm, label = "a", pdfindex = 1)
-    s2 = addstate!(fsm, label = "b", pdfindex = 2)
-    s3 = addstate!(fsm, label = "c", pdfindex = 3)
-    s4 = addstate!(fsm, label = "d", pdfindex = 4)
-    setinit!(s1)
-    setfinal!(s4)
+    s1 = addstate!(fsm, "a", initweight = one(SF))
+    s2 = addstate!(fsm, "b")
+    s3 = addstate!(fsm, "c")
+    s4 = addstate!(fsm, "d", finalweight = one(SF))
 
     addarc!(fsm, s1, s2)
     addarc!(fsm, s2, s3)
@@ -316,11 +262,13 @@ end
 
     lhs = ones(T, 4, 4)
 
-    cfsm, labels = compile(fsm, 4)
-    cfsm = convert(CompiledFSM{TropicalSemiring{T}}, cfsm)
-    μ = maxstateposteriors(cfsm, lhs)
-    path = bestpath(cfsm, μ)
+    label2pdfid = Dict("a" => 1, "b" => 2, "c" => 3, "d" => 4)
 
-    @test join(labels[path], " ") == "a b c d"
+    mfsm = MatrixFSM(fsm, label2pdfid)
+    mfsm = convert(MatrixFSM{TropicalSemiring{T}}, mfsm)
+    μ = maxstateposteriors(mfsm, lhs)
+    path = bestpath(mfsm, μ)
+
+    @test join(mfsm.labels[path], " ") == "a b c d"
 end
 

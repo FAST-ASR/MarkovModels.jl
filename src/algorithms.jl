@@ -43,8 +43,8 @@ Specialized algorithms
 ======================================================================#
 
 """
-    pdfposteriors(cfsm, lhs)
-    pdfposteriors(union(cfsm1, cfsm2, ...), batch_lhs)
+    pdfposteriors(mfsm, lhs)
+    pdfposteriors(union(mfsm1, mfsm2, ...), batch_lhs)
 
 Calculate the conditional posterior of "assigning" the \$n\$th frame
 to the \$i\$th pdf. The output is a tuple `γ, ttl` where `γ` is a matrix
@@ -55,23 +55,23 @@ and per-batch values.
 """
 pdfposteriors
 
-function pdfposteriors(cfsm::CompiledFSM{SR},
+function pdfposteriors(mfsm::MatrixFSM{SR},
                        in_lhs::AbstractMatrix{T}) where {SR<:LogSemifield,T}
-    # Convert the likelihood matrix to the cfsm' semiring.
+    # Convert the likelihood matrix to the mfsm' semiring.
     lhs = copyto!(similar(in_lhs, SR), in_lhs)
 
-    S = size(cfsm.C, 1)
+    S = size(mfsm.C, 1)
     N = size(lhs, 2)
 
     # Expand the likelihood matrix to get the per-state likelihoods.
-    state_lhs = matmul!(similar(lhs, S, N), cfsm.C, lhs)
+    state_lhs = matmul!(similar(lhs, S, N), mfsm.C, lhs)
 
-    α = αrecursion(cfsm.π, cfsm.Tᵀ, state_lhs)
-    β = βrecursion(cfsm.ω, cfsm.T, state_lhs)
+    α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
+    β = βrecursion(mfsm.ω, mfsm.T, state_lhs)
     state_γ = elmul!(similar(state_lhs), α, β)
 
     # Transform the per-state γs to per-likelihoods γs.
-    γ = matmul!(lhs, cfsm.Cᵀ, state_γ) # re-use `lhs` memory.
+    γ = matmul!(lhs, mfsm.Cᵀ, state_γ) # re-use `lhs` memory.
 
     # Re-normalize the γs.
     sums = sum(γ, dims = 1)
@@ -83,31 +83,28 @@ function pdfposteriors(cfsm::CompiledFSM{SR},
     exp.(out), convert(T, minimum(sums))
 end
 
-function pdfposteriors(ucfsm::UnionCompiledFSM{SR},
+function pdfposteriors(mfsm::MatrixFSM{SR},
                        in_lhs::AbstractArray{T,3}) where {SR<:LogSemifield,T}
 
     # Reshape the 3D tensor to have a matrix of size BK x N where
     # B is the number of elements in the batch.
     in_lhs_matrix = vcat(eachslice(in_lhs, dims = 3)...)
 
-    # Compiled FSM which is set of parallel FSMs.
-    cfsm = ucfsm.cfsm
-
-    # Convert the likelihood matrix to the cfsm' semiring.
+    # Convert the likelihood matrix to the mfsm' semiring.
     lhs = copyto!(similar(in_lhs_matrix, SR), in_lhs_matrix)
 
-    S = size(cfsm.C, 1)
+    S = size(mfsm.C, 1)
     K, N = size(in_lhs)
 
     # Expand the likelihood matrix to get the per-state likelihoods.
-    state_lhs = matmul!(similar(lhs, S, N), cfsm.C, lhs)
+    state_lhs = matmul!(similar(lhs, S, N), mfsm.C, lhs)
 
-    α = αrecursion(cfsm.π, cfsm.Tᵀ, state_lhs)
-    β = βrecursion(cfsm.ω, cfsm.T, state_lhs)
+    α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
+    β = βrecursion(mfsm.ω, mfsm.T, state_lhs)
     state_γ = elmul!(similar(state_lhs), α, β)
 
     # Transform the per-state γs to per-likelihoods γs.
-    γ = matmul!(lhs, cfsm.Cᵀ, state_γ) # re-use `lhs` memory.
+    γ = matmul!(lhs, mfsm.Cᵀ, state_γ) # re-use `lhs` memory.
     γ = permutedims(reshape(γ, K, :, N), (1, 3, 2))
 
     # Re-normalize each element of the batch.
@@ -121,37 +118,38 @@ function pdfposteriors(ucfsm::UnionCompiledFSM{SR},
     exp.(out), copyto!(similar(ttl, T), ttl)
 end
 
-@deprecate stateposteriors(cfsm, lhs) pdfposteriors(cfsm, lhs)
+@deprecate stateposteriors(mfsm, lhs) pdfposteriors(mfsm, lhs)
+
 
 """
-    maxstateposteriors(cfsm, lhs)
+    maxstateposteriors(mfsm, lhs)
 
 Calculate the posterior of "assigning" the \$n\$th frame
 to the \$i\$th state conditioned of all other states maximizing the
 likelihood of the sequence. The output is a matrix `μ` (# pdf x # frames).
 """
-function maxstateposteriors(cfsm::CompiledFSM{SR},
+function maxstateposteriors(mfsm::MatrixFSM{SR},
                             in_lhs::AbstractArray) where SR<:TropicalSemiring
     # Convert the FSM and the likelihood matrix to the Log-semifield.
     lhs = copyto!(similar(in_lhs, SR), in_lhs)
 
-    S = size(cfsm.C, 1)
+    S = size(mfsm.C, 1)
     N = size(lhs, 2)
 
     # Expand the likelihood matrix to get the per-state likelihoods.
-    state_lhs = matmul!(similar(lhs, S, N), cfsm.C, lhs)
+    state_lhs = matmul!(similar(lhs, S, N), mfsm.C, lhs)
 
-    α = αrecursion(cfsm.π, cfsm.Tᵀ, state_lhs)
-    β = βrecursion(cfsm.ω, cfsm.T, state_lhs)
+    α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
+    β = βrecursion(mfsm.ω, mfsm.T, state_lhs)
     elmul!(similar(state_lhs), α, β)
 end
 
-function findmaxstate(cfsm::CompiledFSM{SR}, μ::AbstractArray{SR},
+function findmaxstate(mfsm::MatrixFSM{SR}, μ::AbstractArray{SR},
                       prevstate::Int) where {SR,T}
     m = typemin(SR)
     s = -1
     for (i, μᵢ) in pairs(μ)
-        if μᵢ >= m && cfsm.T[prevstate,i] ≠ zero(SR)
+        if μᵢ >= m && mfsm.T[prevstate,i] ≠ zero(SR)
             m = μᵢ
             s = i
         end
@@ -160,16 +158,16 @@ function findmaxstate(cfsm::CompiledFSM{SR}, μ::AbstractArray{SR},
 end
 
 """
-    bestpath(cfsm, μ)
+    bestpath(mfsm, μ)
 
 Return the sequence of state with the highest value from `μ`, i.e.
 the ouput of [`maxstateposteriors`](@ref).
 """
-function bestpath(cfsm::CompiledFSM{SR}, μ::AbstractArray{SR}) where SR
+function bestpath(mfsm::MatrixFSM{SR}, μ::AbstractArray{SR}) where SR
     seq = Vector{Int}(undef, size(μ, 2))
     seq[1] = argmax(μ[:,1])
     for n in 2:size(μ,2)
-        seq[n] = findmaxstate(cfsm, μ[:,n], seq[n-1])
+        seq[n] = findmaxstate(mfsm, μ[:,n], seq[n-1])
     end
     seq
 end

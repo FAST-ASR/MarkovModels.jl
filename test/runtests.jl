@@ -1,12 +1,9 @@
 # SPDX-License-Identifier: MIT
 
 using CUDA, CUDA.CUSPARSE, SparseArrays
-import LogExpFunctions: logsumexp
+import LogExpFunctions: logsumexp, logaddexp
 using MarkovModels
 using Test
-
-const T = Float32
-const ST = LogSemifield{T}
 
 @testset verbose = true "Semirings" begin
     include("test_semirings.jl")
@@ -16,5 +13,7 @@ end
     include("test_fsms.jl")
 end
 
-#include("test_algorithms.jl")
+@testset verbose = true "algorithms" begin
+    include("test_algorithms.jl")
+end
 

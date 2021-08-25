@@ -11,9 +11,9 @@ using SparseArrays
 Redefinition of some array/linear operations to work on GPU.
 ======================================================================#
 
-#include("array.jl")
-#include("linalg.jl")
-#include("culinalg.jl")
+include("array.jl")
+include("linalg.jl")
+include("culinalg.jl")
 
 #======================================================================
 Semiring algebras.
@@ -48,6 +48,10 @@ export VectorFSM
 
 include("fsms/hierarchicalfsm.jl")
 export HierarchicalFSM
+export gpu
+
+include("fsms/matrixfsm.jl")
+export MatrixFSM
 
 include("fsms/fsmop.jl")
 export determinize
@@ -61,6 +65,7 @@ include("cfsm.jl")
 export CompiledFSM
 export compile
 export gpu
+=#
 
 #======================================================================
 Inference algorithms.
@@ -71,7 +76,5 @@ include("algorithms.jl")
 export pdfposteriors
 export maxstateposteriors
 export bestpath
-
-=#
 
 end
