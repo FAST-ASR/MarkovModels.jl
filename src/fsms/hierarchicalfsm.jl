@@ -10,7 +10,7 @@ FSM where each state is an FSM.
 """
 struct HierarchicalFSM{T} <: AbstractFSM{T}
     fsm::AbstractFSM{T}
-    state_mapping::Dict{Any,<:AbstractFSM{T}}
+    state_mapping::Dict{<:Any,<:AbstractFSM{T}}
 end
 
 function makestate(s1, s2)

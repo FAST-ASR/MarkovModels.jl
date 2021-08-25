@@ -202,7 +202,78 @@ end
     @test fsmequal(fsm, fsm |> transpose |> transpose)
 end
 
-@testset "matrix fsm" begin
+@testset "HierarchicalFSM" begin
+    SR = ProbabilitySemifield{Float64}
+
+    fsma = VectorFSM{SR}()
+    s1 = addstate!(fsma, "a"; initweight = SR(0.5))
+    s2 = addstate!(fsma, "b"; initweight = SR(0.5))
+    s3 = addstate!(fsma, "c"; finalweight = SR(0.25))
+    addarc!(fsma, s1, s1, SR(0.75))
+    addarc!(fsma, s1, s2, SR(0.25))
+    addarc!(fsma, s2, s2, SR(0.75))
+    addarc!(fsma, s2, s3, SR(0.25))
+    addarc!(fsma, s3, s3, SR(0.75))
+
+    fsmb = VectorFSM{SR}()
+    s1 = addstate!(fsmb, "d"; initweight = SR(0.5))
+    s2 = addstate!(fsmb, "e"; initweight = SR(0.5))
+    s3 = addstate!(fsmb, "f"; finalweight = SR(0.25))
+    addarc!(fsmb, s1, s1, SR(0.75))
+    addarc!(fsmb, s1, s2, SR(0.25))
+    addarc!(fsmb, s2, s2, SR(0.75))
+    addarc!(fsmb, s2, s3, SR(0.25))
+    addarc!(fsmb, s3, s3, SR(0.75))
+
+    fsm = VectorFSM{SR}()
+    s1 = addstate!(fsm, "x"; initweight = one(SR))
+    s2 = addstate!(fsm, "y"; initweight = one(SR))
+    s3 = addstate!(fsm, "z"; finalweight = one(SR))
+    addarc!(fsm, s1, s2)
+    addarc!(fsm, s2, s3)
+    addarc!(fsm, s3, s1)
+    addarc!(fsm, s1, s3)
+    fsm = fsm |> renormalize
+
+    hfsm = VectorFSM{SR}()
+    s1 = addstate!(hfsm, ("x", "a"); initweight = SR(0.25))
+    s2 = addstate!(hfsm, ("x", "b"); initweight = SR(0.25))
+    s3 = addstate!(hfsm, ("x", "c"))
+    s4 = addstate!(hfsm, ("y", "d"); initweight = SR(0.25))
+    s5 = addstate!(hfsm, ("y", "e"); initweight = SR(0.25))
+    s6 = addstate!(hfsm, ("y", "f"))
+    s7 = addstate!(hfsm, ("z", "a"))
+    s8 = addstate!(hfsm, ("z", "b"))
+    s9 = addstate!(hfsm, ("z", "c"); finalweight = SR(0.125))
+    addarc!(hfsm, s1, s1, SR(0.75))
+    addarc!(hfsm, s1, s2, SR(0.25))
+    addarc!(hfsm, s2, s2, SR(0.75))
+    addarc!(hfsm, s2, s3, SR(0.25))
+    addarc!(hfsm, s3, s3, SR(0.75))
+    addarc!(hfsm, s3, s4, SR(0.0625))
+    addarc!(hfsm, s3, s5, SR(0.0625))
+    addarc!(hfsm, s3, s7, SR(0.0625))
+    addarc!(hfsm, s3, s8, SR(0.0625))
+    addarc!(hfsm, s4, s4, SR(0.75))
+    addarc!(hfsm, s4, s5, SR(0.25))
+    addarc!(hfsm, s5, s5, SR(0.75))
+    addarc!(hfsm, s5, s6, SR(0.25))
+    addarc!(hfsm, s6, s6, SR(0.75))
+    addarc!(hfsm, s6, s7, SR(0.125))
+    addarc!(hfsm, s6, s8, SR(0.125))
+    addarc!(hfsm, s7, s7, SR(0.75))
+    addarc!(hfsm, s7, s8, SR(0.25))
+    addarc!(hfsm, s8, s8, SR(0.75))
+    addarc!(hfsm, s8, s9, SR(0.25))
+    addarc!(hfsm, s9, s9, SR(0.75))
+    addarc!(hfsm, s9, s1, SR(0.0625))
+    addarc!(hfsm, s9, s2, SR(0.0625))
+
+    smap = Dict("x" => fsma, "y" => fsmb, "z" => fsma)
+    @test fsmequal(hfsm, HierarchicalFSM(fsm, smap))
+end
+
+@testset "MatrixFSM" begin
     SR = ProbabilitySemifield{Float64}
 
     fsm = VectorFSM{SR}()
