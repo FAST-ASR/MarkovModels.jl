@@ -29,7 +29,8 @@ struct MatrixFSM{Tv} <: AbstractFSM{Tv}
     labels::Vector
 end
 
-function MatrixFSM(fsm::AbstractFSM{Tv}, pdfid_mapping::Dict) where Tv
+function MatrixFSM(fsm::AbstractFSM{Tv}, pdfid_mapping::Dict,
+                   keyfn::Function = identity) where Tv
     state2idx = Dict(s => i for (i, s) in enumerate(states(fsm)))
     S = length(state2idx)
 
@@ -57,8 +58,8 @@ function MatrixFSM(fsm::AbstractFSM{Tv}, pdfid_mapping::Dict) where Tv
     Cᵀ = spzeros(Tv, K, S)
     labels = Vector{Any}(undef, S)
     for s in states(fsm)
-        C[state2idx[s], pdfid_mapping[s.label]] = one(Tv)
-        Cᵀ[pdfid_mapping[s.label], state2idx[s]] = one(Tv)
+        C[state2idx[s], pdfid_mapping[keyfn(s.label)]] = one(Tv)
+        Cᵀ[pdfid_mapping[keyfn(s.label)], state2idx[s]] = one(Tv)
         labels[state2idx[s]] = s.label
     end
 

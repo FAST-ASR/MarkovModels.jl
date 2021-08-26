@@ -57,6 +57,9 @@ struct State{T<:Semiring, Ti, Tl}
     finalweight::T
 end
 
+Base.iterate(s::State) = (s, nothing)
+Base.iterate(s::State, ::Any) = nothing
+
 """
     isinit(state)
 

@@ -277,9 +277,9 @@ end
     SR = ProbabilitySemifield{Float64}
 
     fsm = VectorFSM{SR}()
-    s1 = addstate!(fsm, "a"; initweight = SR(0.5))
-    s2 = addstate!(fsm, "b"; initweight = SR(0.5))
-    s3 = addstate!(fsm, "c"; finalweight = SR(0.25))
+    s1 = addstate!(fsm, ("a", 1); initweight = SR(0.5))
+    s2 = addstate!(fsm, ("b", 1); initweight = SR(0.5))
+    s3 = addstate!(fsm, ("c", 1); finalweight = SR(0.25))
     addarc!(fsm, s1, s1, SR(0.75))
     addarc!(fsm, s1, s2, SR(0.25))
     addarc!(fsm, s2, s2, SR(0.75))
@@ -291,15 +291,15 @@ end
         "b" => 2,
         "c" => 3
     )
-    mfsm = MatrixFSM(fsm, pdfid_mapping)
+    mfsm = MatrixFSM(fsm, pdfid_mapping, l -> l[1])
 
     @test fsmequal(fsm, mfsm)
 
     ufsm = VectorFSM{SR}()
     for i in 1:3
-        s1 = addstate!(ufsm, "a"; initweight = SR(0.5))
-        s2 = addstate!(ufsm, "b"; initweight = SR(0.5))
-        s3 = addstate!(ufsm, "c"; finalweight = SR(0.25))
+        s1 = addstate!(ufsm, ("a", 1); initweight = SR(0.5))
+        s2 = addstate!(ufsm, ("b", 1); initweight = SR(0.5))
+        s3 = addstate!(ufsm, ("c", 1); finalweight = SR(0.25))
         addarc!(ufsm, s1, s1, SR(0.75))
         addarc!(ufsm, s1, s2, SR(0.25))
         addarc!(ufsm, s2, s2, SR(0.75))
