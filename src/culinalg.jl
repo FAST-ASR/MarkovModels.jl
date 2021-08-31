@@ -4,43 +4,6 @@ const N_THREADS_1D = 256
 const N_THREADS_2D = (16, 16)
 
 #======================================================================
-elmul_dvsm!
-
-  Element-wise multiplication of a dense vector with each row of a
-  sparse matrix. The result is a dense matrix.
-======================================================================#
-
-function elmul_svdm!(out::AbstractMatrix{T},
-                     x::CuSparseVector{T},
-                     M::AbstractMatrix{T}) where T
-    @boundscheck (size(out) == size(M) || throw(DimensionMistmatch()))
-    @boundscheck (length(x) == size(M, 1) || throw(DimensionMistatch()))
-
-    fill!(out, zero(T))
-    I = SparseArrays.nonzeroinds(x)
-    V = nonzeros(x)
-    N = length(x.nzVal)
-
-    if N > 0
-        nb = ceil(Int, N/N_THREADS_1D)
-        @cuda threads=N_THREADS_1D blocks=nb _cukernel_elmul_svdm!(out, V, I, M)
-    end
-    return out
-end
-
-function _cukernel_elmul_svdm!(out, nzVal, nzInd, dsMat)
-    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    stride = blockDim().x * gridDim().x
-    for i = index:stride:length(nzInd)
-        idx = nzInd[i]
-        for j in 1:size(dsMat, 2)
-            out[idx, j] = nzVal[i] * dsMat[idx,j ]
-        end
-    end
-    return
-end
-
-#======================================================================
 elmul_svdm!
 
   Element-wise multiplication of a sparse vector and with each row of a

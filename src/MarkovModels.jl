@@ -21,6 +21,7 @@ Semiring algebras.
 
 include("semifields.jl")
 
+export ProbabilitySemifield
 export LogSemifield
 export TropicalSemiring
 
@@ -28,24 +29,43 @@ export TropicalSemiring
 API to build and manipulate FSM.
 ======================================================================#
 
-include("fsm.jl")
-
-export FSM
-export addstate!
-export determinize
-export addarc!
-export minimize
-export renormalize!
-export setinit!
-export setfinal!
+include("fsms/abstractfsm.jl")
+export AbstractFSM
+export AbstractMutableFSM
 export states
+export arcs
+export addstate!
+export addarc!
+
+export State
+export isinit
+export isfinal
+
+export Arc
+
+include("fsms/vectorfsm.jl")
+export VectorFSM
+
+include("fsms/hierarchicalfsm.jl")
+export HierarchicalFSM
+export gpu
+
+include("fsms/matrixfsm.jl")
+export MatrixFSM
+
+include("fsms/fsmop.jl")
+export determinize
+export minimize
+export renormalize
 export remove_eps
 
+#=
 include("cfsm.jl")
 
 export CompiledFSM
 export compile
 export gpu
+=#
 
 #======================================================================
 Inference algorithms.
