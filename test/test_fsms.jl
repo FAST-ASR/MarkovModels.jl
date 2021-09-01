@@ -271,6 +271,7 @@ end
 
     smap = Dict("x" => fsma, "y" => fsmb, "z" => fsma)
     @test fsmequal(hfsm, HierarchicalFSM(fsm, smap))
+    @test length(HierarchicalFSM(fsm, smap)) == length(hfsm)
 end
 
 @testset "MatrixFSM" begin
@@ -294,6 +295,7 @@ end
     mfsm = MatrixFSM(fsm, pdfid_mapping, l -> l[1])
 
     @test fsmequal(fsm, mfsm)
+    @test length(mfsm) == length(fsm)
 
     ufsm = VectorFSM{SR}()
     for i in 1:3
