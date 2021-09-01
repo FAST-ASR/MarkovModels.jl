@@ -13,8 +13,8 @@ elmul_svdm!
 function elmul_svdm!(out::AbstractMatrix{T},
                      x::CuSparseVector{T},
                      M::AbstractMatrix{T}) where T
-    @boundscheck (size(out) == size(M) || throw(DimensionMistmatch()))
-    @boundscheck (length(x) == size(M, 1) || throw(DimensionMistatch()))
+    @boundscheck (size(out) == size(M) || throw(DimensionMismatch()))
+    @boundscheck (length(x) == size(M, 1) || throw(DimensionMismatch()))
 
     fill!(out, zero(T))
     I = SparseArrays.nonzeroinds(x)
@@ -49,8 +49,8 @@ elmul_svdv!
 function elmul_svdv!(out::CuVector,
                      x::CuSparseVector{T},
                      y::CuVector{T}) where T
-    @boundscheck size(out) == size(y) || throw(DimensionMistmatch())
-    @boundscheck length(x) == length(y) || throw(DimensionMistatch())
+    @boundscheck size(out) == size(y) || throw(DimensionMismatch())
+    @boundscheck length(x) == length(y) || throw(DimensionMismatch())
 
     fill!(out, zero(T))
     I = SparseArrays.nonzeroinds(x)
@@ -83,8 +83,8 @@ mul_smdv!
 function mul_smdv!(out::CuVector{T},
                    M::CuSparseMatrixCSR{T},
                    x::CuVector{T}) where T
-    @boundscheck size(out) == size(x) || throw(DimensionMistmatch())
-    @boundscheck size(M, 2) == length(x) || throw(DimensionMistatch())
+    @boundscheck size(out) == size(x) || throw(DimensionMismatch())
+    @boundscheck size(M, 2) == length(x) || throw(DimensionMismatch())
 
     fill!(out, zero(T))
     rowPtr = M.rowPtr
@@ -121,8 +121,8 @@ mul_smdm!
 function mul_smdm!(out::AbstractMatrix{T},
                    X::CuSparseMatrixCSR{T},
                    Y::AbstractMatrix{T}) where T
-    @boundscheck size(out) == (size(X,1), size(Y,2)) || throw(DimensionMistmatch())
-    @boundscheck size(X, 2) == size(Y,1) || throw(DimensionMistatch())
+    @boundscheck size(out) == (size(X,1), size(Y,2)) || throw(DimensionMismatch())
+    @boundscheck size(X, 2) == size(Y,1) || throw(DimensionMismatch())
 
     fill!(out, zero(T))
     rowPtr = X.rowPtr
