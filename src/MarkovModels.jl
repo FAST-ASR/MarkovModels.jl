@@ -52,26 +52,18 @@ export gpu
 
 include("fsms/matrixfsm.jl")
 export MatrixFSM
+export UnionMatrixFSM
 
 include("fsms/fsmop.jl")
 export determinize
 export minimize
 export renormalize
-export remove_eps
-
-#=
-include("cfsm.jl")
-
-export CompiledFSM
-export compile
-export gpu
-=#
 
 #======================================================================
 Inference algorithms.
 ======================================================================#
 
-include("algorithms.jl")
+include("inference/algorithms.jl")
 
 export pdfposteriors
 export maxstateposteriors
