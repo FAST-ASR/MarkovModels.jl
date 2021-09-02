@@ -63,11 +63,6 @@ function forward_backward(A, Aᵀ, init, lhs)
 end
 
 
-@testset "logaddexp" begin
-    @test (@inferred logaddexp(2.0, 3.0)) ≈ log(exp(2.0) + exp(3.0))
-    @test (@inferred logaddexp(10002.0, 10003.0)) ≈ 10000 + logaddexp(2.0, 3.0)
-end
-
 if CUDA.functional()
     @testset "linalg" begin
         D = 5
