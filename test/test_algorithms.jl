@@ -4,7 +4,7 @@ const D = 5 # vector/matrix dimension
 const B = 2 # batch size
 const S = 3 # number of states
 const K = 3 # Number of emissions
-const N = 5 # number of frames
+const N = 7 # number of frames
 
 const T = Float32
 const SF = LogSemifield{T}
@@ -47,7 +47,14 @@ function backward(Aᵀ, final, lhs::AbstractMatrix{T}) where T
     log_β
 end
 
-function forward_backward(A, Aᵀ, init, final, lhs)
+function forward_backward(A, Aᵀ, init, lhs)
+    final = A[1:end-1,end]
+
+    # ignore the final state
+    A = A[1:end-1,1:end-1]
+    Aᵀ = Aᵀ[1:end-1,1:end-1]
+    init = init[1:end-1]
+
     log_α = forward(A, init, lhs)
     log_β = backward(Aᵀ, final, lhs)
     log_γ = log_α .+ log_β
@@ -198,7 +205,6 @@ end
         convert(Matrix{T}, mfsm.T),
         convert(Matrix{T}, mfsm.Tᵀ),
         convert(Vector{T}, mfsm.π),
-        convert(Vector{T}, mfsm.ω),
         convert(Matrix{T}, lhs)
     )
 
@@ -215,36 +221,46 @@ end
 end
 
 @testset "batch forward_backward" begin
-    lhs = ones(T, S, N, B)
+    lhs = ones(T, S, 7, 2)
+    seqlengths = [5, 7]
 
     label2pdfid = Dict(1 => 1, 2 => 2, 3 => 3)
 
     fsm = makefsm(SF, S)
     mfsm = MatrixFSM(fsm, label2pdfid)
 
-    γ_ref, ttl_ref = forward_backward(
+    γ_ref1, ttl_ref1 = forward_backward(
         convert(Matrix{T}, mfsm.T),
         convert(Matrix{T}, mfsm.Tᵀ),
         convert(Vector{T}, mfsm.π),
-        convert(Vector{T}, mfsm.ω),
-        convert(Matrix{T}, lhs[:, :, 1])
+        convert(Matrix{T}, lhs[:, 1:5, 1])
     )
 
+    γ_ref2, ttl_ref2 = forward_backward(
+        convert(Matrix{T}, mfsm.T),
+        convert(Matrix{T}, mfsm.Tᵀ),
+        convert(Vector{T}, mfsm.π),
+        convert(Matrix{T}, lhs[:, 1:7, 1])
+    )
+
+
     mfsms = union([mfsm for i in 1:B]...)
-    γ_scpu, ttl_scpu = pdfposteriors(mfsms, lhs)
-    for b in 1:B
-        @test all(γ_ref .≈ γ_scpu[:,:,b])
-        @test ttl_ref ≈ ttl_scpu[b]
-    end
+    γ_scpu, ttl_scpu = pdfposteriors(mfsms, lhs, seqlengths)
+    @test all(γ_ref1 .≈ γ_scpu[:,1:5,1])
+    @test ttl_ref1 ≈ ttl_scpu[1]
+    @test all(γ_ref2 .≈ γ_scpu[:,1:7,2])
+    @test ttl_ref2 ≈ ttl_scpu[2]
+    @test all(γ_scpu[:,6:7,1] .== zero(T))
 
     if CUDA.functional()
         mfsm = mfsm |> gpu
         mfsms = union([mfsm for i in 1:B]...)
-        γ_sgpu, ttl_sgpu = pdfposteriors(mfsms, CuArray(lhs))
-        for b in 1:B
-            @test all(γ_ref .≈ convert(Array{T,3}, γ_sgpu)[:,:,b])
-            @test ttl_ref ≈ convert(Vector{T}, ttl_sgpu)[b]
-        end
+        γ_sgpu, ttl_sgpu = pdfposteriors(mfsms, CuArray(lhs), seqlengths)
+        @test all(γ_ref1 .≈ convert(Array{T,3}, γ_sgpu)[:,1:5,1])
+        @test ttl_ref1 ≈ convert(Vector{T}, ttl_sgpu)[1]
+        @test all(γ_ref2 .≈ convert(Array{T,3}, γ_sgpu)[:,1:7,2])
+        @test ttl_ref2 ≈ convert(Vector{T}, ttl_sgpu)[2]
+        @test all(convert(Array{T,3}, γ_sgpu)[:,6:7,1] .== zero(T))
     end
 end
 

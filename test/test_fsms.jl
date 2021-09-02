@@ -9,7 +9,7 @@ end
 
 function generate_strings(fsm::AbstractFSM)
     final_strings = []
-    queue = [([s1.label], s1, s1.initweight, Set([s1]))
+    queue = Any[([s1.label], s1, s1.initweight, Set{Any}([s1]))
              for s1 in filter(isinit, states(fsm))]
     while ! isempty(queue)
         strings, s, w, visited = popfirst!(queue)
@@ -21,7 +21,7 @@ function generate_strings(fsm::AbstractFSM)
         end
 
         for a in arcs(fsm, s)
-            if a.dest ∉ visited
+            if a.dest ∉ visited && ! isnothing(a.dest.label)
                 push!(visited, a.dest)
                 newstrings = [mergelabels(str, a.dest.label) for str in strings]
                 push!(queue, (newstrings, a.dest, w*a.weight, Set(visited)))
@@ -271,6 +271,7 @@ end
 
     smap = Dict("x" => fsma, "y" => fsmb, "z" => fsma)
     @test fsmequal(hfsm, HierarchicalFSM(fsm, smap))
+    @test length(HierarchicalFSM(fsm, smap)) == length(hfsm)
 end
 
 @testset "MatrixFSM" begin
@@ -294,6 +295,7 @@ end
     mfsm = MatrixFSM(fsm, pdfid_mapping, l -> l[1])
 
     @test fsmequal(fsm, mfsm)
+    @test length(mfsm) == length(fsm)
 
     ufsm = VectorFSM{SR}()
     for i in 1:3
@@ -308,4 +310,3 @@ end
     end
     @test fsmequal(ufsm, union(mfsm, mfsm, mfsm))
 end
-

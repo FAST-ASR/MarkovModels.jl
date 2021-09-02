@@ -9,17 +9,24 @@ abstract type AbstractFSM{T<:Semiring} end
 """
     states(fsm)
 
-return an iterator over the states of the fsm.
+Return an iterator over the states of the fsm.
 """
 states
 
 """
     arcs(fsm, state)
 
-return all arcs leaving `state`.
+Return all arcs leaving `state`.
 """
 arcs
 @deprecate links(fsm, state) arcs(fsm, state)
+
+"""
+    length(fsm)
+
+Return the number of states in the FSM.
+"""
+Base.length(fsm::AbstractFSM) = length(states(fsm))
 
 #======================================================================
 Interface of a mutable FSM.
