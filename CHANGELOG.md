@@ -1,5 +1,15 @@
 # Releases
 
+## 0.7.0
+* `pdfposteriors` supports for batch of sequence with varying lengths.
+* refactorized the code in 3 sub-modules: `Semirings`, `FSMs` and `Inference`.
+* the FSM API has several FSM implementation (`VectorFSM`,
+  `HierarchicalFSM` and `MatrixFSM`)
+* the FSM operations can be used are agnostic to the FSM-implementation
+* added tests for the FSM API
+* FSM states don't carry the pdf-id anymore and there is no notion
+  of "epsilon-state"
+
 ## 0.6.1
 * fixed typo `arc!` instead of `addarc!`
 
