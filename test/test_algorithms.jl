@@ -63,11 +63,6 @@ function forward_backward(A, Aᵀ, init, lhs)
 end
 
 
-@testset "logaddexp" begin
-    @test (@inferred logaddexp(2.0, 3.0)) ≈ log(exp(2.0) + exp(3.0))
-    @test (@inferred logaddexp(10002.0, 10003.0)) ≈ 10000 + logaddexp(2.0, 3.0)
-end
-
 if CUDA.functional()
     @testset "linalg" begin
         D = 5
@@ -78,7 +73,7 @@ if CUDA.functional()
         xg = CuArray(x)
         yg = CuSparseVector(y)
         out = similar(xg)
-        MarkovModels.elmul_svdv!(out, yg, xg)
+        MarkovModels.Inference.elmul_svdv!(out, yg, xg)
         @test all(convert(Vector{T}, out) .≈ x .* y)
 
         x = ones(T, D)
@@ -86,7 +81,7 @@ if CUDA.functional()
         xg = CuArray(x)
         yg = CuSparseVector(y)
         out = similar(xg)
-        MarkovModels.elmul_svdv!(out, yg, xg)
+        MarkovModels.Inference.elmul_svdv!(out, yg, xg)
         @test all(convert(Vector{T}, out) .≈ x .* y)
 
         for Yᵀ in [spdiagm(y), spzeros(T, length(y))]
@@ -94,7 +89,7 @@ if CUDA.functional()
             Yᵀg = CuSparseMatrixCSC(Yᵀ)
             Yg = CuSparseMatrixCSR( Yᵀg.colPtr, Yᵀg.rowVal, Yᵀg.nzVal, (D,D))
             out = similar(xg)
-            MarkovModels.mul_smdv!(out, Yg, xg)
+            MarkovModels.Inference.mul_smdv!(out, Yg, xg)
             @test all(convert(Vector{T}, out) .≈ transpose(Yᵀ) * x)
         end
 
@@ -108,7 +103,7 @@ if CUDA.functional()
         Yg = CuSparseMatrixCSC(Y)
         Yg = CuSparseMatrixCSR(Yg.colPtr, Yg.rowVal, Yg.nzVal, Yg.dims)
         out = similar(Xg)
-        MarkovModels.elmul_svdm!(out, yg, Xg)
+        MarkovModels.Inference.elmul_svdm!(out, yg, Xg)
         @test all(convert(Matrix{T}, out) .≈ X .* reshape(y, :, 1))
 
         x = ones(T, D)
@@ -124,7 +119,7 @@ if CUDA.functional()
         Yg = CuSparseMatrixCSC(Y)
         Yg = CuSparseMatrixCSR(Yg.colPtr, Yg.rowVal, Yg.nzVal, Yg.dims)
         out = similar(Xg)
-        MarkovModels.elmul_svdm!(out, yg, Xg)
+        MarkovModels.Inference.elmul_svdm!(out, yg, Xg)
         @test all(convert(Matrix{T}, out) .≈ X .* reshape(y, :, 1))
 
         A = spzeros(3, 3)
@@ -133,7 +128,7 @@ if CUDA.functional()
         Y = ones(3, 3)
         Yg = CuArray(Y)
         out = similar(Yg)
-        MarkovModels.mul_smdm!(out, Ag, Yg)
+        MarkovModels.Inference.mul_smdm!(out, Ag, Yg)
         @test all(convert(Matrix{T}, out) .≈ A' * Y)
 
         A = spzeros(3, 3)
@@ -147,7 +142,7 @@ if CUDA.functional()
         Y = ones(3, 3)
         Yg = CuArray(Y)
         out = similar(Yg)
-        MarkovModels.mul_smdm!(out, Ag, Yg)
+        MarkovModels.Inference.mul_smdm!(out, Ag, Yg)
         @test all(convert(Matrix{T}, out) .≈ A' * Y)
 
         A = ones(T, 3, 2)
@@ -155,7 +150,7 @@ if CUDA.functional()
         B = ones(T, 2, 3)
         Bg = CuArray(B)
         out = similar(Ag, 3, 3)
-        MarkovModels.mul_dmdm!(out, Ag, Bg)
+        MarkovModels.Inference.mul_dmdm!(out, Ag, Bg)
         @test all(convert(Matrix{T}, out) .≈ A * B)
     end
 
