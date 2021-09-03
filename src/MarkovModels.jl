@@ -56,18 +56,12 @@ export renormalize
 export transpose
 
 #======================================================================
-Redefinition of some array/linear operations to work on GPU.
-======================================================================#
-
-include("array.jl")
-include("linalg.jl")
-include("culinalg.jl")
-
-#======================================================================
 Inference algorithms.
 ======================================================================#
 
-include("inference/algorithms.jl")
+include("inference/Inference.jl")
+
+using .Inference
 
 export pdfposteriors
 export maxstateposteriors
