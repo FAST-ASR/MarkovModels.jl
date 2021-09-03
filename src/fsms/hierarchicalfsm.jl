@@ -10,7 +10,8 @@ end
         state_mapping::Dict{Any,<:AbstractFSM{T}}
     end
 
-FSM where each state is an FSM.
+FSM where each state is an FSM. This FSM is used to "compose" different
+FSMs, e.g. a lexicon and a language model.
 """
 struct HierarchicalFSM{T} <: AbstractFSM{T}
     fsm::AbstractFSM{T}

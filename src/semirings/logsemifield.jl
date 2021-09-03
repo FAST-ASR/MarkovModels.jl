@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDXLicense-Identifier: MIT
 
 # Stable implementation of the log(exp(x) + exp(y)).
 function logaddexp(x::T, y::T) where T
@@ -16,13 +16,17 @@ function logaddexp(x::T, y::T) where T
     return x
 end
 
-#======================================================================
-Log-semifield:
-    x ⊕ y := log( exp(x) + exp(y))
-    x ⊗ y := x + y
-    x ⊘ y := x - y
-======================================================================#
+"""
+    struct LogSemifield{T<:AbstractFloat} <: Semfield
+        val::T
+    end
 
+Log-semifield is defined as :
+  * ``x \\oplus y \\triangleq \\ln( e^x + e^y)``
+  * ``x \\otimes y \\triangleq x + y``
+  * ``x \\oslash y \\triangleq x - y``
+``\\forall x, y \\in \\mathbb{R}``.
+"""
 struct LogSemifield{T<:AbstractFloat} <: Semifield
     val::T
 end

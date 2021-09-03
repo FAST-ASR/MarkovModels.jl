@@ -1,5 +1,10 @@
 # SPDX-License-Identifier: MIT
 
+"""
+    Base.union(f::AbstractFMS{T}...)
+
+Take the union of the provided FSMs.
+"""
 function Base.union(fsm1::AbstractFSM{T}, fsm2::AbstractFSM{T}) where T
     allstates = union(collect(states(fsm1)), collect(states(fsm2)))
     newfsm = VectorFSM{T}()
@@ -36,7 +41,7 @@ Base.union(f::AbstractFSM{T}, o::AbstractFSM{T}...) where T =
     foldl(union, o, init = f)
 
 """
-    renormalize!(fsm::AbstractFSM{T})
+    renormalize(fsm::AbstractFSM{T}) where T<:Semifield
 
 Ensure the that the weights of all the outgoing arcs leaving a
 state sum up to `one(T)`.
@@ -101,10 +106,10 @@ function nextlabels(T, statelist; init = false)
 end
 
 """
-    determinize(fsm)
+    determinize(fsm::AbstractFSM)
 
-Determinize the FSM w.r.t. the state labels. An FSM is deterministic
-if for any state there cannot 2 next states with the same label.
+Determinize the FSM w.r.t. the state labels. A FSM is deterministic
+if for any state there is no next states with the same label.
 """
 function determinize(fsm::AbstractFSM{T}; renormalize_output = true) where T
     dfsm = VectorFSM{T}()
@@ -197,9 +202,10 @@ function reverse_determinize(fsm::AbstractFSM{T}) where T
 end
 
 """
-    transpose(fsm)
+    transpose(fsm::AbstractFSM)
 
-Reverse the direction of the arcs.
+Reverse the direction of the arcs and, for each state, inverse the
+initial and final weight.
 """
 function Base.transpose(fsm::AbstractFSM{T}) where T
     newfsm = VectorFSM{T}()
@@ -220,7 +226,7 @@ function Base.transpose(fsm::AbstractFSM{T}) where T
 end
 
 """
-    minimize(fsm)
+    minimize(fsm::AbstractFSM)
 
 Return a minimal equivalent fsm.
 """
@@ -228,143 +234,3 @@ minimize(fsm::AbstractFSM{T}) where T =
     (renormalize ∘ transpose ∘ unnorm_determinize ∘
      transpose ∘ unnorm_determinize)(fsm)
 
-#=
-
-"""
-    replace(fsm, subfsms, delim = "!")
-
-Replace the state in `fsm` wiht a sub-fsm from `subfsms`. The pairing
-is done with the last token of `label` of the state, i.e. the state
-with label `a!b!c` will be replaced by `subfsms[c]`. States that don't
-have matching labels are left untouched.
-"""
-function Base.replace(fsm::FSM{T}, subfsms::Dict, delim = "!") where T
-    newfsm = FSM{T}()
-
-    matchlabel = label -> isnothing(label) ? nothing : split(label, delim)[end]
-
-    smap_in = Dict()
-    smap_out = Dict()
-    for s in states(fsm)
-        if matchlabel(s.label) in keys(subfsms)
-            smap = Dict()
-            for cs in states(subfsms[matchlabel(s.label)])
-                label = "$(s.label)$(delim)$(cs.label)"
-                ns = addstate!(newfsm, pdfindex = cs.pdfindex, label = label,
-                               initweight = s.initweight * cs.initweight,
-                               finalweight = s.finalweight * cs.finalweight)
-                smap[cs] = ns
-
-                if isinit(cs) smap_in[s] = ns end
-                if isfinal(cs) smap_out[s] = ns end
-            end
-
-            for cs in states(subfsms[matchlabel(s.label)])
-                for arc in arcs(subfsms[matchlabel(s.label)], cs)
-                    addarc!(newfsm, smap[cs], smap[arc.dest], arc.weight)
-                end
-            end
-
-        else
-            ns = addstate!(newfsm, pdfindex = s.pdfindex, label = s.label,
-                           initweight = s.initweight, finalweight = s.finalweight)
-            smap_in[s] = ns
-            smap_out[s] = ns
-        end
-    end
-
-    for osrc in states(fsm)
-        weight = one(T)
-        if matchlabel(osrc.label) in keys(subfsms)
-            finals = filter(isfinal, states(subfsms[matchlabel(osrc.label)]))
-            weight = sum(map(s->s.finalweight, finals))
-        end
-        for arc in arcs(fsm, osrc)
-            src = smap_out[osrc]
-            dest = smap_in[arc.dest]
-            addarc!(newfsm, src, dest, arc.weight * weight)
-        end
-    end
-
-    newfsm
-end
-
-"""
-	eps_closure!(fsm, state, closure; [weight=1], [visited=[]])
-
-Find eps closure from `state` in `fsm`.
-"""
-function eps_closure!(
-        fsm::FSM{T}, state::State, closure::Vector;
-        weight::T=one(T), visited::Vector{State} = State[]
-) where T <: Semiring
-
-    if state in visited
-        return closure
-    end
-	push!(visited, state)
-
-    for l in arcs(fsm, state)
-        if isemitting(l.dest)
-            push!(closure, (l.dest, l.weight * weight))
-        else
-            eps_closure!(fsm, l.dest, closure; weight=l.weight * weight, visited=visited)
-        end
-    end
-    return closure
-end
-
-"""
-	remove_eps(fsm)
-
-Removes non-emitting states from `fsm`. An error will be raised if
-a non-emitting states has a label and/or it is an initial or final
-state.
-"""
-function remove_eps(fsm::FSM{T}) where T <: Semiring
-    nfsm = FSM{T}()
-    smap = Dict{State, State}()
-    eps_states = []
-    eps_closures = Dict{State, Vector}()
-    for s in states(fsm)
-        if isemitting(s)
-            smap[s] = addstate!(nfsm;
-                initweight=s.initweight, finalweight=s.finalweight,
-                pdfindex=s.pdfindex, label=s.label)
-        else
-            # Some checks to make sure the resulting FSM will be
-            # equivalent to the input one.
-            if islabeled(s)
-                throw(InvalidFSMError("cannot remove labeled non-emitting state"))
-            end
-            if isinit(s)
-                throw(InvalidFSMError("cannot remove starting non-emitting state"))
-            end
-            if isfinal(s)
-                throw(InvalidFSMError("cannot remove final non-emitting state"))
-            end
-
-            push!(eps_states, s)
-        end
-    end
-
-    for eps in eps_states
-        closure = eps_closure!(fsm, eps, [])
-        eps_closures[eps] = unique!(closure)
-    end
-
-    for s in states(fsm)
-        for l in arcs(fsm, s)
-            if isemitting(s) && isemitting(l.dest)
-                addarc!(nfsm, smap[s], smap[l.dest], l.weight)
-            elseif isemitting(s)
-                for (ns, w) in eps_closures[l.dest]
-                    addarc!(nfsm, smap[s], smap[ns], l.weight * w)
-                end
-            end
-        end
-    end
-    return nfsm
-end
-
-=#

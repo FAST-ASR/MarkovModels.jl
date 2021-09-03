@@ -1,11 +1,16 @@
 # SPDX-License-Identifier: MIT
 
-#======================================================================
-Tropical-semifield:
-    x ⊕ y := max(x, y)
-    x ⊗ y := x + y
-======================================================================#
 
+"""
+    struct TropicalSemiring{T<:AbstractFloat} <: Semiring
+        val::T
+    end
+
+Log-semifield is defined as :
+  * ``x \\oplus y \\triangleq \\text{max}(x, y)``
+  * ``x \\otimes y \\triangleq x + y``
+``\\forall x, y \\in \\mathbb{R}``.
+"""
 struct TropicalSemiring{T<:AbstractFloat} <: Semiring
     val::T
 end

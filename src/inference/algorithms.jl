@@ -64,14 +64,14 @@ function _drop_extradims(fsm, γ)
 end
 
 """
-    pdfposteriors(mfsm, lhs)
+    pdfposteriors(mfsm::MatrixFSM{SF} lhs) where SF <: Semifield
     pdfposteriors(union(mfsm1, mfsm2, ...), batch_lhs)
 
 Calculate the conditional posterior of "assigning" the \$n\$th frame
 to the \$i\$th pdf. The output is a tuple `γ, ttl` where `γ` is a matrix
 (# pdf x # frames) and `ttl` is the total probability of the sequence.
 This function can also be called in "batch-mode" by providing a union
-of compiled fsm and a 3D tensor containing the per-state, per-frame
+of compiled fsm and a 3D tensor containing the per-pdf, per-frame
 and per-batch values.
 """
 pdfposteriors
@@ -159,7 +159,7 @@ end
     maxstateposteriors(mfsm, lhs)
 
 Calculate the posterior of "assigning" the \$n\$th frame
-to the \$i\$th state conditioned of all other states maximizing the
+to the \$i\$th state conditioned on all other states maximizing the
 likelihood of the sequence. The output is a matrix `μ` (# pdf x # frames).
 """
 function maxstateposteriors(mfsm::MatrixFSM{SR},
@@ -197,8 +197,8 @@ end
 """
     bestpath(mfsm, μ)
 
-Return the sequence of state with the highest value from `μ`, i.e.
-the ouput of [`maxstateposteriors`](@ref).
+Return the sequence of state with the highest value from `μ`, where
+`μ` is the ouput of [`maxstateposteriors`](@ref).
 """
 function bestpath(mfsm::MatrixFSM{SR}, μ::AbstractArray{SR}) where SR
     seq = Vector{Int}(undef, size(μ, 2))

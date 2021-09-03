@@ -14,6 +14,7 @@ makedocs(
     pages = [
         "Home" => "index.md",
         "Manual" => Any[
+            "Semirings" => "semirings.md",
             "Finite State Machines" => "fsm.md",
             "Inference" => "inference.md"
         ]

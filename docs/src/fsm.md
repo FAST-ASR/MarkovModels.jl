@@ -1,88 +1,72 @@
 # Finite State Machines
 
-The MarkovModels package represents Markov chains as probabilistic a
-Finite State Machine (FSM).  Here is an example of FSM as used by the
-package:
+This package represents Markov chains as probabilistic a Finite State
+Machine (FSM).  Here is an example of FSM as used by the package:
 
 ![missing image](images/examplefsm.svg)
 
 The thick line node indicates the starting state whereas the double
-line node indicates the ending states.
+line node indicates the ending state.
 
 !!! note
     To be able to visualize FSMs as in the example above when using
-    [IJulia](https://github.com/JuliaLang/IJulia.jl), make sure that
-    the `dot` program (from [graphviz](https://graphviz.org/)) is
-    available in your shell `PATH` variable. Also, you won't be able
+    [IJulia](https://github.com/JuliaLang/IJulia.jl) or [Pluto](https://github.com/fonsp/Pluto.jl),
+    make sure that the `dot` program (from [graphviz](https://graphviz.org/))
+    is available in your shell `PATH` variable. Also, you won't be able
     to visualize the FSM in the REPL.
 
+Note that, contrary to standard FSM, our implementation puts the labels
+in the states rather than on the arcs. This is equivalent of a
+constrained [Weighted Finite State Acceptor](https://en.wikipedia.org/wiki/Finite-state_transducer)
+where all the incoming arcs of a given states share the same labels.
+We have made this choice to facilitate the interpretation of our FSMs
+as Markov chains.
+
 In the following, we present the tools provided by the package
-manipulate such FSM. All the examples below assume that you
+to manipulate such FSM. All the examples below assume that you
 have already imported the MarkovModels.jl package by doing `using
 MarkovModels`.
 
-## Creating FSMs
+## FSM interface
 
-FSMs are represented by the following structure:
+All the FSMs are subtypes from the following abstract type:
 ```@docs
-FSM
+AbstractFSM
 ```
-Our FSMs operate in the log-semifield where each number can be
-interpreted as a log-probability. The package provide the following
-type:
-```julia
-T = Float64
-SF = LogSemifield{T}
+They support the following functions:
+```@docs
+states
+arcs
+Base.length(::AbstractFSM)
 ```
 
-Then, too create an FSM object simply type:
-```julia
-fsm = FSM{SF}()
+## Mutable FSM interface
+
+FSM that can be changed in place (e.g. adding states/arcs) are
+subtypes of the following abstract type:
+```@docs
+AbstractMutableFSM
 ```
-When created, the FSM has only two states: the initial state and the
-final state. FSMs cannot have multiple initial for final states.
-
-You can add states to the FSM by using the function `addstate!`:
-```julia
-s1 = addstate!(fsm, pdfindex = 1)
-s2 = addstate!(fsm, pdfindex = 2, label = "a")
-s3 = addstate!(fsm, label = "b")
-s4 = addstate!(fsm)
+They support the following functions:
+```@docs
+addstate!
+addarc!
 ```
-![missing image](images/addstate.svg)
 
-Note that a state can be:
-  * emitting and labeled
-  * emitting only
-  * labeled only
-  * non-emitting and non-labeled (nil state)
+## Concrete FSMs
 
-You also need to define which state is a *starting state* and which
-one is an *ending state* (there can be several starting/ending states):
-```julia
-setinit!(s1)
-setfinal!(s4)
+The package has the following concrete FSM types:
+```@docs
+VectorFSM
+HierarchicalFSM
+MatrixFSM
 ```
-![missing image](images/init_final.svg)
-
-
-The `link!` function add weighted arcs between states:
-```julia
-link!(fsm, s1, s1, SF(log(1/2)))
-link!(fsm, s1, s2, SF(log(1/2)))
-link!(fsm, s2, s3)
-link!(fsm, s3, s4)
-```
-![missing image](images/links.svg)
-
 ## FSM operations
 
 ```@docs
-compile
+Base.union(::AbstractFSM{T}, ::AbstractFSM{T}) where T
 determinize
 minimize
-renormalize!
-remove_eps
-replace(::FSM{T}, ::Dict) where T
+renormalize
 transpose
 ```

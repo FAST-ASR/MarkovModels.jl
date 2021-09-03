@@ -1,12 +1,16 @@
 # SPDX-License-Identifier: MIT
 
-#======================================================================
-Probability-semifield:
-    x ⊕ y := x + y
-    x ⊗ y := x * y
-    x ⊘ y := x / y
-======================================================================#
+"""
+    struct ProbabilitySemifield{T<:AbstractFloat} <: Semfield
+        val::T
+    end
 
+Log-semifield is defined as :
+  * ``x \\oplus y \\triangleq x + y``
+  * ``x \\otimes y \\triangleq x \\cdot y``
+  * ``x \\oslash y \\triangleq \\frac{x}{y}``
+``\\forall x, y \\in [0, 1]``.
+"""
 struct ProbabilitySemifield{T<:AbstractFloat} <: Semifield
     val::T
 end

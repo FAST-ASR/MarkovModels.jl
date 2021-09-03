@@ -9,12 +9,13 @@
         Cᵀ       # tranpose of `C`
     end
 
-FSM where the arcs are stored as a sparse matrix. In addition to the
-structure of the FSM, the `MatrixFSM` store the mapping between states
-and `pdf-id` in the matrix `C`.
+FSM where the arcs are stored as a sparse matrix. This type of FSM
+is used by the inference algorigthms. In addition to the structure of
+the FSM, the `MatrixFSM` store the mapping between states and `pdf-id`
+in the matrix `C`.
 
-!!! warn
-    In this format, the final state is just a "regular" states.
+!!! warning
+    In this format, the final state is just a "regular" state.
     Therefore, the dimension of `π` (similarly for `T` and `C`)
     will have one more dimension.
 

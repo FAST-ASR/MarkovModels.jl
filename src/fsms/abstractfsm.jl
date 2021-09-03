@@ -4,6 +4,11 @@
 Interface of a generic FSM.
 ======================================================================#
 
+"""
+    abstract type AbstractFSM{T<:Semiring} end
+
+Abstract base type for all the FSMs.
+"""
 abstract type AbstractFSM{T<:Semiring} end
 
 """
@@ -32,6 +37,11 @@ Base.length(fsm::AbstractFSM) = length(states(fsm))
 Interface of a mutable FSM.
 ======================================================================#
 
+"""
+    abstract type AbstractFSM{T<:Semiring} end
+
+Abstract base type for FSM objects that can be mutated.
+"""
 abstract type AbstractMutableFSM{T} <: AbstractFSM{T} end
 
 """
