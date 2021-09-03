@@ -91,22 +91,22 @@ function arcs(fsm::MatrixFSM{Tv}, state) where Tv
 end
 
 """
-    gpu(cfsm)
+    gpu(fsm)
 
-Move the compiled fsm `cfsm` to GPU.
+Make a copy of `fsm` on GPU.
 """
-function gpu(cfsm::MatrixFSM{Tv}) where Tv
-    T = CuSparseMatrixCSC(cfsm.T)
-    Tᵀ = CuSparseMatrixCSC(cfsm.Tᵀ)
-    C = CuSparseMatrixCSC(cfsm.C)
-    Cᵀ = CuSparseMatrixCSC(cfsm.Cᵀ)
+function gpu(fsm::MatrixFSM{Tv}) where Tv
+    T = CuSparseMatrixCSC(fsm.T)
+    Tᵀ = CuSparseMatrixCSC(fsm.Tᵀ)
+    C = CuSparseMatrixCSC(fsm.C)
+    Cᵀ = CuSparseMatrixCSC(fsm.Cᵀ)
     return MatrixFSM{Tv}(
-        CuSparseVector(cfsm.π),
+        CuSparseVector(fsm.π),
         CuSparseMatrixCSR(Tᵀ.colPtr, Tᵀ.rowVal, Tᵀ.nzVal, T.dims),
         CuSparseMatrixCSR(T.colPtr, T.rowVal, T.nzVal, Tᵀ.dims),
         CuSparseMatrixCSR(Cᵀ.colPtr, Cᵀ.rowVal, Cᵀ.nzVal, C.dims),
         CuSparseMatrixCSR(C.colPtr, C.rowVal, C.nzVal, Cᵀ.dims),
-        cfsm.labels
+        fsm.labels
     )
 end
 
@@ -155,6 +155,21 @@ function arcs(fsm::UnionMatrixFSM{Tv}, state) where Tv
     retval
 end
 
+function gpu(fsm::UnionMatrixFSM{Tv}) where Tv
+    T = CuSparseMatrixCSC(fsm.T)
+    Tᵀ = CuSparseMatrixCSC(fsm.Tᵀ)
+    C = CuSparseMatrixCSC(fsm.C)
+    Cᵀ = CuSparseMatrixCSC(fsm.Cᵀ)
+    return UnionMatrixFSM{Tv}(
+        fsm.ranges,
+        CuSparseVector(fsm.π),
+        CuSparseMatrixCSR(Tᵀ.colPtr, Tᵀ.rowVal, Tᵀ.nzVal, T.dims),
+        CuSparseMatrixCSR(T.colPtr, T.rowVal, T.nzVal, Tᵀ.dims),
+        CuSparseMatrixCSR(Cᵀ.colPtr, Cᵀ.rowVal, Cᵀ.nzVal, C.dims),
+        CuSparseMatrixCSR(C.colPtr, C.rowVal, C.nzVal, Cᵀ.dims),
+        fsm.labels
+    )
+end
 
 function Base.union(fsms::Vararg{MatrixFSM{Tv},N}) where {Tv,N}
     nstates_sofar = 0

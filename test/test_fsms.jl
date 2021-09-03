@@ -309,4 +309,10 @@ end
         addarc!(ufsm, s3, s3, SR(0.75))
     end
     @test fsmequal(ufsm, union(mfsm, mfsm, mfsm))
+
+    ufsm = union(mfsm, mfsm, mfsm)
+    if CUDA.functional()
+        @test length(gpu(mfsm).π) == length(mfsm.π)
+        @test length(gpu(ufsm).π) == length(ufsm.π)
+    end
 end
