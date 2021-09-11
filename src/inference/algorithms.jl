@@ -36,6 +36,22 @@ function βrecursion(T::AbstractMatrix{SR},
     β
 end
 
+# Do the backward recursion and multiply with the α immediately.
+# This avoids to allocate a second array for the β messages.
+function βrecursion_mulα!(α::AbstractMatrix{SR}, T::AbstractMatrix{SR},
+                    lhs::AbstractMatrix{SR}) where SR <: Semiring
+    S, N = size(T, 1), size(lhs, 2)
+    βₘ = fill!(similar(lhs[:, 1], S), one(SR))
+    buffer = similar(lhs[:, 1], S)
+
+    @views for n in N-1:-1:1
+        elmul!(buffer, βₘ, lhs[:,n+1])
+        matmul!(βₘ, T, buffer)
+        elmul!(α[:,n], α[:,n], βₘ)
+    end
+    α
+end
+
 #======================================================================
 Specialized algorithms
 ======================================================================#
@@ -91,8 +107,7 @@ function pdfposteriors(mfsm::MatrixFSM{SR},
     state_lhs = matmul!(similar(lhs, S, N), mfsm.C, expanded_lhs)
 
     α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
-    β = βrecursion(mfsm.T, state_lhs)
-    state_γ = elmul!(α, α, β)
+    state_γ = βrecursion_mulα!(α, mfsm.T, state_lhs)
 
     # Transform the per-state γs to per-likelihoods γs.
     γ = matmul!(expanded_lhs, mfsm.Cᵀ, state_γ) # re-use `expanded_lhs` memory.
@@ -122,18 +137,15 @@ function pdfposteriors(mfsm::UnionMatrixFSM{SR},
             zip(eachslice(lhs_tensor, dims = 3), seqlengths))...
     )
 
-    GC.gc()
-
     S = size(mfsm.C, 1)       # number of states
     K = size(in_lhs, 1) + 1   # number of pdfs
     N = size(in_lhs, 2) + 1   # number of frames
 
     # Get the per-state likelihoods.
-    state_lhs = matmul!(similar(lhs, S, N), mfsm.C, lhs)
+    state_lhs = matmul!(similar(lhs, SR, S, N), mfsm.C, lhs)
 
     α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
-    β = βrecursion(mfsm.T, state_lhs)
-    state_γ = elmul!(α, α, β)
+    state_γ = βrecursion_mulα!(α, mfsm.T, state_lhs)
 
     # Transform the per-state γs to per-likelihoods γs.
     γ = matmul!(lhs, mfsm.Cᵀ, state_γ) # re-use `lhs` memory.
