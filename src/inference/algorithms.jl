@@ -92,7 +92,7 @@ function pdfposteriors(mfsm::MatrixFSM{SR},
 
     α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
     β = βrecursion(mfsm.T, state_lhs)
-    state_γ = elmul!(similar(state_lhs), α, β)
+    state_γ = elmul!(α, α, β)
 
     # Transform the per-state γs to per-likelihoods γs.
     γ = matmul!(expanded_lhs, mfsm.Cᵀ, state_γ) # re-use `expanded_lhs` memory.
@@ -122,25 +122,23 @@ function pdfposteriors(mfsm::UnionMatrixFSM{SR},
             zip(eachslice(lhs_tensor, dims = 3), seqlengths))...
     )
 
-    S = size(mfsm.C, 1)
-    K = size(in_lhs, 1) + 1
-    N = size(in_lhs, 2) + 1
+    GC.gc()
+
+    S = size(mfsm.C, 1)       # number of states
+    K = size(in_lhs, 1) + 1   # number of pdfs
+    N = size(in_lhs, 2) + 1   # number of frames
 
     # Get the per-state likelihoods.
     state_lhs = matmul!(similar(lhs, S, N), mfsm.C, lhs)
 
     α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
-    β = βrecursion( mfsm.T, state_lhs)
-    state_γ = elmul!(similar(state_lhs), α, β)
-
-    # Drop the last frame and the last dimension.
-    #state_γ = _drop_extradims(mfsm, expanded_state_γ[1:end-1,1:end-1])
+    β = βrecursion(mfsm.T, state_lhs)
+    state_γ = elmul!(α, α, β)
 
     # Transform the per-state γs to per-likelihoods γs.
     γ = matmul!(lhs, mfsm.Cᵀ, state_γ) # re-use `lhs` memory.
     γ = permutedims(reshape(γ, K, :, N), (1, 3, 2))
 
-    # TODO before droping dimensions !!
     # Re-normalize each element of the batch.
     sums = sum(γ, dims = 1)
     eldiv!(γ, γ, sums)
