@@ -118,8 +118,9 @@ function pdfposteriors(mfsm::MatrixFSM{SR},
 
     # Convert the result to the Real-semiring
     out = copyto!(similar(in_lhs), γ[1:end-1,1:end-1])
+    out = map!(exp, out, out)
 
-    exp.(out), convert(T, minimum(sums))
+    out, convert(T, minimum(sums))
 end
 
 function pdfposteriors(mfsm::UnionMatrixFSM{SR},
@@ -157,9 +158,10 @@ function pdfposteriors(mfsm::UnionMatrixFSM{SR},
 
     # Convert the result to the Real-semiring
     out = copyto!(similar(in_lhs), γ[1:end-1,1:end-1,:])
+    out = map!(exp, out, out)
 
     ttl = dropdims(minimum(sums, dims = (1, 2)), dims = (1, 2))
-    exp.(out), copyto!(similar(ttl, T), ttl)
+    out, copyto!(similar(ttl, T), ttl)
 end
 
 @deprecate stateposteriors(mfsm, lhs) pdfposteriors(mfsm, lhs)
