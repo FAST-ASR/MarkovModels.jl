@@ -266,29 +266,32 @@ Removes all states from`fsm` with label `label`.
 """
 function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
     nfsm = VectorFSM{T}()
-    smap = Dict{State, State}()
     label_states = []
-    label_closures = Dict{State, Vector}()
 
+    iw, fw = Dict(), Dict()
     for s in states(fsm)
         if s.label != label
-            smap[s] = addstate!(nfsm;
-                initweight=s.initweight, finalweight=s.finalweight,
-                pdfindex=s.pdfindex, label=s.label)
-        else
-            #if isinit(s)
-            #    throw(ArgumentError("cannot remove starting non-emitting state"))
-            #end
-            #if isfinal(s)
-            #    throw(ArgumentError("cannot remove final non-emitting state"))
-            #end
-            push!(label_states, s)
+            iw[s] = initweight
+            fw[s] = finalweight
         end
     end
 
-    for s in label_states
-        closure = label_closure!([], fsm, s)
-        label_closures[s] = unique!(closure)
+    label_closures = Dict{State, Vector}()
+    for s in states(fsm)
+        if s.label == label
+            closure = label_closure!([], fsm, s)
+            label_closures[s] = unique!(closure)
+
+            for ns in label_closures[s]
+                iw[ns] = iw[ns] + s.initweight
+                fw[ns] = fw[ns] + s.finalweight
+            end
+        end
+    end
+
+    smap = Dict{State, State}()
+    for s in keys(iw)
+        addstate!(nfsm, s.label; initweight = iw[s], finalweight = fw[s])
     end
 
     for s in states(fsm)
