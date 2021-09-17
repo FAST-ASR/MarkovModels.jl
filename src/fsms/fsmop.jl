@@ -253,7 +253,7 @@ function label_closure!(
         if l.dest.label != label
             push!(closure, (l.dest, l.weight * weight))
         else
-            label_closure!(fsm, l.dest, closure; weight=l.weight * weight, visited=visited)
+            label_closure!(closure, fsm, l.dest, label; weight=l.weight * weight, visited=visited)
         end
     end
     return closure
