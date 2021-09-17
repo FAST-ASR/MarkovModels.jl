@@ -241,7 +241,8 @@ Find label closure from `state` in `fsm`.
 """
 function label_closure!(
         closure::Vector, fsm::AbstractFSM{T}, state::State, label;
-        weight::T=one(T), visited::Vector{State} = State[]
+        weight::T=one(T), visited::Vector{State} = State[];
+        matchfn = x -> x != label
 ) where T <: Semifield
 
     if state in visited
@@ -250,7 +251,7 @@ function label_closure!(
 	push!(visited, state)
 
     for l in arcs(fsm, state)
-        if l.dest.label != label
+        if matchfn(l.dest.label, label)
             push!(closure, (l.dest, l.weight * weight))
         else
             label_closure!(closure, fsm, l.dest, label; weight=l.weight * weight, visited=visited)
@@ -273,11 +274,11 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
         if s.label != label
             iw[s] = s.initweight
 
+            closure = label_closure!([], fsm, s, label, matchfn = x -> x == label)
+            unique!(closure)
             nfw = zero(T)
-            for a in arcs(fsm, s)
-                if a.dest.label == label
-                    nfw += a.weight*a.dest.finalweight
-                end
+            for (ns, w) in closure
+                nfw += w*ns.finalweight
             end
             fw[s] = s.finalweight + nfw
         end
