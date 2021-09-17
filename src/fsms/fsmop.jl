@@ -271,8 +271,8 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
     iw, fw = Dict(), Dict()
     for s in states(fsm)
         if s.label != label
-            iw[s] = initweight
-            fw[s] = finalweight
+            iw[s] = s.initweight
+            fw[s] = s.finalweight
         end
     end
 
