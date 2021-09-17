@@ -282,9 +282,9 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
             closure = label_closure!([], fsm, s, label)
             label_closures[s] = unique!(closure)
 
-            for ns in label_closures[s]
-                iw[ns] = iw[ns] + s.initweight
-                fw[ns] = fw[ns] + s.finalweight
+            for (ns, nw) in label_closures[s]
+                iw[ns] = iw[ns] + s.initweight*nw
+                fw[ns] = fw[ns] + s.finalweight*nw
             end
         end
     end
