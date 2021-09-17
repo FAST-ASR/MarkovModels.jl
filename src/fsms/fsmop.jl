@@ -279,7 +279,7 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
     label_closures = Dict{State, Vector}()
     for s in states(fsm)
         if s.label == label
-            closure = label_closure!([], fsm, s)
+            closure = label_closure!([], fsm, s, label)
             label_closures[s] = unique!(closure)
 
             for ns in label_closures[s]
