@@ -288,10 +288,10 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
                     nfw += a.weight*a.dest.finalweight
                 end
             end
+            fw[s] = nfw
 
             for (ns, nw) in label_closures[s]
                 iw[ns] = iw[ns] + s.initweight*nw
-                fw[ns] = nfw
             end
         end
     end
