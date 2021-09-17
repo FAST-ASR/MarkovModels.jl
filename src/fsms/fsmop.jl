@@ -240,7 +240,7 @@ minimize(fsm::AbstractFSM{T}) where T =
 Find label closure from `state` in `fsm`.
 """
 function label_closure!(
-        closure::Vector, fsm::FSM{T}, state::State, label;
+        closure::Vector, fsm::AbstractFSM{T}, state::State, label;
         weight::T=one(T), visited::Vector{State} = State[]
 ) where T <: Semifield
 
@@ -264,13 +264,14 @@ end
 
 Removes all states from`fsm` with label `label`.
 """
-function remove_label(fsm::FSM{T}, label) where T <: Semifield
-    nfsm = FSM{T}()
+function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
+    nfsm = VectorFSM{T}()
     smap = Dict{State, State}()
     label_states = []
     label_closures = Dict{State, Vector}()
+
     for s in states(fsm)
-        if s.label = label
+        if s.label == label
             smap[s] = addstate!(nfsm;
                 initweight=s.initweight, finalweight=s.finalweight,
                 pdfindex=s.pdfindex, label=s.label)
@@ -281,7 +282,6 @@ function remove_label(fsm::FSM{T}, label) where T <: Semifield
             if isfinal(s)
                 throw(ArgumentError("cannot remove final non-emitting state"))
             end
-
             push!(label_states, s)
         end
     end
@@ -293,7 +293,7 @@ function remove_label(fsm::FSM{T}, label) where T <: Semifield
 
     for s in states(fsm)
         for l in arcs(fsm, s)
-            if s.label == label && isemitting(l.dest)
+            if s.label == label && l.dest.label == label
                 addarc!(nfsm, smap[s], smap[l.dest], l.weight)
             elseif s.label == label
                 for (ns, w) in label_closures[l.dest]
@@ -303,4 +303,4 @@ function remove_label(fsm::FSM{T}, label) where T <: Semifield
         end
     end
     return nfsm
-en
+end
