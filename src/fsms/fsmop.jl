@@ -272,7 +272,14 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
     for s in states(fsm)
         if s.label != label
             iw[s] = s.initweight
-            fw[s] = s.finalweight
+
+            nfw = zero(T)
+            for a in arcs(fsm, s)
+                if a.dest.label == label
+                    nfw += a.weight*a.dest.finalweight
+                end
+            end
+            fw[s] = s.finalweight + nfw
         end
     end
 
@@ -281,14 +288,6 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
         if s.label == label
             closure = label_closure!([], fsm, s, label)
             label_closures[s] = unique!(closure)
-
-            nfw = zero(T)
-            for a in arcs(fsm, s)
-                if a.dest.label == label
-                    nfw += a.weight*a.dest.finalweight
-                end
-            end
-            fw[s] = nfw
 
             for (ns, nw) in label_closures[s]
                 iw[ns] = iw[ns] + s.initweight*nw
