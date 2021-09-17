@@ -250,7 +250,7 @@ function label_closure!(
 	push!(visited, state)
 
     for l in arcs(fsm, state)
-        if l.dest.label == label
+        if l.dest.label != label
             push!(closure, (l.dest, l.weight * weight))
         else
             label_closure!(fsm, l.dest, closure; weight=l.weight * weight, visited=visited)
@@ -271,17 +271,17 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
     label_closures = Dict{State, Vector}()
 
     for s in states(fsm)
-        if s.label == label
+        if s.label != label
             smap[s] = addstate!(nfsm;
                 initweight=s.initweight, finalweight=s.finalweight,
                 pdfindex=s.pdfindex, label=s.label)
         else
-            if isinit(s)
-                throw(ArgumentError("cannot remove starting non-emitting state"))
-            end
-            if isfinal(s)
-                throw(ArgumentError("cannot remove final non-emitting state"))
-            end
+            #if isinit(s)
+            #    throw(ArgumentError("cannot remove starting non-emitting state"))
+            #end
+            #if isfinal(s)
+            #    throw(ArgumentError("cannot remove final non-emitting state"))
+            #end
             push!(label_states, s)
         end
     end
@@ -293,9 +293,9 @@ function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
 
     for s in states(fsm)
         for l in arcs(fsm, s)
-            if s.label == label && l.dest.label == label
+            if s.label != label && l.dest.label != label
                 addarc!(nfsm, smap[s], smap[l.dest], l.weight)
-            elseif s.label == label
+            elseif s.label != label
                 for (ns, w) in label_closures[l.dest]
                     addarc!(nfsm, smap[s], smap[ns], l.weight * w)
                 end
