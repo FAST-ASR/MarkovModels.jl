@@ -26,6 +26,7 @@ export determinize
 export minimize
 export renormalize
 export transpose
+export remove_label
 
 using LinearAlgebra
 using SparseArrays

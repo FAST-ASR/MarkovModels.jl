@@ -234,3 +234,73 @@ minimize(fsm::AbstractFSM{T}) where T =
     (renormalize ∘ transpose ∘ unnorm_determinize ∘
      transpose ∘ unnorm_determinize)(fsm)
 
+"""
+    label_closure!(closure, fsm, state, label;  [weight=1], [visited=[]])
+
+Find label closure from `state` in `fsm`.
+"""
+function label_closure!(
+        closure::Vector, fsm::FSM{T}, state::State, label;
+        weight::T=one(T), visited::Vector{State} = State[]
+) where T <: Semifield
+
+    if state in visited
+        return closure
+    end
+	push!(visited, state)
+
+    for l in arcs(fsm, state)
+        if l.dest.label == label
+            push!(closure, (l.dest, l.weight * weight))
+        else
+            label_closure!(fsm, l.dest, closure; weight=l.weight * weight, visited=visited)
+        end
+    end
+    return closure
+end
+
+"""
+	remove_label(fsm, label)
+
+Removes all states from`fsm` with label `label`.
+"""
+function remove_label(fsm::FSM{T}, label) where T <: Semifield
+    nfsm = FSM{T}()
+    smap = Dict{State, State}()
+    label_states = []
+    label_closures = Dict{State, Vector}()
+    for s in states(fsm)
+        if s.label = label
+            smap[s] = addstate!(nfsm;
+                initweight=s.initweight, finalweight=s.finalweight,
+                pdfindex=s.pdfindex, label=s.label)
+        else
+            if isinit(s)
+                throw(ArgumentError("cannot remove starting non-emitting state"))
+            end
+            if isfinal(s)
+                throw(ArgumentError("cannot remove final non-emitting state"))
+            end
+
+            push!(label_states, s)
+        end
+    end
+
+    for s in label_states
+        closure = label_closure!([], fsm, s)
+        label_closures[s] = unique!(closure)
+    end
+
+    for s in states(fsm)
+        for l in arcs(fsm, s)
+            if s.label == label && isemitting(l.dest)
+                addarc!(nfsm, smap[s], smap[l.dest], l.weight)
+            elseif s.label == label
+                for (ns, w) in label_closures[l.dest]
+                    addarc!(nfsm, smap[s], smap[ns], l.weight * w)
+                end
+            end
+        end
+    end
+    return nfsm
+en
