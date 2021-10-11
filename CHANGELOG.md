@@ -1,5 +1,12 @@
 # Releases
 
+## 0.8.0
+* Added the `remove_label` function which replace the old `remove_eps`.
+* Memory optimization of the forward-backward: the backward operates
+  in-place avoiding to use an extra 3D tensor.
+* This version is the one that was use for the 1st submission
+  of the ICASSP 2022 conference.
+
 ## 0.7.0
 * `pdfposteriors` supports for batch of sequence with varying lengths.
 * refactorized the code in 3 sub-modules: `Semirings`, `FSMs` and `Inference`.
