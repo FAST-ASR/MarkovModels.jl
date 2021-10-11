@@ -234,3 +234,84 @@ minimize(fsm::AbstractFSM{T}) where T =
     (renormalize ∘ transpose ∘ unnorm_determinize ∘
      transpose ∘ unnorm_determinize)(fsm)
 
+"""
+    label_closure!(closure, fsm, state, label;  [weight=1], [visited=[]])
+
+Find label closure from `state` in `fsm`.
+"""
+function label_closure!(
+        closure::Vector, fsm::AbstractFSM{T}, state::State, label;
+        weight::T=one(T), visited::Vector{State} = State[],
+        matchfn = (x,y) -> x != y
+) where T <: Semifield
+
+    if state in visited
+        return closure
+    end
+	push!(visited, state)
+
+    for l in arcs(fsm, state)
+        if matchfn(l.dest.label, label)
+            push!(closure, (l.dest, l.weight * weight))
+        else
+            label_closure!(closure, fsm, l.dest, label; weight=l.weight * weight,
+                           visited=visited, matchfn = matchfn)
+        end
+    end
+    return closure
+end
+
+"""
+	remove_label(fsm, label)
+
+Removes all states from`fsm` with label `label`.
+"""
+function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
+    nfsm = VectorFSM{T}()
+    label_states = []
+
+    iw, fw = Dict(), Dict()
+    for s in states(fsm)
+        if s.label != label
+            iw[s] = s.initweight
+
+            closure = label_closure!([], fsm, s, label)
+            unique!(closure)
+            nfw = zero(T)
+            for (ns, w) in closure
+                nfw += w*ns.finalweight
+            end
+            fw[s] = s.finalweight + nfw
+        end
+    end
+
+    label_closures = Dict{State, Vector}()
+    for s in states(fsm)
+        if s.label == label
+            closure = label_closure!([], fsm, s, label)
+            label_closures[s] = unique!(closure)
+
+            for (ns, nw) in label_closures[s]
+                iw[ns] = iw[ns] + s.initweight*nw
+            end
+        end
+    end
+
+    smap = Dict{State, State}()
+    for s in keys(iw)
+        smap[s] = addstate!(nfsm, s.label; initweight = iw[s], finalweight = fw[s])
+    end
+
+    for s in states(fsm)
+        for l in arcs(fsm, s)
+            if s.label != label && l.dest.label != label
+                addarc!(nfsm, smap[s], smap[l.dest], l.weight)
+            elseif s.label != label
+                for (ns, w) in label_closures[l.dest]
+                    addarc!(nfsm, smap[s], smap[ns], l.weight * w)
+                end
+            end
+        end
+    end
+    return nfsm
+end

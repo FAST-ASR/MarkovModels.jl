@@ -36,6 +36,22 @@ function βrecursion(T::AbstractMatrix{SR},
     β
 end
 
+# Do the backward recursion and multiply with the α immediately.
+# This avoids to allocate a second array for the β messages.
+function βrecursion_mulα!(α::AbstractMatrix{SR}, T::AbstractMatrix{SR},
+                    lhs::AbstractMatrix{SR}) where SR <: Semiring
+    S, N = size(T, 1), size(lhs, 2)
+    βₘ = fill!(similar(lhs[:, 1], S), one(SR))
+    buffer = similar(lhs[:, 1], S)
+
+    @views for n in N-1:-1:1
+        elmul!(buffer, βₘ, lhs[:,n+1])
+        matmul!(βₘ, T, buffer)
+        elmul!(α[:,n], α[:,n], βₘ)
+    end
+    α
+end
+
 #======================================================================
 Specialized algorithms
 ======================================================================#
@@ -91,8 +107,7 @@ function pdfposteriors(mfsm::MatrixFSM{SR},
     state_lhs = matmul!(similar(lhs, S, N), mfsm.C, expanded_lhs)
 
     α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
-    β = βrecursion(mfsm.T, state_lhs)
-    state_γ = elmul!(similar(state_lhs), α, β)
+    state_γ = βrecursion_mulα!(α, mfsm.T, state_lhs)
 
     # Transform the per-state γs to per-likelihoods γs.
     γ = matmul!(expanded_lhs, mfsm.Cᵀ, state_γ) # re-use `expanded_lhs` memory.
@@ -103,8 +118,9 @@ function pdfposteriors(mfsm::MatrixFSM{SR},
 
     # Convert the result to the Real-semiring
     out = copyto!(similar(in_lhs), γ[1:end-1,1:end-1])
+    out = map!(exp, out, out)
 
-    exp.(out), convert(T, minimum(sums))
+    out, convert(T, minimum(sums))
 end
 
 function pdfposteriors(mfsm::UnionMatrixFSM{SR},
@@ -122,34 +138,30 @@ function pdfposteriors(mfsm::UnionMatrixFSM{SR},
             zip(eachslice(lhs_tensor, dims = 3), seqlengths))...
     )
 
-    S = size(mfsm.C, 1)
-    K = size(in_lhs, 1) + 1
-    N = size(in_lhs, 2) + 1
+    S = size(mfsm.C, 1)       # number of states
+    K = size(in_lhs, 1) + 1   # number of pdfs
+    N = size(in_lhs, 2) + 1   # number of frames
 
     # Get the per-state likelihoods.
-    state_lhs = matmul!(similar(lhs, S, N), mfsm.C, lhs)
+    state_lhs = matmul!(similar(lhs, SR, S, N), mfsm.C, lhs)
 
     α = αrecursion(mfsm.π, mfsm.Tᵀ, state_lhs)
-    β = βrecursion( mfsm.T, state_lhs)
-    state_γ = elmul!(similar(state_lhs), α, β)
-
-    # Drop the last frame and the last dimension.
-    #state_γ = _drop_extradims(mfsm, expanded_state_γ[1:end-1,1:end-1])
+    state_γ = βrecursion_mulα!(α, mfsm.T, state_lhs)
 
     # Transform the per-state γs to per-likelihoods γs.
     γ = matmul!(lhs, mfsm.Cᵀ, state_γ) # re-use `lhs` memory.
     γ = permutedims(reshape(γ, K, :, N), (1, 3, 2))
 
-    # TODO before droping dimensions !!
     # Re-normalize each element of the batch.
     sums = sum(γ, dims = 1)
     eldiv!(γ, γ, sums)
 
     # Convert the result to the Real-semiring
     out = copyto!(similar(in_lhs), γ[1:end-1,1:end-1,:])
+    out = map!(exp, out, out)
 
     ttl = dropdims(minimum(sums, dims = (1, 2)), dims = (1, 2))
-    exp.(out), copyto!(similar(ttl, T), ttl)
+    out, copyto!(similar(ttl, T), ttl)
 end
 
 @deprecate stateposteriors(mfsm, lhs) pdfposteriors(mfsm, lhs)

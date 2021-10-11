@@ -52,6 +52,7 @@ export UnionMatrixFSM
 export gpu
 export determinize
 export minimize
+export remove_label
 export renormalize
 export transpose
 
