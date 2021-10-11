@@ -18,26 +18,37 @@ import pychain_C
 torch.set_num_threads(1)
 
 def make_hmm(S, B, log_domain=True):
-    state = 0
-    with open('hmm.txt', 'w') as f:
-        for s in range(1, S):
-            print(f'{s} {s} {s} {s} {-math.log(1/2)}', file=f)
-            print(f'{s} {s+1} {s} {s+1} {-math.log(1/2)}', file=f)
-        print(f'{S} {S} {S} {S} 0', file=f)
-        print(f'{S}', file=f)
+    #state = 0
+    #with open('hmm.txt', 'w') as f:
+    #    for s in range(1, S):
+    #        print(f'{s} {s} {s} {s} {-math.log(1/2)}', file=f)
+    #        print(f'{s} {s+1} {s} {s+1} {-math.log(1/2)}', file=f)
+    #    print(f'{S} {S} {S} {S} 0', file=f)
+    #    print(f'{S}', file=f)
 
-    subprocess.run(['fstcompile', 'hmm.txt', 'hmm.fst'])
+    #subprocess.run(['fstcompile', 'hmm.txt', 'hmm.fst'])
 
-    fst = simplefst.StdVectorFst.read('hmm.fst')
+    #fst = simplefst.StdVectorFst.read('hmm.fst')
+    #graph = ChainGraph(fst, log_domain=log_domain)
+
+    #fst = simplefst.StdVectorFst.read('examples/num_fsm_wsj.fst')
+    fst = simplefst.StdVectorFst.read('examples/den_fsm_wsj.fst')
     graph = ChainGraph(fst, log_domain=log_domain)
+
     return ChainGraphBatch(graph, batch_size = B)
 
 def main(N, S, B):
     lang = 'python'
     precision = 'single'
 
+    graphs = make_hmm(S, B)
+    S = graphs.num_states-1
     data = torch.zeros(B, N, S, dtype=torch.float32).contiguous()
-    data_lengths = torch.tensor([N]*B, dtype=torch.int32)
+    print(data.shape)
+    #lengths = list(reversed(range(N-B+1, N+1)))
+    lengths = [N for i in range(B)]
+    print(lengths)
+    data_lengths = torch.tensor(lengths, dtype=torch.int32)
 
     for device in ['cpu', 'cuda:0']:
 
@@ -110,7 +121,7 @@ def main(N, S, B):
             batch_sizes,
             data_lengths,
             graphs.num_states,
-            1e-5
+            1e-3
         )
         t2 = time.time()
         dev = 'gpu' if device == 'cuda:0' else 'cpu'
@@ -118,11 +129,13 @@ def main(N, S, B):
 
 
 if __name__ == '__main__':
-    Bs = range(10, 11)
-    Ss = range(300, 1501, 300)
-    Ns = range(500, 10001, 500)
-    for B in Bs:
-        for S in Ss:
-            for N in Ns:
-                if N < S: continue
-                main(N, S, B)
+    #Bs = range(10, 11)
+    #Ss = range(300, 1501, 300)
+    #Ns = range(500, 10001, 500)
+    #for B in Bs:
+    #    for S in Ss:
+    #        for N in Ns:
+    #            if N < S: continue
+    #            main(N, S, B)
+
+    main(590, 100, 128)
