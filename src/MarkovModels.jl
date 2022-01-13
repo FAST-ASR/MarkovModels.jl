@@ -8,53 +8,64 @@ using LinearAlgebra
 using SparseArrays
 
 #======================================================================
-Redefinition of some linear operations to work on GPU.
+Semiring algebras.
 ======================================================================#
 
-include("linalg.jl")
-include("culinalg.jl")
+include("semirings/Semirings.jl")
 
-#======================================================================
-Semifield algebras.
-======================================================================#
+using .Semirings
 
-include("semifields.jl")
+export Semiring
+export Semifield
 
+export ProbabilitySemifield
 export LogSemifield
-export TropicalSemifield
+export TropicalSemiring
 
 #======================================================================
 API to build and manipulate FSM.
 ======================================================================#
 
-include("fsm.jl")
+include("fsms/FSMs.jl")
 
-export FSM
-export addstate!
-export determinize
-export link!
-export minimize
-export renormalize!
-export setinit!
-export setfinal!
+using .FSMs
+
+export AbstractFSM
 export states
-export remove_eps
-export fsmtype
+export arcs
 
-include("cfsm.jl")
+export AbstractMutableFSM
+export addstate!
+export addarc!
 
-export CompiledFSM
-export compile
+export State
+export isinit
+export isfinal
+
+export Arc
+
+export VectorFSM
+export HierarchicalFSM
+export MatrixFSM
+export UnionMatrixFSM
+
 export gpu
-export fsmtype
+export determinize
+export minimize
+export remove_label
+export renormalize
+export transpose
 
 #======================================================================
 Inference algorithms.
 ======================================================================#
 
-include("algorithms.jl")
+include("inference/Inference.jl")
 
-export stateposteriors
+using .Inference
+
+export pdfposteriors
+export maxstateposteriors
 export bestpath
 
 #======================================================================

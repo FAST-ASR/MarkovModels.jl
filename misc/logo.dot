@@ -1,0 +1,16 @@
+digraph D {
+    bgcolor="transparent"
+
+    A [shape=circle style=filled fillcolor="#389826" label=""]
+    B [shape=circle style=filled fillcolor="#CB3C33" label=""]
+    C [shape=circle style=filled fillcolor="#9558B2" label=""]
+
+    A -> A
+    A -> B
+    B -> B
+    B -> C
+    C -> C
+    C -> A
+
+    {rank = same; B; C;}
+}

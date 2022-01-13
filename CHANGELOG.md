@@ -1,11 +1,39 @@
 # Releases
 
+## 0.8.0
+* Added the `remove_label` function which replace the old `remove_eps`.
+* Memory optimization of the forward-backward: the backward operates
+  in-place avoiding to use an extra 3D tensor.
+* This version is the one that was use for the 1st submission
+  of the ICASSP 2022 conference.
+
+## 0.7.0
+* `pdfposteriors` supports for batch of sequence with varying lengths.
+* refactorized the code in 3 sub-modules: `Semirings`, `FSMs` and `Inference`.
+* the FSM API has several FSM implementation (`VectorFSM`,
+  `HierarchicalFSM` and `MatrixFSM`)
+* the FSM operations can be used are agnostic to the FSM-implementation
+* added tests for the FSM API
+* FSM states don't carry the pdf-id anymore and there is no notion
+  of "epsilon-state"
+
+## 0.6.1
+* fixed typo `arc!` instead of `addarc!`
+
+## 0.6.0
+* added `maxstateposteriors` and `bestpath` algorithms
+* can make union of compiled FSMs on GPU.
+
 ## 0.5.0
 
-* fixed duplicate initial state when determinizing
-* CompiledFSM structure stores the state -> pdf mapping to deal with
+* added batch computation of the forward-backward algorithm
+* added `remove_eps` function to remove emitting states
+* CompiledFSM structure stores the state -> pdf mapping (and pdf ->
+  state mapping) as two sparse matrices to deal with
   the case when the state id is different from the pdf index
 * added `union` function to group several fsms together
+* fixed determinize never end for FSM with cycles (issue #16)
+* fixed duplicate initial state when determinizing
 
 ## 0.4.0
 
