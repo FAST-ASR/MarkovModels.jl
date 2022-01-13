@@ -20,7 +20,7 @@ struct CompiledFSM{T<:Semifield}
     pdfmap::AbstractVector{PdfIndex}
 end
 
-cfsmtype(::CompiledFSM{T}) where T<:Semifield = T
+fsmtype(::CompiledFSM{T}) where T<:Semifield = T
 
 """
     compile(fsm; allocator = spzeros)
