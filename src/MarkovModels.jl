@@ -57,4 +57,11 @@ include("algorithms.jl")
 export stateposteriors
 export bestpath
 
+#======================================================================
+FSM IO
+======================================================================#
+
+include("io.jl")
+export read, write
+
 end
