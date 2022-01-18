@@ -24,8 +24,8 @@ function draw_fst(filename; isyms="", osyms="")
 end
 
 
-function read_wfst(wfstfile; isyms="", osyms="")
-	fst = read(fstprint(tidigit_hclg; isyms=isyms, osyms=osyms), String);
+function read_wfst(SF::Type{<:Semifield}, wfstfile; isyms="", osyms="")
+	fst = read(fstprint(wfstfile; isyms=isyms, osyms=osyms), String);
 	fst_finals = Dict()
 	fst_arcs = Dict()
 
@@ -53,8 +53,8 @@ function read_wfst(wfstfile; isyms="", osyms="")
 end
 
 
-function load_from_wfst!(fsm::AbstractFSM{Tv}, wfstfile::String; symbol_table::String = "") where Tv
-	fst_arcs, fst_finals = read_wfst(wfstfile, osyms=symbol_table)
+function load_from_wfst!(fsm::AbstractFSM{SF}, wfstfile::String; symbol_table::String = "") where SF<:Semifield
+	fst_arcs, fst_finals = read_wfst(SF, wfstfile, osyms=symbol_table)
 	fst2fsm = Dict()
 
 	s = addstate!(fsm, nothing, initweight = one(SF))
@@ -87,10 +87,10 @@ Load Kaldi recognition network from `wfst_file`.
 
 `symbol_table` (e.g. path/to/graph/words.txt) is output symbol mapping table.
 """
-function load_from_kaldi(wfst_file, kaldi_model; symbol_table::String = "")
+function load_from_kaldi(wfst_file::String, kaldi_model::String; symbol_table::String = "")
     SF = LogSemifield{Float64}
     fsm = VectorFSM{SF}()
-    MarkovModels.load_from_wfst!(fsm, wfst_file, symbol_table)
+    MarkovModels.load_from_wfst!(fsm, wfst_file, symbol_table=symbol_table)
 
     trans_mdl = open("/mnt/matylda3/ikocour/tools/kaldi/egs/tidigits/s5/exp/mono0a/final.mdl") do fd
         Kaldi.is_binary(fd)
@@ -123,6 +123,6 @@ function load_from_kaldi(wfst_file, kaldi_model; symbol_table::String = "")
 
     fsm_no_eps = MarkovModels.remove_label(fsm, nothing)
 	keyfn(label) = split(label, ":") |> first |> x -> parse(Int, x)
-	return MatrixFSM(fsm, tid2pdf, keyfn)
+	return MatrixFSM(fsm_no_eps, tid2pdf, keyfn)
 end
 
