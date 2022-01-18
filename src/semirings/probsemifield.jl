@@ -29,3 +29,4 @@ Base.isless(x::ProbabilitySemifield, y::ProbabilitySemifield) =
     isless(x.val, y.val)
 Base.typemin(x::Type{ProbabilitySemifield{T}}) where T = zero(T)
 Base.typemax(x::Type{ProbabilitySemifield{T}}) where T = one(T)
+Base.conj(x::Type{ProbabilitySemifield{T}}) where T = x
