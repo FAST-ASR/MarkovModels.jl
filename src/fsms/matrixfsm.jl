@@ -4,9 +4,10 @@
     struct MatrixFSM{T<:Semiring}
         π        # vector of initial probabilities
         T        # matrix of transition probabilities
-        Tᵀ       # transpose of `A`
+        Tᵀ       # transpose of `T`
         C        # matrix mapping state -> pdfindex
         Cᵀ       # tranpose of `C`
+        labels   # labels
     end
 
 FSM where the arcs are stored as a sparse matrix. This type of FSM
