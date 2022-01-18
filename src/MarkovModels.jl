@@ -72,7 +72,10 @@ export bestpath
 FSM IO
 ======================================================================#
 
-include("io.jl")
+include("io/io.jl")
 export read, write
+
+include("io/openfst.jl")
+export load_from_kaldi, load_from_wfst!
 
 end
