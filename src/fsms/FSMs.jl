@@ -5,6 +5,7 @@ module FSMs
 export AbstractFSM
 export states
 export arcs
+export semiring
 
 export AbstractMutableFSM
 export addstate!

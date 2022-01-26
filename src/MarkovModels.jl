@@ -33,6 +33,7 @@ using .FSMs
 export AbstractFSM
 export states
 export arcs
+export semiring
 
 export AbstractMutableFSM
 export addstate!
@@ -72,9 +73,8 @@ export bestpath
 FSM IO
 ======================================================================#
 
-using Kaldi
-
 include("io/openfst.jl")
+using Kaldi
 export load_from_kaldi, load_from_wfst!
 
 end

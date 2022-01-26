@@ -26,4 +26,4 @@ Base.typemin(x::Type{TropicalSemiring{T}}) where T =
     TropicalSemiring{T}(typemin(T))
 Base.typemax(x::Type{TropicalSemiring{T}}) where T =
     TropicalSemiring{T}(typemax(T))
-Base.conj(x::Type{TropicalSemiring{T}}) where T = TropicalSemiring{T}(conj(x.val))
+Base.conj(x::TropicalSemiring{T}) where T = TropicalSemiring{T}(conj(x.val))
