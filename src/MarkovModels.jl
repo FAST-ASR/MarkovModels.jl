@@ -69,12 +69,4 @@ export pdfposteriors
 export maxstateposteriors
 export bestpath
 
-#======================================================================
-FSM IO
-======================================================================#
-
-include("io/openfst.jl")
-using Kaldi
-export load_from_kaldi, load_from_wfst!
-
 end

@@ -7,7 +7,7 @@
         Tᵀ       # transpose of `T`
         C        # matrix mapping state -> pdfindex
         Cᵀ       # tranpose of `C`
-        labels   # labels
+        labels   # vector of labels (label can be `String`, `Tuple`, etc.)
     end
 
 FSM where the arcs are stored as a sparse matrix. This type of FSM
