@@ -15,39 +15,33 @@ from pychain.graph import ChainGraph, ChainGraphBatch
 from pychain.loss import ChainLoss
 import pychain_C
 
+pychain_C.set_verbose_level(0)
 torch.set_num_threads(1)
 
-def make_hmm(S, B, log_domain=True):
+def make_hmm(fstfile, B, log_domain=True):
     #state = 0
     #with open('hmm.txt', 'w') as f:
     #    for s in range(1, S):
     #        print(f'{s} {s} {s} {s} {-math.log(1/2)}', file=f)
     #        print(f'{s} {s+1} {s} {s+1} {-math.log(1/2)}', file=f)
     #    print(f'{S} {S} {S} {S} 0', file=f)
-    #    print(f'{S}', file=f)
-
-    #subprocess.run(['fstcompile', 'hmm.txt', 'hmm.fst'])
+    #    print(f'{S}', file=f) #subprocess.run(['fstcompile', 'hmm.txt', 'hmm.fst'])
 
     #fst = simplefst.StdVectorFst.read('hmm.fst')
     #graph = ChainGraph(fst, log_domain=log_domain)
 
-    #fst = simplefst.StdVectorFst.read('examples/num_fsm_wsj.fst')
-    fst = simplefst.StdVectorFst.read('examples/den_fsm_wsj.fst')
+    fst = simplefst.StdVectorFst.read(fstfile)
     graph = ChainGraph(fst, log_domain=log_domain)
+    return ChainGraphBatch(graph, batch_size=B)
 
-    return ChainGraphBatch(graph, batch_size = B)
-
-def main(N, S, B):
+def main(fstfile, N, B):
     lang = 'python'
-    precision = 'single'
+    precision = 'single' # we always use float32 in the following
 
-    graphs = make_hmm(S, B)
+    graphs = make_hmm(fstfile, B)
     S = graphs.num_states-1
-    data = torch.zeros(B, N, S, dtype=torch.float32).contiguous()
-    print(data.shape)
-    #lengths = list(reversed(range(N-B+1, N+1)))
+    data = -torch.ones(B, N, 84, dtype=torch.float32).contiguous()
     lengths = [N for i in range(B)]
-    print(lengths)
     data_lengths = torch.tensor(lengths, dtype=torch.int32)
 
     for device in ['cpu', 'cuda:0']:
@@ -57,7 +51,7 @@ def main(N, S, B):
         )
         batch_sizes = packed_data.batch_sizes
 
-        graphs = make_hmm(S, B)
+        graphs = make_hmm(fstfile, B)
         forward_transitions = graphs.forward_transitions.to(device)
         forward_transition_indices = graphs.forward_transition_indices.to(device)
         forward_transition_probs = graphs.forward_transition_probs.to(device)
@@ -68,7 +62,7 @@ def main(N, S, B):
         final_probs = graphs.final_probs.to(device)
         start_state = graphs.start_state.to(device)
         data = data.to(device)
-        data_lengths = data_lengths.to(device)
+    e   data_lengths = data_lengths.to(device)
 
         t1 = time.time()
         objf, log_probs_grad, ok = pychain_C.forward_backward_log_domain(
@@ -88,10 +82,10 @@ def main(N, S, B):
         )
         t2 = time.time()
         dev = 'gpu' if device == 'cuda:0' else 'cpu'
-        print(f'{lang}\t{precision}\t{B}\t{S}\t{N}\tpychain_log\tdense\t{dev}\t{t2 - t1}')
+        print(f'{lang}\t{precision}\t{B}\t{S}\t{N}\tpychain_log\t{dev}\t{t2 - t1}')
 
         data.exp_()
-        graphs = make_hmm(S, B, log_domain=False)
+        graphs = make_hmm(fstfile, B, log_domain=False)
         forward_transitions = graphs.forward_transitions.to(device)
         forward_transition_indices = graphs.forward_transition_indices.to(device)
         forward_transition_probs = graphs.forward_transition_probs.to(device)
@@ -125,17 +119,12 @@ def main(N, S, B):
         )
         t2 = time.time()
         dev = 'gpu' if device == 'cuda:0' else 'cpu'
-        print(f'{lang}\t{precision}\t{B}\t{S}\t{N}\tpychain_leaky\tdense\t{dev}\t{t2 - t1}')
+        print(f'{lang}\t{precision}\t{B}\t{S}\t{N}\tpychain_leaky\t{dev}\t{t2 - t1}')
 
 
 if __name__ == '__main__':
-    #Bs = range(10, 11)
-    #Ss = range(300, 1501, 300)
-    #Ns = range(500, 10001, 500)
-    #for B in Bs:
-    #    for S in Ss:
-    #        for N in Ns:
-    #            if N < S: continue
-    #            main(N, S, B)
-
-    main(590, 100, 128)
+    main(
+            'den_fsm_wsj.fst',
+            128,
+            700,
+    )

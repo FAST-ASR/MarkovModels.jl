@@ -55,7 +55,7 @@ def main(args):
     lang = 'python'
     precision = 'double' if T == torch.float64 else 'single'
 
-    lhs = torch.zeros(N, S, dtype=T)
+    lhs = torch.zeros(N, , dtype=T)
     A, init, final = make_hmm(T, S)
 
     t1 = time.time()
@@ -73,8 +73,6 @@ def main(args):
     forward_backward(A, init, final, lhs)
     t2 = time.time()
     print(f'{lang}\t{precision}\t{S}\t{N}\tstandard\tdense\tgpu\t{t2 - t1}')
-
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

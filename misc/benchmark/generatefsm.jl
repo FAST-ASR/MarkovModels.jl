@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.16.1
+# v0.17.2
 
 using Markdown
 using InteractiveUtils
@@ -10,12 +10,17 @@ begin
 	using HDF5
 	using JLD2
 	using SparseArrays
-	using PlutoUI
+	#using PlutoUI
 end
 
 # ╔═╡ d130ae9e-f21b-436e-81d5-19913c29b896
-den_fsm = jldopen("/people/ondel/Repositories/SpeechLab/recipes/lfmmi/graphs//wsj/train_alignments_fsms.jld2", "r") do f
-	 f["48ic030f"]
+#den_fsm = jldopen("/people/ondel/Repositories/SpeechLab/recipes/lfmmi/graphs//wsj/denominator_fsm.jld2", "r") do f
+#	 f["fsm"]
+#end;
+
+# ╔═╡ 61cdef43-454a-4b8e-82f1-97773dc32ff8
+den_fsm = jldopen("denominator_fsm.jld2", "r") do f
+	 f["fsm"]
 end;
 
 # ╔═╡ 74ab1c58-1b5b-48e8-a3bc-23db2585a195
@@ -34,19 +39,25 @@ den_fsm.T[1,1]
 @__DIR__
 
 # ╔═╡ 42b894cc-7e28-48b6-8304-13f4b8b166e7
-open("num_fsm_wsj.txt", "w") do f
+open("den_fsm_wsj.txt", "w") do f
 	for (i, v) in zip(findnz(den_fsm.π[1:end-1])...)
-		println(f, "0 $i $i $i $(-v.val)")
+        pdfid = den_fsm.C[i,:].nzind[1]
+		println(f, "0 $i $pdfid $pdfid $(-v.val)")
 	end
 
 	for (i, j, v) in zip(findnz(den_fsm.T[1:end-1,1:end-1])...)
-		println(f, "$i $j $i $j $(-v.val)")
+        pdfid = den_fsm.C[j,:].nzind[1]
+		println(f, "$i $j $pdfid $pdfid $(-v.val)")
 	end
 
 	for (i, v) in zip(findnz(ω)...)
+        pdfid = den_fsm.C[i,:].nzind[1]
 		println(f, "$i $(-v.val)")
 	end
 end
+
+# ╔═╡ 38035efb-9833-43f2-9b23-433cde1e421a
+den_fsm.C
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -271,7 +282,7 @@ uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 
 [[LinearAlgebra]]
-deps = ["Libdl"]
+deps = ["Libdl", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 
 [[LogExpFunctions]]
@@ -317,6 +328,10 @@ uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
 
 [[NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
+
+[[OpenBLAS_jll]]
+deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
+uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
 
 [[OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -370,7 +385,7 @@ deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
 [[Random]]
-deps = ["Serialization"]
+deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 
 [[Random123]]
@@ -464,6 +479,10 @@ git-tree-sha1 = "cc4bf3fdde8b7e3e9fa0351bdeedba1cf3b7f6e6"
 uuid = "3161d3a3-bdf6-5164-811a-617609db77b4"
 version = "1.5.0+0"
 
+[[libblastrampoline_jll]]
+deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
+uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+
 [[nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
@@ -476,11 +495,13 @@ uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
 # ╔═╡ Cell order:
 # ╠═912254bc-2532-11ec-3a0e-bb48e4656479
 # ╠═d130ae9e-f21b-436e-81d5-19913c29b896
+# ╠═61cdef43-454a-4b8e-82f1-97773dc32ff8
 # ╠═74ab1c58-1b5b-48e8-a3bc-23db2585a195
 # ╠═74934d7e-b3b2-44c0-a59f-0c8d22ee2c7a
 # ╠═510098ba-5632-4b16-84a6-ac805ff2354a
 # ╠═cea70023-79c2-4139-bc59-d6cf59c5ddf0
 # ╠═455b3530-3f02-40df-b890-bc7aabb056e1
 # ╠═42b894cc-7e28-48b6-8304-13f4b8b166e7
+# ╠═38035efb-9833-43f2-9b23-433cde1e421a
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

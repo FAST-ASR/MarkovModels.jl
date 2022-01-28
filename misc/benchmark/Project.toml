@@ -1,0 +1,4 @@
+[deps]
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+MarkovModels = "c2ae6250-d0a1-11ea-0991-234599ce5244"
