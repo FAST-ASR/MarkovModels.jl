@@ -62,7 +62,7 @@ def main(fstfile, N, B):
         final_probs = graphs.final_probs.to(device)
         start_state = graphs.start_state.to(device)
         data = data.to(device)
-    e   data_lengths = data_lengths.to(device)
+        data_lengths = data_lengths.to(device)
 
         t1 = time.time()
         objf, log_probs_grad, ok = pychain_C.forward_backward_log_domain(
