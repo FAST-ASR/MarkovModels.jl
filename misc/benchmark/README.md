@@ -2,7 +2,8 @@ Benchmark between the implementation of the forward-backward algorithm provided 
 and the C++/CUDA implementation provided in the [pychain](https://github.com/YiwenShaoStephen/pychain)
 python module (`pychain_log, pychain_leaky`). The forward-backward algorithm is calculated with a 3-gram
 phonotactic language model (without any smoothing techniques) evaluated on the transcription of the 
-Wall Street Journal corpus. The graph has ~3k states and ~50k arcs. 
+Wall Street Journal corpus. The graph has ~3k states and ~50k arcs. The following results were 
+obtained with an ntel(R) Xeon(R) CPU E5-2630 v2 @ 2.60GHz CPU and a NVIDIA GeForce GTX 1080 GPU.
 
 ```
 lang    precision   seq. length   num. states   batch size  implementation  device  time (s)
