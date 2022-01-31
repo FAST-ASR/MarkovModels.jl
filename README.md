@@ -7,6 +7,8 @@ GPU.*
 |:------------------:|
 |[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://lucasondel.github.io/MarkovModels.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://lucasondel.github.io/MarkovModels.jl/dev)|
 
+Here is a small benchmark to see how our implementation performs: [https://github.com/lucasondel/MarkovModels.jl/tree/master/misc/benchmark#readme]()
+
 ## Installation
 
 The package can be installed with the Julia package manager.
@@ -22,7 +24,7 @@ to get started.
 
 ## Reference 
 
-The formal description of the implementation can be found [here](https://hal.archives-ouvertes.fr/hal-03434552/document).  If you use this work, we kindly ask you to cite us: 
+The formal description of the implementation can be found [here](https://hal.archives-ouvertes.fr/hal-03434552/document).  If you use this work, we kindly ask you to cite our work: 
 ```
 @unpublished{ondel:hal-03434552,
   TITLE = {{GPU-Accelerated Forward-Backward Algorithm with Application to Lattic-Free MMI}},
@@ -41,7 +43,4 @@ The formal description of the implementation can be found [here](https://hal.arc
 ## Authors
 
 * [Lucas Ondel](https://lucasondel.github.io/)   
-      Brno University of Technology, 2020   
-      Laboratoire Interdisciplinaire des Sciences du Numérique, CNRS, 2021
 * Martin Kocour    
-      Brno University of Technology, 2020
