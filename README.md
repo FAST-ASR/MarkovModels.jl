@@ -7,7 +7,7 @@ GPU.*
 |:------------------:|
 |[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://lucasondel.github.io/MarkovModels.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://lucasondel.github.io/MarkovModels.jl/dev)|
 
-Here is a small benchmark to see how our implementation performs: [https://github.com/lucasondel/MarkovModels.jl/tree/master/misc/benchmark#readme]()
+Here is a small [benchmark](https://github.com/lucasondel/MarkovModels.jl/tree/master/misc/benchmark) to see how our implementation performs.
 
 ## Installation
 
