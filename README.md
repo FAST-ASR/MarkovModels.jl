@@ -24,7 +24,7 @@ to get started.
 
 ## Reference 
 
-The formal description of the implementation can be found [here](https://hal.archives-ouvertes.fr/hal-03434552/document).  If you use this work, we kindly ask you to cite our work: 
+The formal description of the implementation can be found [here](https://hal.archives-ouvertes.fr/hal-03434552/document).  If you use this package, we kindly ask you to cite our work: 
 ```
 @unpublished{ondel:hal-03434552,
   TITLE = {{GPU-Accelerated Forward-Backward Algorithm with Application to Lattic-Free MMI}},
