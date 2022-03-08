@@ -22,7 +22,7 @@ function elmul!(out, x::AbstractSparseArray{T1}, y::AbstractArray{T2}) where {T1
 end
 elmul!(out, x::AbstractSparseMatrix{T1}, y::AbstractArray{T2}) where {T1,T2} = _elmul_sm_dm!(out, x, y)
 elmul!(out, x::AbstractSparseMatrix{T1}, y::AbstractSparseMatrix{T2}) where {T1,T2} = _elmul_sm_dm!(out, x, y)
-elmul!(out, x::AbstractArray{T1}, y::AbstractSparseMatrix{T2}) where {T1,T2} = elmul_sm_dm!(out, y, x)
+elmul!(out, x::AbstractArray{T1}, y::AbstractSparseMatrix{T2}) where {T1,T2} = _elmul_sm_dm!(out, y, x)
 
 function _elmul_sm_dm!(out, X::AbstractSparseMatrix{T1}, y::AbstractArray{T2}) where {T1,T2}
     T = promote_type(T1, T2)
