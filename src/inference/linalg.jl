@@ -27,9 +27,11 @@ elmul!(out, x::AbstractArray{T1}, y::AbstractSparseMatrix{T2}) where {T1,T2} = _
 function _elmul_sm_dm!(out, X::AbstractSparseMatrix{T1}, y::AbstractArray{T2}) where {T1,T2}
     T = promote_type(T1, T2)
     fill!(out, zero(T))
-	if sparsity_level(X) > 0.1
+
+    if sparsity_level(X) > 0.1
         return broadcast!(*, out, X, y)
     end
+
     m, n = size(X)
     length(y) in [m, n, m*n] || throw(DimensionMismatch("arrays could not be broadcast to a common size; got a matrix ($m, $n) and $(length(y))"))
     rows = rowvals(X)
