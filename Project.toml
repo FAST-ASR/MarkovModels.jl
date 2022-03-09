@@ -1,6 +1,6 @@
 name = "MarkovModels"
 uuid = "c2ae6250-d0a1-11ea-0991-234599ce5244"
-authors = ["Lucas Ondel <lucas.ondel@gmail.com>"]
+authors = ["Lucas Ondel <lucas.ondel@gmail.com>", "Martin Kocour <ikocour@fit.vutbr.cz>"]
 version = "0.8.0"
 
 [deps]

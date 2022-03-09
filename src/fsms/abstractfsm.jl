@@ -33,6 +33,12 @@ Return the number of states in the FSM.
 """
 Base.length(fsm::AbstractFSM) = length(states(fsm))
 
+"""
+    semiring(fsm)
+
+Return the type of used semiring in the FSM.
+"""
+semiring(fsm::AbstractFSM{Sr}) where Sr <: Semiring = Sr
 #======================================================================
 Interface of a mutable FSM.
 ======================================================================#

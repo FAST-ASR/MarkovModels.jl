@@ -17,3 +17,6 @@ end
     include("test_algorithms.jl")
 end
 
+@testset verbose = true "Linear Algebra" begin
+    include("test_linalg.jl")
+end
