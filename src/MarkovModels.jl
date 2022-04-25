@@ -2,15 +2,21 @@
 
 module MarkovModels
 
-using CUDA
-using CUDA.CUSPARSE
 using LinearAlgebra
 using SparseArrays
+using BlockDiagonals
 using Semirings
 
 export FSM
+export Label
 
 include("fsm.jl")
+
+export compose
+export concat
+export renorm
+
+include("fsmops.jl")
 
 ##======================================================================
 #API to build and manipulate FSM.
