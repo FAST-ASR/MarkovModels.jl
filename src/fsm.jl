@@ -1,5 +1,13 @@
 # SPDX-License-Identifier: MIT
 
+"""
+    Label(x)
+
+Create a FSM label. A label is an element the Union-Concatenation
+Semiring, i.e. it is a set of sequences.
+"""
+Label(x) = UnionConcatSemiring(Set([SymbolSequence([x])]))
+
 struct FSM{K<:Semiring}
     α::AbstractVector{K}
     T::AbstractMatrix{K}
@@ -7,26 +15,26 @@ struct FSM{K<:Semiring}
     λ::AbstractVector{UnionConcatSemiring}
 end
 
+function FSM(nstates, initws, arcs, finalws, λ)
+    α = sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates)
+    T = sparse(map(x -> x[1][1], arcs), map(x -> x[1][2], arcs),
+               map(x -> x[2], arcs), nstates, nstates)
+    ω = sparsevec(map(x -> x[1], finalws), map(x -> x[2], finalws), nstates)
+    FSM(α, T, ω, λ)
+end
+
+nstates(m::FSM) = length(m.α)
+arcs(T::AbstractSparseArray) = zip(findnz(T)...)
+
 #======================================================================
 SVG display of FSM
 ======================================================================#
 
-function arcs(T::AbstractArray)
-    retval = []
-    for i in 1:size(T, 1)
-        for j in 1:size(T, 2)
-            if ! iszero(T[i, j])
-                push!(retval, (i, j, T[i,j]))
-            end
-        end
-    end
-    retval
-end
+
 
 function showlabel(label)
     retval  = ""
     for (i, seq) in enumerate(sort(collect(label.val)))
-        if i > 1 retval *= ":" end
         retval *= join(seq)
     end
     retval
@@ -52,7 +60,7 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM{T}) where T
             penwidth = "2"
         else
             penwidth = "1"
-        end
+       end
 
         if ! iszero(fsm.ω[i])
             weight = round(convert(Float64, fsm.ω[i].val), digits = 3)

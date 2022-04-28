@@ -9,39 +9,32 @@ begin
 	using Pkg
 	Pkg.activate("../")
 
+	using LinearAlgebra
+	using Semirings
 	using Revise
 	using MarkovModels
-	using Semirings
 	using SparseArrays
 end
-
-# ╔═╡ 341f660d-d1be-4fa7-9d11-763da2181941
-Label(x) = UnionConcatSemiring(Set([SymbolSequence([x])]))
 
 # ╔═╡ 238148e8-dfd8-454f-abb7-9571d09958a6
 K = ProbSemiring{Float32}
 
 # ╔═╡ eb27ffd7-2496-4edb-a2b0-e5828278410c
-fsm1 = FSM{K}(
-	[1, 0],
-	[0.5 0.5;
-	  0.0 0.5],
-	[0, 0.5],
+fsm1 = FSM(
+	2,
+	[1 => one(K)],
+	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)],
+	[2 => one(K)],
 	[Label(:1), Label(:2)]
 ) |> renorm
 
 # ╔═╡ 140ef71a-d95e-4d2b-ad50-7a42c3125d7f
 fsm2 = FSM{K}(
-	[1, 0, 0],
-	[0.5 0.5 0.0;
-	  0.0 0.5 0.5;
-	  0.0 0.0 0.5;],
-	[0, 0, 0.5],
+	sparsevec([1], [1], 3),
+	sparse([1, 1, 2, 2, 3], [1, 2, 2, 3, 3], ones(K, 5), 3, 3),
+	sparsevec([3], [one(K)], 3),
 	[Label(:1), Label(:2), Label(:3)]
-)
-
-# ╔═╡ 521d5474-ae67-48ef-8dab-73334fbe5b6a
-renorm(fsm2)
+) |> renorm
 
 # ╔═╡ 56faf31f-32a3-4ef2-a094-06f5a2987ab6
 union(fsm1, fsm2)
@@ -49,23 +42,147 @@ union(fsm1, fsm2)
 # ╔═╡ 813026d5-6171-4749-b6e2-b38e67a78e9f
 concat(fsm1, fsm2)
 
+# ╔═╡ 7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
+fsm1.α .* fsm1.ω'
+
 # ╔═╡ 9e09acd6-780c-44f2-866a-070b10a46c7b
-fsm = FSM{K}(
-	[2, 1],
-	[0 1;
-	 1 0],
-	[1, 0],
+fsm = FSM(
+	2,
+	[1 => one(K) + one(K), 2 => one(K)],
+	[(1, 2) => one(K), (2, 1) => one(K)],
+	[1 => one(K)],
 	[Label(:a), Label(:b)]
 ) |> renorm
 
 # ╔═╡ c29c020d-829d-4f5f-804b-f0d6591329fc
 fsm ∘ [fsm1 |> renorm, fsm2 |> renorm]
 
+# ╔═╡ ffd02c67-d336-47ac-a396-f77d0179c508
+fsm.α .* [fsm1.α, fsm2.α]
+
+# ╔═╡ 31319623-6804-405d-ba65-b909d74092f2
+vcat((ones(2) for i in 1:4)...)
+
+# ╔═╡ 784849b6-256a-430f-8815-09a67414c363
+zero(fsm.α)
+
+# ╔═╡ b74cfd41-7bf4-4a51-a9f7-6142aa220f6d
+md"""
+## Determinization
+"""
+
 # ╔═╡ 4c7d472e-c69b-4757-9e6c-5444e6ca5751
-[fsm1.T zero(fsm2.T); zero(fsm1.T) fsm2.T]
+fsma = FSM{K}(
+	sparsevec([1], [1], 4),
+	sparse([1, 1, 2, 3], [2, 3, 4, 4], ones(K, 4), 4, 4),
+	sparsevec([4], [one(K)], 4),
+	[Label(:a), Label(:b), Label(:b), Label(:c)]
+) |> renorm
+
+# ╔═╡ c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
+fsmb = FSM{K}(
+	sparsevec([1], [1], 4),
+	sparse([1, 1, 2, 3], [2, 3, 4, 4], ones(K, 4), 4, 4),
+	sparsevec([4], [one(K)], 4),
+	[Label(:a), Label(:b), Label(:d), Label(:c)]
+) |> renorm
+
+# ╔═╡ a175fc9e-5330-4e54-854c-7b14d125ec71
+fsmc = FSM{K}(
+	sparsevec([1], [1], 3),
+	sparse([ 1, 2],[2, 3], ones(K, 2), 3, 3),
+	sparsevec([3], [one(K)], 3),
+	[Label(:b), Label(:d), Label(:c)]
+) |> renorm
+
+# ╔═╡ 49e645e1-a8a1-48ba-b032-770d5dcf78ba
+fsmabc = fsma ∪ fsmb ∪ fsmc
+
+# ╔═╡ ccdba532-60ac-4a85-97b9-7f3dcfc705fa
+fsmabc.T' * fsmabc.α 
+
+# ╔═╡ 28953bca-4a19-477d-ba2f-23a45b4b9cf8
+al, Tl, Ml = determinize(fsmabc)
+
+# ╔═╡ 25b2bc7f-1345-4138-8657-512d776043dd
+Tl[:, 2]
+
+# ╔═╡ 23952906-e471-4de6-8b29-9cca2e36e506
+B = Tl * Ml
+
+# ╔═╡ f31d9b28-9f7b-4e8d-9de8-fb962bd96837
+i = Ml' * al
+
+# ╔═╡ a6dc9320-7c80-49b7-ac65-4bc5f9fdf67f
+tuple(sort(collect(i[1].val))...)
+
+# ╔═╡ f8c85a25-1f7a-43be-ade1-6a291479b3b8
+B[1, :] + B[5, :]
+
+# ╔═╡ 4a16a8ab-83d1-4f62-98d9-c0c617fabd91
+fsmabc.λ[1]
+
+# ╔═╡ 8d0ce19d-c4bc-4b3a-8ba5-b0a11420e329
+sum(fsmabc.λ).val
+
+# ╔═╡ 7ceba44f-27d4-43e0-9b52-b4d68ddfcdda
+z = [Label(i) for i in 1:length(fsmab.α)]
+
+# ╔═╡ 61cc7a22-a893-4a5e-a875-16ab43686023
+ML = MarkovModels.tobinary(UnionConcatSemiring, fsmab.T)
+
+# ╔═╡ be3eb371-7a04-4326-948f-1ffacb005f14
+αL = MarkovModels.tobinary(UnionConcatSemiring, fsmab.α)
+
+# ╔═╡ ec291d41-8382-4154-9df8-a1a991603446
+l = αL .* z
+
+# ╔═╡ cdec2e91-8eb4-4fa1-a237-23b1f91574b9
+begin
+	I, J, V = [], [], UnionConcatSemiring[]
+	Q = length(fsmab.α)
+	for i in 1:Q, j in i:Q
+		if fsmab.λ[i] == fsmab.λ[j] 
+			push!(I, i)
+			push!(J, j)
+			push!(V, one(UnionConcatSemiring))
+		end
+	end
+	M = sparse(I, J, V, Q, Q)
+end
+
+# ╔═╡ 3f4d487a-02bd-4bda-a5f8-3e90be439481
+M' * l
+
+# ╔═╡ c749092f-d7b1-45b4-b77a-f6792d27a2a6
+one(K) * false
 
 # ╔═╡ c2c25125-cc7f-423d-9ce1-b48e06b477ae
+Tₗ = (MarkovModels.tobinary(UnionConcatSemiring, fsm1.T) * diagm(fsm1.λ))
 
+# ╔═╡ 9cf291cb-8e2e-404c-9a93-c3cbd5a8f8b8
+αₗ = MarkovModels.tobinary(UnionConcatSemiring, fsm1.α)
+
+# ╔═╡ 16f1e618-a09f-4dfe-a043-fbd53394094c
+v = αₗ .* fsm1.λ
+
+# ╔═╡ 05b82f72-7782-4e04-9574-04aeb142e4c3
+dot(fsm1.α, fsm1.ω)
+
+# ╔═╡ c70e0b16-9a2c-4c43-a79f-02322323b261
+totalsum(fsm1, 10)
+
+# ╔═╡ 674c7ba1-19f9-448f-aafb-ab3674f23fca
+totallabelsum(fsm1, 2)
+
+# ╔═╡ d67ce556-0f5d-414e-b6f9-251282ef71ff
+v' * Tₗ
+
+# ╔═╡ d9cda305-1571-4f66-9875-98443b318c1a
+Tₗ[3] * v[1]
+
+# ╔═╡ 522bc9aa-4ce9-4f9f-a516-d843a1e0609e
+v[1] * Tₗ[3]
 
 # ╔═╡ 27f2175f-985f-419d-819f-58e101554d2d
 g[:, 1] .+  sparsevec(t) 
@@ -116,12 +233,6 @@ y = sparse(1:3, ones(3), 2*ones(3))
 # ╔═╡ b04a2028-9233-4016-b834-3895df3b7a9e
 blockdiag(y, y, y)
 
-# ╔═╡ 88a72285-8521-4e5b-9b5c-f76b6ccd207f
-v = vcat(fsm.α, zero(K))
-
-# ╔═╡ b0fff691-e5dc-4947-8571-de66e791026f
-D' * (D' * (D' * (D' * (D' * (D' * (D' * v))))))
-
 # ╔═╡ 657e4548-c776-4f23-a1b6-128d898fc155
 prod(fsm.λ) .+ fsm.λ
 
@@ -148,17 +259,47 @@ join([1, 2, 3])
 
 # ╔═╡ Cell order:
 # ╠═6e84e042-b5a5-11ec-3bda-e7f5e804b97e
-# ╠═341f660d-d1be-4fa7-9d11-763da2181941
 # ╠═238148e8-dfd8-454f-abb7-9571d09958a6
 # ╠═eb27ffd7-2496-4edb-a2b0-e5828278410c
 # ╠═140ef71a-d95e-4d2b-ad50-7a42c3125d7f
-# ╠═521d5474-ae67-48ef-8dab-73334fbe5b6a
 # ╠═56faf31f-32a3-4ef2-a094-06f5a2987ab6
 # ╠═813026d5-6171-4749-b6e2-b38e67a78e9f
+# ╠═7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 # ╠═9e09acd6-780c-44f2-866a-070b10a46c7b
 # ╠═c29c020d-829d-4f5f-804b-f0d6591329fc
+# ╠═ffd02c67-d336-47ac-a396-f77d0179c508
+# ╠═31319623-6804-405d-ba65-b909d74092f2
+# ╠═784849b6-256a-430f-8815-09a67414c363
+# ╟─b74cfd41-7bf4-4a51-a9f7-6142aa220f6d
 # ╠═4c7d472e-c69b-4757-9e6c-5444e6ca5751
+# ╠═c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
+# ╠═a175fc9e-5330-4e54-854c-7b14d125ec71
+# ╠═49e645e1-a8a1-48ba-b032-770d5dcf78ba
+# ╠═ccdba532-60ac-4a85-97b9-7f3dcfc705fa
+# ╠═28953bca-4a19-477d-ba2f-23a45b4b9cf8
+# ╠═25b2bc7f-1345-4138-8657-512d776043dd
+# ╠═23952906-e471-4de6-8b29-9cca2e36e506
+# ╠═f31d9b28-9f7b-4e8d-9de8-fb962bd96837
+# ╠═a6dc9320-7c80-49b7-ac65-4bc5f9fdf67f
+# ╠═f8c85a25-1f7a-43be-ade1-6a291479b3b8
+# ╠═4a16a8ab-83d1-4f62-98d9-c0c617fabd91
+# ╠═8d0ce19d-c4bc-4b3a-8ba5-b0a11420e329
+# ╠═7ceba44f-27d4-43e0-9b52-b4d68ddfcdda
+# ╠═61cc7a22-a893-4a5e-a875-16ab43686023
+# ╠═be3eb371-7a04-4326-948f-1ffacb005f14
+# ╠═ec291d41-8382-4154-9df8-a1a991603446
+# ╠═cdec2e91-8eb4-4fa1-a237-23b1f91574b9
+# ╠═3f4d487a-02bd-4bda-a5f8-3e90be439481
+# ╠═c749092f-d7b1-45b4-b77a-f6792d27a2a6
 # ╠═c2c25125-cc7f-423d-9ce1-b48e06b477ae
+# ╠═9cf291cb-8e2e-404c-9a93-c3cbd5a8f8b8
+# ╠═16f1e618-a09f-4dfe-a043-fbd53394094c
+# ╠═05b82f72-7782-4e04-9574-04aeb142e4c3
+# ╠═c70e0b16-9a2c-4c43-a79f-02322323b261
+# ╠═674c7ba1-19f9-448f-aafb-ab3674f23fca
+# ╠═d67ce556-0f5d-414e-b6f9-251282ef71ff
+# ╠═d9cda305-1571-4f66-9875-98443b318c1a
+# ╠═522bc9aa-4ce9-4f9f-a516-d843a1e0609e
 # ╠═27f2175f-985f-419d-819f-58e101554d2d
 # ╠═0d8f1915-d2fc-456d-acc1-006ded794478
 # ╠═8ae7342a-a7a9-4b65-aad7-91e641b5cfef
@@ -175,8 +316,6 @@ join([1, 2, 3])
 # ╠═87223769-e9ef-4982-bc4a-d90d63931df2
 # ╠═78d44e1d-ab26-4ccd-b518-401b6a3bbf5a
 # ╠═b04a2028-9233-4016-b834-3895df3b7a9e
-# ╠═88a72285-8521-4e5b-9b5c-f76b6ccd207f
-# ╠═b0fff691-e5dc-4947-8571-de66e791026f
 # ╠═657e4548-c776-4f23-a1b6-128d898fc155
 # ╠═90c714f7-9389-4c45-a4a9-8cea264e9b40
 # ╠═4023155a-3b3d-4fb8-9b62-5a4772d7306b

@@ -7,14 +7,20 @@ using SparseArrays
 using BlockDiagonals
 using Semirings
 
+include("utils.jl")
+
 export FSM
 export Label
+export nstates
 
 include("fsm.jl")
 
 export compose
+export determinize
 export concat
 export renorm
+export totalsum
+export totallabelsum
 
 include("fsmops.jl")
 
