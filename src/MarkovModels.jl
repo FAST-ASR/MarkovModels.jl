@@ -17,10 +17,8 @@ include("fsm.jl")
 
 export compose
 export determinize
-export concat
 export renorm
-export totalsum
-export totallabelsum
+export totalweightsum, totallabelsum
 
 include("fsmops.jl")
 

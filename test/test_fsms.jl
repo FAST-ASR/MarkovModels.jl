@@ -7,8 +7,8 @@ function fsmequal(fsm1::FSM, fsm2::FSM)
     n = max(nstates(fsm1), nstates(fsm2)) + 1
     ls1 = totallabelsum(fsm1, n)
     ls2 = totallabelsum(fsm2, n)
-    ws1 = totalsum(fsm1, n)
-    ws2 = totalsum(fsm2, n)
+    ws1 = totalweightsum(fsm1, n)
+    ws2 = totalweightsum(fsm2, n)
     ls1 == ls2 && ws1 ≈ ws2
 end
 
@@ -73,7 +73,7 @@ end
     end
 end
 
-@testset "concat" begin
+@testset "concatenation" begin
     for S in Ss, T in Ts
         K = S{T}
         fsm1 = FSM(
@@ -102,7 +102,7 @@ end
             [6 => one(K)],
             [Label(1), Label(2), Label(3), Label(4), Label(5), Label(6)]
         )
-        fsm = concat(fsm1, fsm2)
+        fsm = cat(fsm1, fsm2)
         @test fsmequal(fsm, fsm3)
         @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
         @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
@@ -209,8 +209,8 @@ end
         @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
     end
 end
-#
-#
+
+
 #@testset "determinize" begin
 #    SR = ProbabilitySemifield{Float64}
 #

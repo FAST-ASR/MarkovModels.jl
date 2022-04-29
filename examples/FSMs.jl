@@ -40,7 +40,7 @@ fsm2 = FSM{K}(
 union(fsm1, fsm2)
 
 # ╔═╡ 813026d5-6171-4749-b6e2-b38e67a78e9f
-concat(fsm1, fsm2)
+cat(fsm1, fsm2)
 
 # ╔═╡ 7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 fsm1.α .* fsm1.ω'
@@ -56,9 +56,6 @@ fsm = FSM(
 
 # ╔═╡ c29c020d-829d-4f5f-804b-f0d6591329fc
 fsm ∘ [fsm1 |> renorm, fsm2 |> renorm]
-
-# ╔═╡ ffd02c67-d336-47ac-a396-f77d0179c508
-fsm.α .* [fsm1.α, fsm2.α]
 
 # ╔═╡ 31319623-6804-405d-ba65-b909d74092f2
 vcat((ones(2) for i in 1:4)...)
@@ -102,16 +99,34 @@ fsmabc = fsma ∪ fsmb ∪ fsmc
 fsmabc.T' * fsmabc.α 
 
 # ╔═╡ 28953bca-4a19-477d-ba2f-23a45b4b9cf8
-al, Tl, Ml = determinize(fsmabc)
+j = determinize(fsmabc)
+
+# ╔═╡ 3255a509-fbae-4f4e-b044-31d934c9f511
+fsmabc.α[collect((2, 1, 1))]
+
+# ╔═╡ 0b48f478-ef5a-41bd-a180-c90d91e8b3ae
+typeof(j)
+
+# ╔═╡ 701addca-356a-4026-bc00-c0c62bd61f4a
+fsmabc.T[1, :] + fsmabc.T[5, :]
+
+# ╔═╡ f5352a72-35ea-46e8-98c9-30e2f86df419
+
 
 # ╔═╡ 25b2bc7f-1345-4138-8657-512d776043dd
-Tl[:, 2]
+nonzeros(Ml' * al)[1]
+
+# ╔═╡ ff7f956f-5575-4ffd-b6b9-41cd4823dfe4
+
 
 # ╔═╡ 23952906-e471-4de6-8b29-9cca2e36e506
 B = Tl * Ml
 
 # ╔═╡ f31d9b28-9f7b-4e8d-9de8-fb962bd96837
 i = Ml' * al
+
+# ╔═╡ 9edcc5f7-0907-43eb-87f1-67283aec125d
+sort(map(first, collect(val(i[1]))))
 
 # ╔═╡ a6dc9320-7c80-49b7-ac65-4bc5f9fdf67f
 tuple(sort(collect(i[1].val))...)
@@ -267,7 +282,6 @@ join([1, 2, 3])
 # ╠═7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 # ╠═9e09acd6-780c-44f2-866a-070b10a46c7b
 # ╠═c29c020d-829d-4f5f-804b-f0d6591329fc
-# ╠═ffd02c67-d336-47ac-a396-f77d0179c508
 # ╠═31319623-6804-405d-ba65-b909d74092f2
 # ╠═784849b6-256a-430f-8815-09a67414c363
 # ╟─b74cfd41-7bf4-4a51-a9f7-6142aa220f6d
@@ -277,9 +291,15 @@ join([1, 2, 3])
 # ╠═49e645e1-a8a1-48ba-b032-770d5dcf78ba
 # ╠═ccdba532-60ac-4a85-97b9-7f3dcfc705fa
 # ╠═28953bca-4a19-477d-ba2f-23a45b4b9cf8
+# ╠═3255a509-fbae-4f4e-b044-31d934c9f511
+# ╠═0b48f478-ef5a-41bd-a180-c90d91e8b3ae
+# ╠═701addca-356a-4026-bc00-c0c62bd61f4a
+# ╠═f5352a72-35ea-46e8-98c9-30e2f86df419
 # ╠═25b2bc7f-1345-4138-8657-512d776043dd
+# ╠═ff7f956f-5575-4ffd-b6b9-41cd4823dfe4
 # ╠═23952906-e471-4de6-8b29-9cca2e36e506
 # ╠═f31d9b28-9f7b-4e8d-9de8-fb962bd96837
+# ╠═9edcc5f7-0907-43eb-87f1-67283aec125d
 # ╠═a6dc9320-7c80-49b7-ac65-4bc5f9fdf67f
 # ╠═f8c85a25-1f7a-43be-ade1-6a291479b3b8
 # ╠═4a16a8ab-83d1-4f62-98d9-c0c617fabd91
