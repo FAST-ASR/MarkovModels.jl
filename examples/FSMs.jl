@@ -22,10 +22,10 @@ K = ProbSemiring{Float32}
 # ╔═╡ eb27ffd7-2496-4edb-a2b0-e5828278410c
 fsm1 = FSM(
 	2,
-	[1 => one(K)],
-	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)],
-	[2 => one(K)],
-	[Label(:1), Label(:2)]
+	[1 => one(K)], # α
+	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)], # T 
+	[2 => one(K)], # ω
+	[Label(:1), Label(:2)] # λ
 ) |> renorm
 
 # ╔═╡ 140ef71a-d95e-4d2b-ad50-7a42c3125d7f
