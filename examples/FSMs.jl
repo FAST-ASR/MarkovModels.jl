@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.18.4
+# v0.19.3
 
 using Markdown
 using InteractiveUtils
@@ -29,10 +29,12 @@ fsm1 = FSM(
 ) |> renorm
 
 # ╔═╡ 140ef71a-d95e-4d2b-ad50-7a42c3125d7f
-fsm2 = FSM{K}(
-	sparsevec([1], [1], 3),
-	sparse([1, 1, 2, 2, 3], [1, 2, 2, 3, 3], ones(K, 5), 3, 3),
-	sparsevec([3], [one(K)], 3),
+fsm2 = FSM(
+	3, 
+	[1 => one(K)],
+	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 3) => one(K),
+	 (3, 3) => one(K)],
+	[3 => one(K)],
 	[Label(:1), Label(:2), Label(:3)]
 ) |> renorm
 
@@ -69,37 +71,58 @@ md"""
 """
 
 # ╔═╡ 4c7d472e-c69b-4757-9e6c-5444e6ca5751
-fsma = FSM{K}(
-	sparsevec([1], [1], 4),
-	sparse([1, 1, 2, 3], [2, 3, 4, 4], ones(K, 4), 4, 4),
-	sparsevec([4], [one(K)], 4),
+fsma = FSM(
+	4,
+	[1 => one(K)],
+	[(1, 1) => one(K), (1, 2) => one(K), (1, 3) => one(K), (2, 4) => one(K), (3, 4) => one(K)],
+	[4 => one(K)],
 	[Label(:a), Label(:b), Label(:b), Label(:c)]
 ) |> renorm
 
 # ╔═╡ c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
-fsmb = FSM{K}(
-	sparsevec([1], [1], 4),
-	sparse([1, 1, 2, 3], [2, 3, 4, 4], ones(K, 4), 4, 4),
-	sparsevec([4], [one(K)], 4),
+fsmb = FSM(
+	4,
+	[1 => K(3)],
+	[(1, 2) => one(K), (1, 3) => one(K), (2, 4) => one(K), (3, 4) => one(K)],
+	[4 => one(K)],
 	[Label(:a), Label(:b), Label(:d), Label(:c)]
-) |> renorm
+) 
 
 # ╔═╡ a175fc9e-5330-4e54-854c-7b14d125ec71
-fsmc = FSM{K}(
-	sparsevec([1], [1], 3),
-	sparse([ 1, 2],[2, 3], ones(K, 2), 3, 3),
-	sparsevec([3], [one(K)], 3),
-	[Label(:b), Label(:d), Label(:c)]
+fsmc = FSM(
+	3,
+	[1 => one(K)],
+	[(1, 2) => one(K), (2, 3) => one(K)],
+	[3 => one(K)],
+	[Label(:b), Label(:a), Label(:c)]
 ) |> renorm
 
 # ╔═╡ 49e645e1-a8a1-48ba-b032-770d5dcf78ba
 fsmabc = fsma ∪ fsmb ∪ fsmc
 
+# ╔═╡ 96be6364-e98f-4ba6-8856-a5ace0646b48
+determinize(fsmabc)
+
+# ╔═╡ 3782f595-e531-45dd-97b8-722b7804690a
+fsm.T * diagm(fsm.α)
+
+# ╔═╡ c9981c69-ff04-4367-ba10-ab3d6feed1d2
+dfsm = determinize(fsmabc)
+
+# ╔═╡ 5e0251c9-05eb-4c56-8824-4f65acdd1dbb
+==
+
+# ╔═╡ 91477ae0-5ca9-4652-99ae-fb86404738a7
+totallabelsum(dfsm, 4)
+
+# ╔═╡ 2bb572c9-eb7a-49a3-9e2f-c7774016b81c
+MarkovModels.tobinary(UnionConcatSemiring, fsm.T)
+
 # ╔═╡ ccdba532-60ac-4a85-97b9-7f3dcfc705fa
 fsmabc.T' * fsmabc.α 
 
-# ╔═╡ 28953bca-4a19-477d-ba2f-23a45b4b9cf8
-j = determinize(fsmabc)
+# ╔═╡ acda1bdf-a59e-447f-910f-97d69809eb92
+sum(fsmabc.α[collect(s1)])
 
 # ╔═╡ 3255a509-fbae-4f4e-b044-31d934c9f511
 fsmabc.α[collect((2, 1, 1))]
@@ -289,8 +312,14 @@ join([1, 2, 3])
 # ╠═c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
 # ╠═a175fc9e-5330-4e54-854c-7b14d125ec71
 # ╠═49e645e1-a8a1-48ba-b032-770d5dcf78ba
+# ╠═96be6364-e98f-4ba6-8856-a5ace0646b48
+# ╠═3782f595-e531-45dd-97b8-722b7804690a
+# ╠═c9981c69-ff04-4367-ba10-ab3d6feed1d2
+# ╠═5e0251c9-05eb-4c56-8824-4f65acdd1dbb
+# ╠═91477ae0-5ca9-4652-99ae-fb86404738a7
+# ╠═2bb572c9-eb7a-49a3-9e2f-c7774016b81c
 # ╠═ccdba532-60ac-4a85-97b9-7f3dcfc705fa
-# ╠═28953bca-4a19-477d-ba2f-23a45b4b9cf8
+# ╠═acda1bdf-a59e-447f-910f-97d69809eb92
 # ╠═3255a509-fbae-4f4e-b044-31d934c9f511
 # ╠═0b48f478-ef5a-41bd-a180-c90d91e8b3ae
 # ╠═701addca-356a-4026-bc00-c0c62bd61f4a

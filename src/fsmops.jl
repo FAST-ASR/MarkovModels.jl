@@ -15,9 +15,8 @@ function totalsum(α, T, ω, n)
 end
 
 totalweightsum(fsm::FSM, n) = totalsum(fsm.α, fsm.T, fsm.ω, n)
-
-totallabelsum(fsm::FSM, n) = totalsum(tobinary(UnionConcatSemiring, fsm.α),
-                                      tobinary(UnionConcatSemiring, fsm.T),
+totallabelsum(fsm::FSM, n) = totalsum(tobinary(UnionConcatSemiring, fsm.α) .* fsm.λ,
+                                      tobinary(UnionConcatSemiring, fsm.T) * spdiagm(fsm.λ),
                                       tobinary(UnionConcatSemiring, fsm.ω),
                                       n)
 
@@ -53,7 +52,7 @@ Reversal (a.k.a. FSM transposition)
 ======================================================================#
 
 function Base.adjoint(fsm::FSM)
-    FSM(fsm.ω, fsm.T', fsm.α, fsm.λ)
+    FSM(fsm.ω, sparse(fsm.T'), fsm.α, fsm.λ)
 end
 
 #======================================================================
@@ -119,57 +118,68 @@ Base.:∘(fsm₁::FSM, fsms::AbstractVector) = compose(fsm₁, fsms)
 Determinization
 ======================================================================#
 
-function _det_label_matrices(fsm)
-    I, J, V = [], [], UnionConcatSemiring[]
-    for i in 1:nstates(fsm), j in 1:nstates(fsm)
-        if ! iszero(fsm.T[i, j])
-            push!(I, i)
-            push!(J, j)
-            push!(V, Label(j))
-        end
-    end
-    Tₗ = sparse(I, J, V, nstates(fsm), nstates(fsm))
-
-    I, _ = findnz(fsm.α)
-    αₗ = sparsevec(I, Label.(I), nstates(fsm))
-
-    αₗ, Tₗ
-end
-
-function _det_mapping(fsm, match)
-    labels = [Label(l...) for l in sort(collect(val(sum(fsm.λ))))]
-
-    I, J, V = [], [], UnionConcatSemiring[]
-    for i in 1:nstates(fsm), j in 1:length(labels)
-        if match(fsm.λ[i], labels[j])
-            push!(I, i)
-            push!(J, j)
-            push!(V, one(UnionConcatSemiring))
-        end
-    end
-    Mₗ = sparse(I, J, V, nstates(fsm), length(labels))
-
-    K = eltype(fsm.α)
-    I, J, V = [], [], K[]
-    for i in 1:nstates(fsm), j in 1:length(labels)
-        if match(fsm.λ[i], labels[j])
-            push!(I, i)
-            push!(J, j)
-            push!(V, one(K))
-        end
-    end
-    M = sparse(I, J, V, nstates(fsm), length(labels))
-
-    labels, Mₗ, M
-end
-
+# Extract the non-zero states as an array of tuples.
 _det_getstates(x) = [tuple(sort(map(first, collect(val(x))))...)
                      for x in nonzeros(x)]
 
 function determinize(fsm::FSM{K}, match = Base.:(==)) where K
-    labels, Mₗ, M = _det_mapping(fsm, match)
-    αₗ, Tₗ = _det_label_matrices(fsm)
+    # We precompute the necessary matrices to estimate the new states
+    # (i.e. set of states of the original fsm) and their transition weight.
+    labels = [Label(l...) for l in sort(collect(val(sum(fsm.λ))))]
+    Mₗ = mapping(UnionConcatSemiring, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
+    M = mapping(K, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
     α, T, ω = fsm.α, fsm.T, fsm.ω
+    statelabels = Label.(collect(1:nstates(fsm)))
+    αₗ = tobinary(UnionConcatSemiring, fsm.α) .* statelabels
+    Tₗ = tobinary(UnionConcatSemiring, fsm.T) * spdiagm(statelabels)
 
-    states = _det_getstates(Mₗ' * αₗ)
+    # Initialize the queue for the powerset construction algorithm.
+    newstates = Dict()
+    newarcs = Dict()
+    queue = Array{Tuple}(_det_getstates(Mₗ' * αₗ))
+    for s in queue
+        newstates[s] = (sum(α[collect(s)]), sum(ω[collect(s)]))
+    end
+
+    # Powerset construction algorithm.
+    while ! isempty(queue)
+        state = popfirst!(queue)
+        finalweight = sum(ω[collect(state)])
+
+        zₗ = sparsevec(collect(state), one(UnionConcatSemiring), nstates(fsm))
+        nextstates = _det_getstates(Mₗ' * Tₗ' * zₗ)
+
+        z = sparsevec(collect(state), one(K), nstates(fsm))
+        nextweights = nonzeros(M' * T' * z)
+
+        for (ns, nw) in zip(nextstates, nextweights)
+            arcs = get(newarcs, state, [])
+            push!(arcs, (ns, nw))
+            newarcs[state] = arcs
+            if ns ∉ keys(newstates)
+                newstates[ns] = (zero(K), sum(ω[collect(ns)]))
+                push!(queue, ns)
+            end
+        end
+    end
+
+    # We build the actual fsm from the result of the powerset
+    # construction.
+    state2idx = Dict(s => i for (i, s) in enumerate(keys(newstates)))
+    newlabels = [fsm.λ[s[1]] for s in keys(newstates)]
+    α₂ = []
+    ω₂ = []
+    T₂ = []
+    for (i, s) in enumerate(keys(newstates))
+        iw, fw = newstates[s]
+        if ! iszero(iw) push!(α₂, i => iw) end
+        if ! iszero(fw) push!(ω₂, i => fw) end
+        if s in keys(newarcs)
+            for (ns, nw) in newarcs[s]
+                push!(T₂, (state2idx[s], state2idx[ns]) => nw)
+            end
+        end
+    end
+    FSM(length(newstates), α₂, T₂, ω₂, newlabels)
 end
+

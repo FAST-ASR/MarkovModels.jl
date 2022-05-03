@@ -9,9 +9,9 @@ Semiring, i.e. it is a set of sequences.
 Label(x) = UnionConcatSemiring(Set([SymbolSequence([x])]))
 
 struct FSM{K<:Semiring}
-    α::AbstractVector{K}
-    T::AbstractMatrix{K}
-    ω::AbstractVector{K}
+    α::AbstractSparseVector{K}
+    T::AbstractSparseMatrix{K}
+    ω::AbstractSparseVector{K}
     λ::AbstractVector{UnionConcatSemiring}
 end
 
