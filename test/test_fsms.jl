@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: MIT
 
-const Ss = [LogSemiring, ProbSemiring, TropicalSemiring]
-const Ts = [Float32, Float64]
+const weight_semirings = [BoolSemiring, LogSemiring, ProbSemiring,
+                          TropicalSemiring]
+const parametric_semirings = Set([LogSemiring, ProbSemiring, TropicalSemiring])
+const divisible_semirings = Set([LogSemiring, ProbSemiring, TropicalSemiring])
+const types = [Float32, Float64]
 
 function fsmequal(fsm1::FSM, fsm2::FSM)
     n = max(nstates(fsm1), nstates(fsm2))
@@ -19,8 +22,8 @@ end
 end
 
 @testset "constructor" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in weight_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         α = [1 => one(K)]
         T = [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 1) => one(K)]
@@ -37,8 +40,8 @@ end
 end
 
 @testset "union" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in weight_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -71,8 +74,8 @@ end
 end
 
 @testset "concatenation" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in weight_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -105,8 +108,8 @@ end
 end
 
 @testset "renormalize" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in divisible_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K) + one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -134,8 +137,8 @@ end
 end
 
 @testset "reversal" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in weight_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -161,8 +164,8 @@ end
 end
 
 @testset "compose" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in weight_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -198,7 +201,7 @@ end
 end
 
 @testset "propagate" begin
-    for S in [LogSemiring, ProbSemiring], T in Ts
+    for S in [LogSemiring, ProbSemiring], T in types
         K = S{T}
         v1, v2, v3 = one(K), one(K) + one(K), one(K) + one(K) + one(K)
         fsm1 = FSM(
@@ -241,8 +244,8 @@ end
 
 
 @testset "determinize" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in divisible_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K), ],
             [(1,1) => one(K), (1, 2) => one(K), (1, 3) => one(K),
@@ -258,8 +261,8 @@ end
 end
 
 @testset "minimize" begin
-    for S in Ss, T in Ts
-        K = S{T}
+    for S in divisible_semirings, T in types
+        K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
             [1 => one(K), ],
             [(1,1) => one(K), (1, 2) => one(K), (1, 3) => one(K),
