@@ -15,22 +15,36 @@ struct FSM{K<:Semiring}
     λ::AbstractVector{UnionConcatSemiring}
 end
 
-function FSM(nstates, initws, arcs, finalws, λ)
+function FSM(initws, arcs, finalws, λ)
+    # Get the set of states indices.
+    states = Set(map(first, initws))
+    push!(states, map(first, finalws)...)
+    [push!(states, tup...) for tup in map(first, arcs)]
+
+    nstates = length(states)
     α = sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates)
     T = sparse(map(x -> x[1][1], arcs), map(x -> x[1][2], arcs),
                map(x -> x[2], arcs), nstates, nstates)
     ω = sparsevec(map(x -> x[1], finalws), map(x -> x[2], finalws), nstates)
+
     FSM(α, T, ω, λ)
 end
 
 nstates(m::FSM) = length(m.α)
-arcs(T::AbstractSparseArray) = zip(findnz(T)...)
+
+function arcs(T::AbstractSparseArray)
+    I, J, V = findnz(T)
+    retval = []
+    for (i, j, v) in zip(I, J, V)
+        #if ! iszero(v) push!(retval, (i, j, v)) end
+        push!(retval, (i, j, v))
+    end
+    retval
+end
 
 #======================================================================
 SVG display of FSM
 ======================================================================#
-
-
 
 function showlabel(label)
     retval  = ""

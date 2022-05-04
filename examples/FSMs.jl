@@ -21,7 +21,6 @@ K = ProbSemiring{Float32}
 
 # ╔═╡ eb27ffd7-2496-4edb-a2b0-e5828278410c
 fsm1 = FSM(
-	2,
 	[1 => one(K)], # α
 	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)], # T 
 	[2 => one(K)], # ω
@@ -30,7 +29,6 @@ fsm1 = FSM(
 
 # ╔═╡ 140ef71a-d95e-4d2b-ad50-7a42c3125d7f
 fsm2 = FSM(
-	3, 
 	[1 => one(K)],
 	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 3) => one(K),
 	 (3, 3) => one(K)],
@@ -49,7 +47,6 @@ fsm1.α .* fsm1.ω'
 
 # ╔═╡ 9e09acd6-780c-44f2-866a-070b10a46c7b
 fsm = FSM(
-	2,
 	[1 => one(K) + one(K), 2 => one(K)],
 	[(1, 2) => one(K), (2, 1) => one(K)],
 	[1 => one(K)],
@@ -72,45 +69,66 @@ md"""
 
 # ╔═╡ 4c7d472e-c69b-4757-9e6c-5444e6ca5751
 fsma = FSM(
-	4,
 	[1 => one(K)],
-	[(1, 1) => one(K), (1, 2) => one(K), (1, 3) => one(K), (2, 4) => one(K), (3, 4) => one(K)],
+	[(1, 2) => one(K), (1, 3) => K(4), (2, 4) => one(K), (3, 4) => one(K)],
 	[4 => one(K)],
 	[Label(:a), Label(:b), Label(:b), Label(:c)]
-) |> renorm
+) 
 
 # ╔═╡ c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
 fsmb = FSM(
-	4,
-	[1 => K(3)],
-	[(1, 2) => one(K), (1, 3) => one(K), (2, 4) => one(K), (3, 4) => one(K)],
+	[1 => one(K)+one(K)],
+	[(1, 2) => one(K), (1, 3) => one(K), (2, 4) => one(K), (3, 4) => K(2)],
 	[4 => one(K)],
 	[Label(:a), Label(:b), Label(:d), Label(:c)]
 ) 
 
 # ╔═╡ a175fc9e-5330-4e54-854c-7b14d125ec71
 fsmc = FSM(
-	3,
 	[1 => one(K)],
-	[(1, 2) => one(K), (2, 3) => one(K)],
+	[(1, 2) => K(2), (2, 3) => one(K)],
 	[3 => one(K)],
 	[Label(:b), Label(:a), Label(:c)]
-) |> renorm
+) 
 
 # ╔═╡ 49e645e1-a8a1-48ba-b032-770d5dcf78ba
-fsmabc = fsma ∪ fsmb ∪ fsmc
+fsmabc = (fsma ∪ fsmb ∪ fsmc) 
 
 # ╔═╡ 96be6364-e98f-4ba6-8856-a5ace0646b48
-determinize(fsmabc)
+determinize(fsmabc |> propagate) |> renorm
+
+# ╔═╡ d7045fe6-bb47-4874-b3c4-cbf0bc584b5b
+minimize(fsmabc |> propagate) |> renorm
+
+# ╔═╡ 5fb089a3-073b-4ba9-acbc-4d34d8880dae
+determinize(fsmabc) |> renorm
+
+# ╔═╡ d89c32d4-0d92-4172-89dd-17cf24a9f9a9
+fsmabc.T' * fsmabc.T
+
+# ╔═╡ 307dbf5a-aa62-4ca2-a01c-da3a42644194
+fsmabc.T^2
+
+# ╔═╡ 29066579-1048-4ca2-a28f-413d77a8eaed
+f = minimize(fsmabc) #|> renorm
+
+# ╔═╡ 5fdc07f7-374e-43ea-89aa-51f4f4a4b011
+totallabelsum(fsmabc, 10) == totallabelsum(dfsm, 10) 
+
+# ╔═╡ 3e5e8565-4713-4b0e-a0e7-b43385296c09
+totalweightsum(dfsm |> renorm, 10) 
+
+# ╔═╡ 309423ca-a2ce-48bf-8443-7b7680666db1
+totalweightsum(fsmabc |> renorm, 10)
+
+# ╔═╡ 041ac2d1-9be4-4edd-a18b-2a88330eb873
+totalweightsum(fsmabc, 10) == totalweightsum(dfsm , 10) 
 
 # ╔═╡ 3782f595-e531-45dd-97b8-722b7804690a
 fsm.T * diagm(fsm.α)
 
-# ╔═╡ c9981c69-ff04-4367-ba10-ab3d6feed1d2
-dfsm = determinize(fsmabc)
-
 # ╔═╡ 5e0251c9-05eb-4c56-8824-4f65acdd1dbb
-==
+
 
 # ╔═╡ 91477ae0-5ca9-4652-99ae-fb86404738a7
 totallabelsum(dfsm, 4)
@@ -313,8 +331,16 @@ join([1, 2, 3])
 # ╠═a175fc9e-5330-4e54-854c-7b14d125ec71
 # ╠═49e645e1-a8a1-48ba-b032-770d5dcf78ba
 # ╠═96be6364-e98f-4ba6-8856-a5ace0646b48
+# ╠═d7045fe6-bb47-4874-b3c4-cbf0bc584b5b
+# ╠═5fb089a3-073b-4ba9-acbc-4d34d8880dae
+# ╠═d89c32d4-0d92-4172-89dd-17cf24a9f9a9
+# ╠═307dbf5a-aa62-4ca2-a01c-da3a42644194
+# ╠═29066579-1048-4ca2-a28f-413d77a8eaed
+# ╠═5fdc07f7-374e-43ea-89aa-51f4f4a4b011
+# ╠═3e5e8565-4713-4b0e-a0e7-b43385296c09
+# ╠═309423ca-a2ce-48bf-8443-7b7680666db1
+# ╠═041ac2d1-9be4-4edd-a18b-2a88330eb873
 # ╠═3782f595-e531-45dd-97b8-722b7804690a
-# ╠═c9981c69-ff04-4367-ba10-ab3d6feed1d2
 # ╠═5e0251c9-05eb-4c56-8824-4f65acdd1dbb
 # ╠═91477ae0-5ca9-4652-99ae-fb86404738a7
 # ╠═2bb572c9-eb7a-49a3-9e2f-c7774016b81c

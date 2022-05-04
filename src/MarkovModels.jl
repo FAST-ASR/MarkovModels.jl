@@ -17,6 +17,8 @@ include("fsm.jl")
 
 export compose
 export determinize
+export minimize
+export propagate
 export renorm
 export totalweightsum, totallabelsum
 

@@ -115,6 +115,27 @@ end
 Base.:∘(fsm₁::FSM, fsms::AbstractVector) = compose(fsm₁, fsms)
 
 #======================================================================
+Weight propagation
+======================================================================#
+
+function propagate(fsm::FSM{K}) where K
+    v = fsm.α
+    A = spdiagm(v) * fsm.T
+    o = spzeros(K, nstates(fsm))
+    visited = Set(findnz(v)[1])
+    for n in 2:(nstates(fsm))
+        v = fsm.T' * v
+        A += spdiagm(v) * fsm.T
+        o += fsm.ω .* v
+
+        # Prune the states that have been visited.
+        SparseArrays.fkeep!(v, (i, x) -> i ∉ visited)
+        if nnz(v) > 0 push!(visited, findnz(v)[1]...) end
+    end
+    FSM(fsm.α, A, o, fsm.λ)
+end
+
+#======================================================================
 Determinization
 ======================================================================#
 
@@ -136,14 +157,16 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
     # Initialize the queue for the powerset construction algorithm.
     newstates = Dict()
     newarcs = Dict()
-    queue = Array{Tuple}(_det_getstates(Mₗ' * αₗ))
-    for s in queue
+    initweights = nonzeros(M' * α)
+    initstates = _det_getstates(Mₗ' * αₗ)
+    queue = Array{Pair{Tuple, Semiring}}([s => w for (s, w) in zip(initstates, initweights)])
+    for (s, _) in queue
         newstates[s] = (sum(α[collect(s)]), sum(ω[collect(s)]))
     end
 
     # Powerset construction algorithm.
     while ! isempty(queue)
-        state = popfirst!(queue)
+        state, weight = popfirst!(queue)
         finalweight = sum(ω[collect(state)])
 
         zₗ = sparsevec(collect(state), one(UnionConcatSemiring), nstates(fsm))
@@ -158,7 +181,7 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
             newarcs[state] = arcs
             if ns ∉ keys(newstates)
                 newstates[ns] = (zero(K), sum(ω[collect(ns)]))
-                push!(queue, ns)
+                push!(queue, ns => nw)
             end
         end
     end
@@ -180,6 +203,8 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
             end
         end
     end
-    FSM(length(newstates), α₂, T₂, ω₂, newlabels)
+    FSM(α₂, T₂, ω₂, newlabels)
 end
+
+minimize = adjoint ∘ determinize ∘ adjoint ∘ determinize
 
