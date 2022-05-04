@@ -37,10 +37,10 @@ fsm2 = FSM(
 ) |> renorm
 
 # ╔═╡ 56faf31f-32a3-4ef2-a094-06f5a2987ab6
-union(fsm1, fsm2)
+union(fsm1, fsm2, fsm1)
 
 # ╔═╡ 813026d5-6171-4749-b6e2-b38e67a78e9f
-cat(fsm1, fsm2)
+cat(fsm1, fsm2, fsm1)
 
 # ╔═╡ 7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 fsm1.α .* fsm1.ω'

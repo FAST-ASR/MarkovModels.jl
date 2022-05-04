@@ -1,9 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-#======================================================================
-Total sum
-======================================================================#
-
 function totalsum(α, T, ω, n)
     v = α
     total = dot(v, ω)
@@ -14,16 +10,29 @@ function totalsum(α, T, ω, n)
     total
 end
 
+"""
+    totalweightsum(fsm::FSM, n)
+
+Compute the `n`th partial total weight sum of `fsm`.
+"""
 totalweightsum(fsm::FSM, n) = totalsum(fsm.α, fsm.T, fsm.ω, n)
-totallabelsum(fsm::FSM, n) = totalsum(tobinary(UnionConcatSemiring, fsm.α) .* fsm.λ,
-                                      tobinary(UnionConcatSemiring, fsm.T) * spdiagm(fsm.λ),
-                                      tobinary(UnionConcatSemiring, fsm.ω),
-                                      n)
 
-#======================================================================
-Union
-======================================================================#
+"""
+    totalweightsum(fsm::FSM, n)
 
+Compute the `n`th partial total label sum of `fsm`.
+"""
+totallabelsum(fsm::FSM, n) = totalsum(
+    tobinary(UnionConcatSemiring, fsm.α) .* fsm.λ,
+    tobinary(UnionConcatSemiring, fsm.T) * spdiagm(fsm.λ),
+    tobinary(UnionConcatSemiring, fsm.ω),
+    n)
+
+"""
+    union(fsms::FSM{K}...) where K
+
+Return the union of the given FSMs.
+"""
 function Base.union(fsm1::FSM{K}, fsm2::FSM{K}) where K
     FSM(
         vcat(fsm1.α, fsm2.α),
@@ -32,11 +41,15 @@ function Base.union(fsm1::FSM{K}, fsm2::FSM{K}) where K
         vcat(fsm1.λ, fsm2.λ)
     )
 end
+Base.union(fsm1::FSM{K}, fsms::FSM{K}...) where K =
+    foldl(union, fsms, init = fsm1)
 
-#======================================================================
-Concatenation
-======================================================================#
 
+"""
+    cat(fsms::FSM{K}...) where K
+
+Return the concatenated FSMs.
+"""
 function Base.cat(fsm1::FSM{K}, fsm2::FSM{K}) where K
     FSM(
         vcat(fsm1.α, zero(fsm2.α)),
@@ -46,20 +59,25 @@ function Base.cat(fsm1::FSM{K}, fsm2::FSM{K}) where K
         vcat(fsm1.λ, fsm2.λ)
     )
 end
+Base.cat(fsm1::FSM{K}, fsms::FSM{K}...) where K =
+    foldl(cat, fsms, init = fsm1)
 
-#======================================================================
-Reversal (a.k.a. FSM transposition)
-======================================================================#
+"""
+    Base.adjoint(fsm::FSM)
+    fsm'
 
+Return the reversal of `fsm`.
+"""
 function Base.adjoint(fsm::FSM)
     FSM(fsm.ω, sparse(fsm.T'), fsm.α, fsm.λ)
 end
 
-#======================================================================
-Renormalization
-======================================================================#
+"""
+    renorm(fsm::FSM)
 
-function renorm(fsm::FSM{K}) where K
+Return a normalized FSM.
+"""
+function renorm(::Divisible, fsm::FSM{K}) where K
     Z = one(K) ./ (sum(fsm.T, dims=2) .+ fsm.ω)
     FSM(
         fsm.α ./ sum(fsm.α),
@@ -68,10 +86,7 @@ function renorm(fsm::FSM{K}) where K
         fsm.λ
     )
 end
-
-#======================================================================
-Composition
-======================================================================#
+renorm(fsm::FSM{K}) where K = renorm(IsDivisible(K), fsm)
 
 function _mapping_matrix(K::Type{<:Semiring}, fsm₁, fsms)
     blocks = []
@@ -98,6 +113,11 @@ function _weighted_sparse_vcat(x, ys)
     return sparsevec(I, V, count)
 end
 
+"""
+    compose(fsm₁, fsms)
+
+Return the composition of `fsm₁` with a list of FSMs.
+"""
 function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
                  sep = one(UnionConcatSemiring)) where K
     ω = vcat([fsmⁱ.ω for fsmⁱ in fsms]...)
@@ -114,10 +134,12 @@ function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
 end
 Base.:∘(fsm₁::FSM, fsms::AbstractVector) = compose(fsm₁, fsms)
 
-#======================================================================
-Weight propagation
-======================================================================#
 
+"""
+    propagate(fsm)
+
+Propagate the weights along the FSM's arcs.
+"""
 function propagate(fsm::FSM{K}) where K
     v = fsm.α
     A = spdiagm(v) * fsm.T
@@ -135,14 +157,19 @@ function propagate(fsm::FSM{K}) where K
     FSM(fsm.α, A, o, fsm.λ)
 end
 
-#======================================================================
-Determinization
-======================================================================#
 
 # Extract the non-zero states as an array of tuples.
 _det_getstates(x) = [tuple(sort(map(first, collect(val(x))))...)
                      for x in nonzeros(x)]
 
+"""
+    determinize(fsm[, match])
+
+Return an equivalent deterministic FSM. States `i` and `j` can be
+merged if `match(i, j)` is `true`. Note that to guarantee the
+equivalence of the returned FSM, you need to [`propagate`](@ref) weight
+on `fsm` prior to call `determinize`.
+"""
 function determinize(fsm::FSM{K}, match = Base.:(==)) where K
     # We precompute the necessary matrices to estimate the new states
     # (i.e. set of states of the original fsm) and their transition weight.
@@ -206,5 +233,12 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
     FSM(α₂, T₂, ω₂, newlabels)
 end
 
+"""
+    minimize(fsm[, match])
+
+Return an equivalent minimal FSM. Note that to guarantee the
+equivalence of the returned FSM, you need to [`propagate`](@ref) weight
+on `fsm` prior to call `minimize`.
+"""
 minimize = adjoint ∘ determinize ∘ adjoint ∘ determinize
 
