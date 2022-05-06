@@ -120,14 +120,12 @@ Return the composition of `fsm₁` with a list of FSMs.
 """
 function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
                  sep = one(UnionConcatSemiring)) where K
-    ω = vcat([fsmⁱ.ω for fsmⁱ in fsms]...)
-    α = vcat([fsmⁱ.α for fsmⁱ in fsms]...)
-    Mₖ = _mapping_matrix(K, fsm₁, fsms)
-    T₂ = blockdiag([fsmⁱ.T for fsmⁱ in fsms]...) + (Mₖ * fsm₁.T * Mₖ') .* (ω * α')
+    A = blockdiag([fsmⁱ.α[:,1:1] for fsmⁱ in fsms]...)
+    Ω = blockdiag([fsmⁱ.ω[:,1:1] for fsmⁱ in fsms]...)
 
     FSM(
         _weighted_sparse_vcat(fsm₁.α, [fsmⁱ.α for fsmⁱ in fsms]),
-        T₂,
+        blockdiag([fsmⁱ.T for fsmⁱ in fsms]...) + Ω * fsm₁.T * A',
         _weighted_sparse_vcat(fsm₁.ω, [fsmⁱ.ω for fsmⁱ in fsms]),
         vcat([λ₁ᵢ * sep * fsmⁱ.λ for (λ₁ᵢ, fsmⁱ) in zip(fsm₁.λ, fsms)]...)
     )
