@@ -184,16 +184,15 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
     # Initialize the queue for the powerset construction algorithm.
     newstates = Dict()
     newarcs = Dict()
-    initweights = nonzeros(M' * α)
     initstates = _det_getstates(Mₗ' * αₗ)
-    queue = Array{Pair{Tuple, Semiring}}([s => w for (s, w) in zip(initstates, initweights)])
-    for (s, _) in queue
+    queue = Array{Tuple}(initstates)
+    for s in queue
         newstates[s] = (sum(α[collect(s)]), sum(ω[collect(s)]))
     end
 
     # Powerset construction algorithm.
     while ! isempty(queue)
-        state, weight = popfirst!(queue)
+        state = popfirst!(queue)
         finalweight = sum(ω[collect(state)])
 
         zₗ = sparsevec(collect(state), one(UnionConcatSemiring), nstates(fsm))
@@ -208,7 +207,7 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
             newarcs[state] = arcs
             if ns ∉ keys(newstates)
                 newstates[ns] = (zero(K), sum(ω[collect(ns)]))
-                push!(queue, ns => nw)
+                push!(queue, ns)
             end
         end
     end
