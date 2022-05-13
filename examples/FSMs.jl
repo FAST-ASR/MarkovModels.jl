@@ -53,8 +53,14 @@ fsm = FSM(
 	[Label(:a), Label(:b)]
 ) |> renorm
 
+# ╔═╡ 0709ea14-5ba2-4ff2-a609-1a2f0e543f92
+sparse(fsm.α)
+
 # ╔═╡ c29c020d-829d-4f5f-804b-f0d6591329fc
-fsm ∘ [fsm1 |> renorm, fsm2 |> renorm]
+F = fsm ∘ [fsm1 |> renorm, fsm2 |> renorm]
+
+# ╔═╡ 5eb4b083-2761-470c-949f-844a5ecf04d0
+F
 
 # ╔═╡ 31319623-6804-405d-ba65-b909d74092f2
 vcat((ones(2) for i in 1:4)...)
@@ -322,7 +328,9 @@ join([1, 2, 3])
 # ╠═813026d5-6171-4749-b6e2-b38e67a78e9f
 # ╠═7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 # ╠═9e09acd6-780c-44f2-866a-070b10a46c7b
+# ╠═0709ea14-5ba2-4ff2-a609-1a2f0e543f92
 # ╠═c29c020d-829d-4f5f-804b-f0d6591329fc
+# ╠═5eb4b083-2761-470c-949f-844a5ecf04d0
 # ╠═31319623-6804-405d-ba65-b909d74092f2
 # ╠═784849b6-256a-430f-8815-09a67414c363
 # ╟─b74cfd41-7bf4-4a51-a9f7-6142aa220f6d

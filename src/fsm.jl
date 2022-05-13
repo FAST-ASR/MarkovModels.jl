@@ -54,7 +54,7 @@ function showlabel(label)
     retval
 end
 
-function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM{T}) where T
+function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
     dotpath, dotfile = mktemp()
     svgpath, svgfile = mktemp()
 
