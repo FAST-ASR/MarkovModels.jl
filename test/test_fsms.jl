@@ -257,6 +257,10 @@ end
         fsm2 = determinize(fsm1)
         @test nstates(fsm2) < nstates(fsm1)
         @test fsmequal(fsm2 |> renorm, fsm1 |> renorm)
+
+        cfsm1 = compose(fsm1, repeat([fsm1], nstates(fsm1)))
+        cfsm2 = determinize(cfsm1)
+        @test sum(cfsm1.λ) == sum(cfsm2.λ)
     end
 end
 

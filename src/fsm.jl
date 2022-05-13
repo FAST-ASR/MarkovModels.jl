@@ -7,6 +7,7 @@ Create a FSM label. A label is an element the Union-Concatenation
 Semiring, i.e. it is a set of sequences.
 """
 Label(x) = UnionConcatSemiring(Set([SymbolSequence([x])]))
+Label(x::SymbolSequence) = UnionConcatSemiring(Set([x]))
 
 struct FSM{K<:Semiring}
     α::AbstractSparseVector{K}

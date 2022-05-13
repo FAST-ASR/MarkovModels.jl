@@ -171,7 +171,7 @@ on `fsm` prior to call `determinize`.
 function determinize(fsm::FSM{K}, match = Base.:(==)) where K
     # We precompute the necessary matrices to estimate the new states
     # (i.e. set of states of the original fsm) and their transition weight.
-    labels = [Label(l...) for l in sort(collect(val(sum(fsm.λ))))]
+    labels = [Label(l) for l in sort(collect(val(sum(fsm.λ))))]
     Mₗ = mapping(UnionConcatSemiring, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
     M = mapping(K, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
     α, T, ω = fsm.α, fsm.T, fsm.ω
