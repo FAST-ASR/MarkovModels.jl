@@ -18,17 +18,28 @@ end
 
 function FSM(initws, arcs, finalws, λ)
     # Get the set of states indices.
-    states = Set(map(first, initws))
-    push!(states, map(first, finalws)...)
-    [push!(states, tup...) for tup in map(first, arcs)]
-
+    states = (Set(map(first, initws))
+              ∪ Set(map(first, finalws))
+              ∪ Set(vcat([collect(tup) for tup in map(first, arcs)]...)))
     nstates = length(states)
-    α = sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates)
-    T = sparse(map(x -> x[1][1], arcs), map(x -> x[1][2], arcs),
-               map(x -> x[2], arcs), nstates, nstates)
-    ω = sparsevec(map(x -> x[1], finalws), map(x -> x[2], finalws), nstates)
+    FSM(
+        sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates),
+        sparse(map(x -> x[1][1], arcs), map(x -> x[1][2], arcs),
+               map(x -> x[2], arcs), nstates, nstates),
+        sparsevec(map(x -> x[1], finalws), map(x -> x[2], finalws), nstates),
+        λ
+    )
+end
 
-    FSM(α, T, ω, λ)
+function FSM(s::AbstractString)
+    data = JSON.parse(s)
+    K = eval(Meta.parse(data["semiring"]))
+    FSM(
+        [a => K(b) for (a, b) in data["initstates"]],
+        [(a, b) => K(c) for (a, b, c) in data["arcs"]],
+        [a => K(b) for (a, b) in data["finalstates"]],
+        [Label(a) for a in data["labels"]]
+    )
 end
 
 nstates(m::FSM) = length(m.α)
@@ -37,7 +48,6 @@ function arcs(T::AbstractSparseArray)
     I, J, V = findnz(T)
     retval = []
     for (i, j, v) in zip(I, J, V)
-        #if ! iszero(v) push!(retval, (i, j, v)) end
         push!(retval, (i, j, v))
     end
     retval

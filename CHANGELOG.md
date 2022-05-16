@@ -1,5 +1,9 @@
 # Releases
 
+## 0.9.0
+### Added
+* FSM constructor using a JSON-formatted string.
+
 ## 0.8.0
 * Added the `remove_label` function which replace the old `remove_eps`.
 * Memory optimization of the forward-backward: the backward operates

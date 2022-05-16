@@ -2,6 +2,7 @@
 
 module MarkovModels
 
+using JSON
 using LinearAlgebra
 using SparseArrays
 using BlockDiagonals

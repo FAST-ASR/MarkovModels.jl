@@ -36,6 +36,19 @@ end
             [Label(1), Label(2)]
         )
         @test fsmequal(fsm1, fsm2)
+
+        onestr = "$(val(one(K)))"
+        fsm3 = FSM("""
+        {
+            "semiring": "$K",
+            "initstates": [[1, $onestr]],
+            "arcs": [[1, 1, $onestr], [1, 2, $onestr], [2, 2, $onestr],
+                     [2, 1, $onestr]],
+            "finalstates": [[2, $onestr]],
+            "labels": [1, 2]
+        }
+        """)
+        @test fsmequal(fsm1, fsm3)
     end
 end
 
