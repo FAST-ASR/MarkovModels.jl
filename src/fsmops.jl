@@ -119,7 +119,7 @@ end
 Return the composition of `fsm₁` with a list of FSMs.
 """
 function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
-                 sep = one(UnionConcatSemiring)) where K
+                 sep = Label(":")) where K
     A = blockdiag([fsmⁱ.α[:,1:1] for fsmⁱ in fsms]...)
     Ω = blockdiag([fsmⁱ.ω[:,1:1] for fsmⁱ in fsms]...)
 
@@ -141,7 +141,7 @@ Propagate the weights along the FSM's arcs.
 function propagate(fsm::FSM{K}) where K
     v = fsm.α
     A = spdiagm(v) * fsm.T
-    o = spzeros(K, nstates(fsm))
+    o = fsm.ω .* v#spzeros(K, nstates(fsm))
     visited = Set(findnz(v)[1])
     for n in 2:(nstates(fsm))
         v = fsm.T' * v

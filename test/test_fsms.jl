@@ -205,6 +205,7 @@ end
             [2 => one(K)],
             [Label(:a), Label(:b)]
         )
+        sep = Label(":")
         fsm3 = FSM(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -214,8 +215,9 @@ end
              (3, 1) => one(K), (3, 4) => one(K),
              (6, 1) => one(K), (6, 4) => one(K)],
             [6 => one(K)],
-            [Label(:a) * Label(1), Label(:a) * Label(2), Label(:a) * Label(3),
-             Label(:b) * Label(1), Label(:b) * Label(2), Label(:b) * Label(3)]
+            [Label(:a) * sep * Label(1), Label(:a) * sep * Label(2),
+             Label(:a) * sep * Label(3), Label(:b) * sep * Label(1),
+             Label(:b) * sep * Label(2), Label(:b) * sep * Label(3)]
         )
         fsm = fsm2 ∘ [fsm1, fsm1]
         @test fsmequal(fsm, fsm3)
@@ -264,6 +266,9 @@ end
         @test length(nonzeros(fsm1.α)) == length(nonzeros(fsm2.α))
         @test length(nonzeros(fsm1.T)) == length(nonzeros(fsm2.T))
         @test length(nonzeros(fsm1.ω)) == length(nonzeros(fsm2.ω))
+
+        fsm = FSM([1 => one(K)], [], [1 => one(K)], [Label(1)])
+        @test fsmequal(propagate(fsm), fsm)
     end
 end
 

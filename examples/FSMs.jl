@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.19.3
+# v0.19.4
 
 using Markdown
 using InteractiveUtils
@@ -19,12 +19,18 @@ end
 # ╔═╡ 238148e8-dfd8-454f-abb7-9571d09958a6
 K = ProbSemiring{Float32}
 
+# ╔═╡ 60d825e5-060e-4b58-a258-c9f37c60f5dd
+A = FSM([1 => one(K)], [], [1 => one(K)], [Label(1)])
+
+# ╔═╡ cbbdc51d-1270-4c5d-8a8d-8942aa29d300
+propagate(A)
+
 # ╔═╡ eb27ffd7-2496-4edb-a2b0-e5828278410c
 fsm1 = FSM(
-	[1 => one(K)], # α
-	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)], # T 
-	[2 => one(K)], # ω
-	[Label(:1), Label(:2)] # λ
+	[1 => one(K)], 
+	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)], 
+	[2 => one(K)], 
+	[Label(:1), Label(:2)] 
 ) |> renorm
 
 # ╔═╡ 140ef71a-d95e-4d2b-ad50-7a42c3125d7f
@@ -57,7 +63,7 @@ fsm = FSM(
 sparse(fsm.α)
 
 # ╔═╡ c29c020d-829d-4f5f-804b-f0d6591329fc
-F = fsm ∘ [fsm1 |> renorm, fsm2 |> renorm]
+F = compose(fsm, [fsm1 |> renorm, fsm2 |> renorm], Label(":"))
 
 # ╔═╡ 5eb4b083-2761-470c-949f-844a5ecf04d0
 F
@@ -322,6 +328,8 @@ join([1, 2, 3])
 # ╔═╡ Cell order:
 # ╠═6e84e042-b5a5-11ec-3bda-e7f5e804b97e
 # ╠═238148e8-dfd8-454f-abb7-9571d09958a6
+# ╠═60d825e5-060e-4b58-a258-c9f37c60f5dd
+# ╠═cbbdc51d-1270-4c5d-8a8d-8942aa29d300
 # ╠═eb27ffd7-2496-4edb-a2b0-e5828278410c
 # ╠═140ef71a-d95e-4d2b-ad50-7a42c3125d7f
 # ╠═56faf31f-32a3-4ef2-a094-06f5a2987ab6
