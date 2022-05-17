@@ -21,11 +21,19 @@ function FSM(initws, arcs, finalws, λ)
     states = (Set(map(first, initws))
               ∪ Set(map(first, finalws))
               ∪ Set(vcat([collect(tup) for tup in map(first, arcs)]...)))
-    nstates = length(states)
+    nstates = size(λ, 1)
+    K = typeof(initws[1][2])
+
+    if size(arcs, 1) > 0
+        T = sparse(map(x -> x[1][1], arcs),
+                   map(x -> x[1][2], arcs),
+                   map(x -> x[2], arcs), nstates, nstates)
+    else
+        T = spzeros(K, nstates, nstates)
+    end
     FSM(
         sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates),
-        sparse(map(x -> x[1][1], arcs), map(x -> x[1][2], arcs),
-               map(x -> x[2], arcs), nstates, nstates),
+        T,
         sparsevec(map(x -> x[1], finalws), map(x -> x[2], finalws), nstates),
         λ
     )

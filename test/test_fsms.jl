@@ -49,6 +49,18 @@ end
         }
         """)
         @test fsmequal(fsm1, fsm3)
+
+        α = [1 => one(K)]
+        T = []
+        ω = [1 => one(K)]
+        fsm1 = FSM(α, T, ω, [Label(1)])
+        fsm2 = FSM(
+            sparsevec([1], [one(K)], 1),
+            spzeros(K, 1, 1),
+            sparsevec([1], [one(K)], 1),
+            [Label(1)]
+        )
+        @test fsmequal(fsm1, fsm2)
     end
 end
 
