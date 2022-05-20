@@ -26,5 +26,5 @@ function mapping(K::Type{<:Semiring}, x, y, match = ==)
             push!(V, one(K))
         end
     end
-    sparse(I, J, V)
+    sparse(I, J, V, length(x), length(y))
 end

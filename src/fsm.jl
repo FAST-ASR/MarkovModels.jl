@@ -1,19 +1,14 @@
 # SPDX-License-Identifier: MIT
 
-"""
-    Label(x)
+Label(x) = "$x"#StringSemiring("$x")
+compose(x::AbstractString, y::AbstractString) = join([x, y], ":")
+decompose(x::AbstractString) = split(x, ":")
 
-Create a FSM label. A label is an element the Union-Concatenation
-Semiring, i.e. it is a set of sequences.
-"""
-Label(x) = UnionConcatSemiring(Set([SymbolSequence([x])]))
-Label(x::SymbolSequence) = UnionConcatSemiring(Set([x]))
-
-struct FSM{K<:Semiring}
+struct FSM{K<:Semiring,L}
     α::AbstractSparseVector{K}
     T::AbstractSparseMatrix{K}
     ω::AbstractSparseVector{K}
-    λ::AbstractVector{UnionConcatSemiring}
+    λ::AbstractVector{L}
 end
 
 function FSM(initws, arcs, finalws, λ)
@@ -66,6 +61,8 @@ SVG display of FSM
 ======================================================================#
 
 function showlabel(label)
+    return label
+    return val(label)
     retval  = ""
     for (i, seq) in enumerate(sort(collect(label.val)))
         retval *= join(seq)

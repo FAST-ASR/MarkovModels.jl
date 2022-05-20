@@ -17,7 +17,7 @@ end
 
 @testset "label" begin
     for x in [1, :e, "a"]
-        @test Label(x) == UnionConcatSemiring(Set([SymbolSequence([x])]))
+        @test Label(x) == "$x"
     end
 end
 
@@ -290,7 +290,7 @@ end
 
         cfsm1 = compose(fsm1, repeat([fsm1], nstates(fsm1)))
         cfsm2 = determinize(cfsm1)
-        @test sum(cfsm1.λ) == sum(cfsm2.λ)
+        @test issetequal(Set(cfsm1.λ), Set(cfsm2.λ))
     end
 end
 

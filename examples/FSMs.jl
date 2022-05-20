@@ -10,6 +10,7 @@ begin
 	Pkg.activate("../")
 
 	using LinearAlgebra
+	using Plots
 	using Semirings
 	using Revise
 	using MarkovModels
@@ -19,34 +20,107 @@ end
 # ╔═╡ 238148e8-dfd8-454f-abb7-9571d09958a6
 K = ProbSemiring{Float32}
 
-# ╔═╡ 60d825e5-060e-4b58-a258-c9f37c60f5dd
-A = FSM([1 => one(K)], [], [1 => one(K)], [Label(1)])
-
-# ╔═╡ cbbdc51d-1270-4c5d-8a8d-8942aa29d300
-propagate(A)
-
 # ╔═╡ eb27ffd7-2496-4edb-a2b0-e5828278410c
-fsm1 = FSM(
-	[1 => one(K)], 
-	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 1) => one(K)], 
-	[2 => one(K)], 
-	[Label(:1), Label(:2)] 
-) |> renorm
+begin
+	phones = Dict() 
+	local pdfcount = 0
+	for p in ["a", "e", "h", "l", "o"]
+		phones[p] = FSM(
+			[1 => one(K)], 
+			[(1, 2) => one(K), (2, 2) => one(K)], 
+			[2 => one(K)], 
+			[Label(pdfcount+1), Label(pdfcount+2)]
+		) |> renorm
+		pdfcount += 2
+	end
+	phones
+end
 
 # ╔═╡ 140ef71a-d95e-4d2b-ad50-7a42c3125d7f
-fsm2 = FSM(
+lexicon = Dict(
+	"hello" => FSM(
+		[1 => one(K)],
+		[(1, 2) => one(K), (2, 3) => one(K), (2, 4) => one(K), 
+		 (3, 5) => one(K), (4, 5) => one(K)],
+		[5 => one(K)],
+		[Label("h"), Label("e"), Label("a"), Label("l"), Label("o")]
+	) |> renorm,
+	"ola" => FSM(
+		[1 => one(K)],
+		[(1, 2) => one(K), (2, 3) => one(K)],
+		[3 => one(K)],
+		[Label("o"), Label("l"), Label("a")]
+	) |> renorm,
+)
+
+# ╔═╡ a1909068-cd60-4e84-bcbe-8d431430d3b7
+utterance = FSM(
 	[1 => one(K)],
-	[(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K), (2, 3) => one(K),
-	 (3, 3) => one(K)],
-	[3 => one(K)],
-	[Label(:1), Label(:2), Label(:3)]
+	[(1, 2) => one(K)],
+	[2 => one(K)],
+	[Label("hello"), Label("ola")]
 ) |> renorm
 
+# ╔═╡ d5295748-bee4-4df2-8c82-fa5377cdb5e3
+g = utterance ∘ lexicon ∘ phones
+
+# ╔═╡ db2a4ab5-89c9-4202-9c5d-6170db1c6764
+totallabelsum(g)
+
+# ╔═╡ bb40a2d4-14cf-43f9-a022-188161b92b74
+totallabelsum(g)
+
+# ╔═╡ 0a2740f0-c9ac-4560-82df-f1ad20a548fd
+hmms = Dict(
+	"1s" => FSM([1 => one(K)], [(1, 1) => one(K)], [1 => one(K)],
+				[Label("1")]) |> renorm,
+	"2s" => FSM([1 => one(K)], [(1, 2) => one(K), (2, 2) => one(K)],
+				[2 => one(K)], [Label("1"), Label("2")]) |> renorm,
+	"3s" => FSM([1 => one(K)], [(1, 2) => one(K), (2, 2) => one(K),
+				 (2, 3) => one(K)], [3 => one(K)],
+				 [Label("1"), Label("2"), Label("3")]) |> renorm
+)
+
+# ╔═╡ deb303f4-0cf6-420c-b0e4-e3fd0761f5d1
+begin 
+	p1s = val.(totalweightsum.([hmms["1s"]], collect(1:20)))
+	p1s[2:end] = p1s[2:end] - p1s[1:end-1]
+
+	p2s = val.(totalweightsum.([hmms["2s"]], collect(1:20)))
+	p2s[2:end] = p2s[2:end] - p2s[1:end-1]
+
+	p3s = val.(totalweightsum.([hmms["3s"]], collect(1:20)))
+	p3s[2:end] = p3s[2:end] - p3s[1:end-1]
+
+	p1 = bar((1:20) .* (3/100), p1s, xlabel = "time (s)", label = "1 state")
+	p2 = bar((1:20) .* (3/100), p2s, xlabel = "time (s)", label = "2 state")
+	p3 = bar((1:20) .* (3/100), p3s, xlabel = "time (s)", label = "3 state")
+
+	plot(p1, p2, p3, layout = (3, 1), )
+end
+
 # ╔═╡ 56faf31f-32a3-4ef2-a094-06f5a2987ab6
-union(fsm1, fsm2, fsm1)
+union(phones["a"], phones["a"]) |> determinize
 
 # ╔═╡ 813026d5-6171-4749-b6e2-b38e67a78e9f
-cat(fsm1, fsm2, fsm1)
+begin 
+	fsm1 = FSM(
+		[1 => one(K)],
+		[(1, 1) => one(K), (1, 2) => one(K), (1, 3) => one(K), (2, 4) => one(K),
+		 (3, 4) => one(K)],
+		[4 => one(K)],
+		[Label(:a), Label(:b), Label(:c), Label(:d)]
+	)
+
+	fsm1 = fsm1 ∪ fsm1
+	fsm2 = determinize(fsm1)
+end
+
+# ╔═╡ a8017f3e-669f-43f5-9df4-24bdfa510a87
+totalweightsum(fsm1 |> renorm)
+
+# ╔═╡ 35a3fd05-e8c5-47a6-8db0-fad80b63f785
+
 
 # ╔═╡ 7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 fsm1.α .* fsm1.ω'
@@ -56,17 +130,32 @@ fsm = FSM(
 	[1 => one(K) + one(K), 2 => one(K)],
 	[(1, 2) => one(K), (2, 1) => one(K)],
 	[1 => one(K)],
-	[Label(:a), Label(:b)]
+	[Label("a"), Label("b")]
 ) |> renorm
 
 # ╔═╡ 0709ea14-5ba2-4ff2-a609-1a2f0e543f92
 sparse(fsm.α)
 
 # ╔═╡ c29c020d-829d-4f5f-804b-f0d6591329fc
-F = compose(fsm, [fsm1 |> renorm, fsm2 |> renorm], Label(":"))
+F = compose(fsm, [fsm1 |> renorm, fsm2 |> renorm])
 
-# ╔═╡ 5eb4b083-2761-470c-949f-844a5ecf04d0
-F
+# ╔═╡ 6a778033-ce98-4bca-acb2-dc4885ba1b7e
+d = Dict(Label("a") => fsm1, Label("b") => fsm2)
+
+# ╔═╡ 3a09ec4f-27d2-4ce8-8aef-2a628cec7173
+compose(fsm, d)
+
+# ╔═╡ d7f4f9c8-fe1c-4b44-9abb-678650492e2e
+d[fsm.λ[2]]
+
+# ╔═╡ 7278bd71-28bb-49c2-a431-dc2f904869e0
+fsm.λ[2]
+
+# ╔═╡ 3aa6086a-715b-4da3-a70a-f87e393fc9a9
+fsm
+
+# ╔═╡ 94f8b550-876a-4a44-816a-be73a2a52c30
+split(join(collect(val(F.λ[1]))...), ":")
 
 # ╔═╡ 31319623-6804-405d-ba65-b909d74092f2
 vcat((ones(2) for i in 1:4)...)
@@ -76,8 +165,35 @@ zero(fsm.α)
 
 # ╔═╡ b74cfd41-7bf4-4a51-a9f7-6142aa220f6d
 md"""
-## Determinization
+## Composition
 """
+
+# ╔═╡ d73c7249-df9d-4378-a1e7-d90a2177e533
+T1 = FSM(
+	[1 => one(K), 2 => one(K)],
+	[(1, 3) => K(0.1), (3, 3) => K(0.3), (3, 4) => K(0.4), 
+	 (2, 5) => K(0.2)],
+	[4 => K(0.4*0.6), 5 => K(0.5*0.6)],
+	[Label("a", "b"), Label("b", "a"), Label("c", "a"), Label("a", "a"), 
+	 Label("b", "b")]
+) 
+
+# ╔═╡ fc6b9f2d-31a7-450a-8db5-b9547ccf073f
+T2 = FSM(
+	[1 => one(K)],
+	[(1, 2) => K(0.3), (2, 3) => K(0.4), (3, 3) => K(0.6)],
+	[3 => K(0.7)],
+	[Label("b", "c"), Label("a", "b"), Label("a", "b")]
+) 
+
+# ╔═╡ 4053642b-cdd4-42d8-8edb-c035790e3797
+minimize(T2)
+
+# ╔═╡ 71cb29e2-436e-4370-8999-917c6e477874
+T3 = T1 ∘ T2
+
+# ╔═╡ 5c851395-3a19-4f4b-9ac0-a52e9bb0d16c
+T3.α
 
 # ╔═╡ 4c7d472e-c69b-4757-9e6c-5444e6ca5751
 fsma = FSM(
@@ -328,20 +444,36 @@ join([1, 2, 3])
 # ╔═╡ Cell order:
 # ╠═6e84e042-b5a5-11ec-3bda-e7f5e804b97e
 # ╠═238148e8-dfd8-454f-abb7-9571d09958a6
-# ╠═60d825e5-060e-4b58-a258-c9f37c60f5dd
-# ╠═cbbdc51d-1270-4c5d-8a8d-8942aa29d300
 # ╠═eb27ffd7-2496-4edb-a2b0-e5828278410c
 # ╠═140ef71a-d95e-4d2b-ad50-7a42c3125d7f
+# ╠═a1909068-cd60-4e84-bcbe-8d431430d3b7
+# ╠═d5295748-bee4-4df2-8c82-fa5377cdb5e3
+# ╠═db2a4ab5-89c9-4202-9c5d-6170db1c6764
+# ╠═bb40a2d4-14cf-43f9-a022-188161b92b74
+# ╠═0a2740f0-c9ac-4560-82df-f1ad20a548fd
+# ╠═deb303f4-0cf6-420c-b0e4-e3fd0761f5d1
 # ╠═56faf31f-32a3-4ef2-a094-06f5a2987ab6
 # ╠═813026d5-6171-4749-b6e2-b38e67a78e9f
+# ╠═a8017f3e-669f-43f5-9df4-24bdfa510a87
+# ╠═35a3fd05-e8c5-47a6-8db0-fad80b63f785
 # ╠═7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 # ╠═9e09acd6-780c-44f2-866a-070b10a46c7b
 # ╠═0709ea14-5ba2-4ff2-a609-1a2f0e543f92
 # ╠═c29c020d-829d-4f5f-804b-f0d6591329fc
-# ╠═5eb4b083-2761-470c-949f-844a5ecf04d0
+# ╠═3a09ec4f-27d2-4ce8-8aef-2a628cec7173
+# ╠═6a778033-ce98-4bca-acb2-dc4885ba1b7e
+# ╠═d7f4f9c8-fe1c-4b44-9abb-678650492e2e
+# ╠═7278bd71-28bb-49c2-a431-dc2f904869e0
+# ╠═3aa6086a-715b-4da3-a70a-f87e393fc9a9
+# ╠═94f8b550-876a-4a44-816a-be73a2a52c30
 # ╠═31319623-6804-405d-ba65-b909d74092f2
 # ╠═784849b6-256a-430f-8815-09a67414c363
 # ╟─b74cfd41-7bf4-4a51-a9f7-6142aa220f6d
+# ╠═d73c7249-df9d-4378-a1e7-d90a2177e533
+# ╠═fc6b9f2d-31a7-450a-8db5-b9547ccf073f
+# ╠═4053642b-cdd4-42d8-8edb-c035790e3797
+# ╠═71cb29e2-436e-4370-8999-917c6e477874
+# ╠═5c851395-3a19-4f4b-9ac0-a52e9bb0d16c
 # ╠═4c7d472e-c69b-4757-9e6c-5444e6ca5751
 # ╠═c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
 # ╠═a175fc9e-5330-4e54-854c-7b14d125ec71

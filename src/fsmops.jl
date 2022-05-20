@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
 
+
 function totalsum(α, T, ω, n)
     v = α
     total = dot(v, ω)
@@ -15,18 +16,22 @@ end
 
 Compute the `n`th partial total weight sum of `fsm`.
 """
-totalweightsum(fsm::FSM, n) = totalsum(fsm.α, fsm.T, fsm.ω, n)
+totalweightsum(fsm::FSM, n = nstates(fsm)) = totalsum(fsm.α, fsm.T, fsm.ω, n)
 
 """
     totalweightsum(fsm::FSM, n)
 
 Compute the `n`th partial total label sum of `fsm`.
 """
-totallabelsum(fsm::FSM, n) = totalsum(
-    tobinary(UnionConcatSemiring, fsm.α) .* fsm.λ,
-    tobinary(UnionConcatSemiring, fsm.T) * spdiagm(fsm.λ),
-    tobinary(UnionConcatSemiring, fsm.ω),
-    n)
+function totallabelsum(fsm::FSM, n = nstates(fsm))
+    λ = UnionConcatSemiring.([Set([λᵢ]) for λᵢ in fsm.λ])
+    totalsum(
+        tobinary(UnionConcatSemiring, fsm.α) .* λ,
+        tobinary(UnionConcatSemiring, fsm.T) * spdiagm(λ),
+        tobinary(UnionConcatSemiring, fsm.ω),
+        n
+   )
+end
 
 """
     union(fsms::FSM{K}...) where K
@@ -77,7 +82,7 @@ end
 
 Return a normalized FSM.
 """
-function renorm(::Divisible, fsm::FSM{K}) where K
+function renorm(::Type{Divisible}, fsm::FSM{K}) where K
     Z = one(K) ./ (sum(fsm.T, dims=2) .+ fsm.ω)
     FSM(
         fsm.α ./ sum(fsm.α),
@@ -127,11 +132,16 @@ function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
         _weighted_sparse_vcat(fsm₁.α, [fsmⁱ.α for fsmⁱ in fsms]),
         blockdiag([fsmⁱ.T for fsmⁱ in fsms]...) + Ω * fsm₁.T * A',
         _weighted_sparse_vcat(fsm₁.ω, [fsmⁱ.ω for fsmⁱ in fsms]),
-        vcat([λ₁ᵢ * sep * fsmⁱ.λ for (λ₁ᵢ, fsmⁱ) in zip(fsm₁.λ, fsms)]...)
+        vcat([compose.(λ₁ᵢ, fsmⁱ.λ) for (λ₁ᵢ, fsmⁱ) in zip(fsm₁.λ, fsms)]...)
     )
 end
-Base.:∘(fsm₁::FSM, fsms::AbstractVector) = compose(fsm₁, fsms)
 
+
+function compose(fsm1::FSM, dictfsms::AbstractDict)
+    compose(fsm1, [dictfsms[decompose(λᵢ)[end]]  for λᵢ in fsm1.λ])
+end
+
+Base.:∘(fsm1::FSM, fsm2) = compose(fsm1, fsm2)
 
 """
     propagate(fsm)
@@ -157,25 +167,26 @@ end
 
 
 # Extract the non-zero states as an array of tuples.
-_det_getstates(x) = [tuple(sort(map(first, collect(val(x))))...)
+_det_getstates(x) = [tuple(sort(map(a -> parse(Int, a), collect(val(x))))...)
                      for x in nonzeros(x)]
 
 """
     determinize(fsm[, match])
-
 Return an equivalent deterministic FSM. States `i` and `j` can be
 merged if `match(i, j)` is `true`. Note that to guarantee the
 equivalence of the returned FSM, you need to [`propagate`](@ref) weight
 on `fsm` prior to call `determinize`.
 """
 function determinize(fsm::FSM{K}, match = Base.:(==)) where K
+    λ = UnionConcatSemiring.([Set([λᵢ]) for λᵢ in fsm.λ])
+
     # We precompute the necessary matrices to estimate the new states
     # (i.e. set of states of the original fsm) and their transition weight.
-    labels = [Label(l) for l in sort(collect(val(sum(fsm.λ))))]
-    Mₗ = mapping(UnionConcatSemiring, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
-    M = mapping(K, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
+    labels = [UnionConcatSemiring(Set([l])) for l in sort(collect(val(sum(λ))))]
+    Mₗ = mapping(UnionConcatSemiring, 1:nstates(fsm), labels, (i, l) -> λ[i] == l)
+    M = mapping(K, 1:nstates(fsm), labels, (i, l) -> λ[i] == l)
     α, T, ω = fsm.α, fsm.T, fsm.ω
-    statelabels = Label.(collect(1:nstates(fsm)))
+    statelabels = UnionConcatSemiring.([Set(["$i"]) for i in 1:nstates(fsm)])
     αₗ = tobinary(UnionConcatSemiring, fsm.α) .* statelabels
     Tₗ = tobinary(UnionConcatSemiring, fsm.T) * spdiagm(statelabels)
 
