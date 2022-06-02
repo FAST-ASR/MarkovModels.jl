@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: MIT
 
-Label(x) = "$x"#StringSemiring("$x")
-compose(x::AbstractString, y::AbstractString) = join([x, y], ":")
-decompose(x::AbstractString) = split(x, ":")
+const LabelMonoid = SequenceMonoid
+Label() = one(LabelMonoid)
+Label(x) = LabelMonoid(tuple(x))
+compose(x::LabelMonoid, y::LabelMonoid) = x * y
+decompose(x::LabelMonoid) = [Label(i) for i in val(x)]
 
 struct FSM{K<:Semiring,L}
     α::AbstractSparseVector{K}
@@ -60,15 +62,7 @@ end
 SVG display of FSM
 ======================================================================#
 
-function showlabel(label)
-    return label
-    return val(label)
-    retval  = ""
-    for (i, seq) in enumerate(sort(collect(label.val)))
-        retval *= join(seq)
-    end
-    retval
-end
+showlabel(label) = join(val(label), ":")
 
 function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
     dotpath, dotfile = mktemp()

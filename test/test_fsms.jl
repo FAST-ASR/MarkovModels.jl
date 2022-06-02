@@ -17,8 +17,9 @@ end
 
 @testset "label" begin
     for x in [1, :e, "a"]
-        @test Label(x) == "$x"
+        @test Label(x) == SequenceMonoid(tuple(x))
     end
+    @test Label() == one(SequenceMonoid)
 end
 
 @testset "constructor" begin
@@ -205,7 +206,6 @@ end
             [2 => one(K)],
             [Label(:a), Label(:b)]
         )
-        sep = Label(":")
         fsm3 = FSM(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
@@ -215,9 +215,9 @@ end
              (3, 1) => one(K), (3, 4) => one(K),
              (6, 1) => one(K), (6, 4) => one(K)],
             [6 => one(K)],
-            [Label(:a) * sep * Label(1), Label(:a) * sep * Label(2),
-             Label(:a) * sep * Label(3), Label(:b) * sep * Label(1),
-             Label(:b) * sep * Label(2), Label(:b) * sep * Label(3)]
+            [Label(:a) * Label(1), Label(:a) * Label(2),
+             Label(:a) * Label(3), Label(:b) * Label(1),
+             Label(:b) * Label(2), Label(:b) * Label(3)]
         )
         fsm = fsm2 ∘ [fsm1, fsm1]
         @test fsmequal(fsm, fsm3)
@@ -232,33 +232,22 @@ end
         K = S{T}
         v1, v2, v3 = one(K), one(K) + one(K), one(K) + one(K) + one(K)
         fsm1 = FSM(
-            [1 => v2, 3 => v2],
-            [(1,1) => v2,
-             (1,2) => v1,
-             (1,3) => v3,
-             (2,2) => v2,
+            [1 => v2],
+            [(1,2) => v1,
+             (1,3) => v1,
              (2,4) => v1,
-             (3,4) => v2,
-             (4,4) => v3,
-             (3,2) => v2],
+             (3,4) => v2],
             [4 => v1],
             [Label(:a), Label(:b), Label(:c), Label(:d)]
         )
 
-        # This FSM should be the result of the propagate algorithm.
-        # Note however that this is valid only for FSM using a weight
-        # semiring isomorphic to the probability semiring.
         fsm2 = FSM(
-            [1 => v2, 3 => v2],
-            [(1,1) => v3 * v2 * v2,
-             (1,2) => v3 * v2,
-             (1,3) => v3 * v2 *v3,
-             (2,2) => v3 * v2 * v3 * v2,
-             (2,4) => v3 * v3 * v2,
-             (3,4) => v2 * v2 * v2 * v2,
-             (4,4) => v3 * (v3 + v2) * v2 * v2 + v3 * v2,
-             (3,2) => v2 * v2 * v2 * v2],
-            [4 => v3 * v3 * v2 + v2*v2],
+            [1 => v2],
+            [(1,2) => v2 * v1,
+             (1,3) => v2 * v1,
+             (2,4) => v2 * v1 * v1,
+             (3,4) => v2 * v1 * v2],
+            [4 => v2 * v1 * v1 + v2 * v1 * v2],
             [Label(:a), Label(:b), Label(:c), Label(:d)]
         )
 

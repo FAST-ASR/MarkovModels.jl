@@ -20,6 +20,15 @@ end
 # ╔═╡ 238148e8-dfd8-454f-abb7-9571d09958a6
 K = ProbSemiring{Float32}
 
+# ╔═╡ 363e3ded-bac9-4c0f-8f52-758126cf84b1
+J1 = ProductSemiring{UnionConcatSemiring{SequenceMonoid},K}
+
+# ╔═╡ cbd770f7-6b74-4027-bcf0-3d5f4ffaa573
+J2 = ProductSemiring{K, K}
+
+# ╔═╡ a5ad8a45-ada8-45e4-9ba3-6543ad236e70
+J = ProductSemiring{J1, J2}
+
 # ╔═╡ eb27ffd7-2496-4edb-a2b0-e5828278410c
 begin
 	phones = Dict() 
@@ -61,15 +70,6 @@ utterance = FSM(
 	[Label("hello"), Label("ola")]
 ) |> renorm
 
-# ╔═╡ d5295748-bee4-4df2-8c82-fa5377cdb5e3
-g = utterance ∘ lexicon ∘ phones
-
-# ╔═╡ db2a4ab5-89c9-4202-9c5d-6170db1c6764
-totallabelsum(g)
-
-# ╔═╡ bb40a2d4-14cf-43f9-a022-188161b92b74
-totallabelsum(g)
-
 # ╔═╡ 0a2740f0-c9ac-4560-82df-f1ad20a548fd
 hmms = Dict(
 	"1s" => FSM([1 => one(K)], [(1, 1) => one(K)], [1 => one(K)],
@@ -99,9 +99,6 @@ begin
 	plot(p1, p2, p3, layout = (3, 1), )
 end
 
-# ╔═╡ 56faf31f-32a3-4ef2-a094-06f5a2987ab6
-union(phones["a"], phones["a"]) |> determinize
-
 # ╔═╡ 813026d5-6171-4749-b6e2-b38e67a78e9f
 begin 
 	fsm1 = FSM(
@@ -113,14 +110,14 @@ begin
 	)
 
 	fsm1 = fsm1 ∪ fsm1
-	fsm2 = determinize(fsm1)
+	#fsm2 = determinize(fsm1)
 end
+
+# ╔═╡ 6b2d3c99-0697-4b9e-aae5-ebc64b774662
+fsm2 = determinize(fsm1)
 
 # ╔═╡ a8017f3e-669f-43f5-9df4-24bdfa510a87
 totalweightsum(fsm1 |> renorm)
-
-# ╔═╡ 35a3fd05-e8c5-47a6-8db0-fad80b63f785
-
 
 # ╔═╡ 7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 fsm1.α .* fsm1.ω'
@@ -210,6 +207,9 @@ fsmb = FSM(
 	[4 => one(K)],
 	[Label(:a), Label(:b), Label(:d), Label(:c)]
 ) 
+
+# ╔═╡ 53c42d46-9985-41ee-b237-0ecbde7462b0
+fsmb |> propagate
 
 # ╔═╡ a175fc9e-5330-4e54-854c-7b14d125ec71
 fsmc = FSM(
@@ -321,20 +321,6 @@ ML = MarkovModels.tobinary(UnionConcatSemiring, fsmab.T)
 # ╔═╡ ec291d41-8382-4154-9df8-a1a991603446
 l = αL .* z
 
-# ╔═╡ cdec2e91-8eb4-4fa1-a237-23b1f91574b9
-begin
-	I, J, V = [], [], UnionConcatSemiring[]
-	Q = length(fsmab.α)
-	for i in 1:Q, j in i:Q
-		if fsmab.λ[i] == fsmab.λ[j] 
-			push!(I, i)
-			push!(J, j)
-			push!(V, one(UnionConcatSemiring))
-		end
-	end
-	M = sparse(I, J, V, Q, Q)
-end
-
 # ╔═╡ 3f4d487a-02bd-4bda-a5f8-3e90be439481
 M' * l
 
@@ -444,18 +430,17 @@ join([1, 2, 3])
 # ╔═╡ Cell order:
 # ╠═6e84e042-b5a5-11ec-3bda-e7f5e804b97e
 # ╠═238148e8-dfd8-454f-abb7-9571d09958a6
+# ╠═363e3ded-bac9-4c0f-8f52-758126cf84b1
+# ╠═cbd770f7-6b74-4027-bcf0-3d5f4ffaa573
+# ╠═a5ad8a45-ada8-45e4-9ba3-6543ad236e70
 # ╠═eb27ffd7-2496-4edb-a2b0-e5828278410c
 # ╠═140ef71a-d95e-4d2b-ad50-7a42c3125d7f
 # ╠═a1909068-cd60-4e84-bcbe-8d431430d3b7
-# ╠═d5295748-bee4-4df2-8c82-fa5377cdb5e3
-# ╠═db2a4ab5-89c9-4202-9c5d-6170db1c6764
-# ╠═bb40a2d4-14cf-43f9-a022-188161b92b74
 # ╠═0a2740f0-c9ac-4560-82df-f1ad20a548fd
 # ╠═deb303f4-0cf6-420c-b0e4-e3fd0761f5d1
-# ╠═56faf31f-32a3-4ef2-a094-06f5a2987ab6
 # ╠═813026d5-6171-4749-b6e2-b38e67a78e9f
+# ╠═6b2d3c99-0697-4b9e-aae5-ebc64b774662
 # ╠═a8017f3e-669f-43f5-9df4-24bdfa510a87
-# ╠═35a3fd05-e8c5-47a6-8db0-fad80b63f785
 # ╠═7d0e5b1e-9928-441e-9f63-f0aa55a87e9e
 # ╠═9e09acd6-780c-44f2-866a-070b10a46c7b
 # ╠═0709ea14-5ba2-4ff2-a609-1a2f0e543f92
@@ -476,6 +461,7 @@ join([1, 2, 3])
 # ╠═5c851395-3a19-4f4b-9ac0-a52e9bb0d16c
 # ╠═4c7d472e-c69b-4757-9e6c-5444e6ca5751
 # ╠═c851bfc7-7de1-4b9c-9b34-c3b1bf233d90
+# ╠═53c42d46-9985-41ee-b237-0ecbde7462b0
 # ╠═a175fc9e-5330-4e54-854c-7b14d125ec71
 # ╠═49e645e1-a8a1-48ba-b032-770d5dcf78ba
 # ╠═96be6364-e98f-4ba6-8856-a5ace0646b48
@@ -511,7 +497,6 @@ join([1, 2, 3])
 # ╠═61cc7a22-a893-4a5e-a875-16ab43686023
 # ╠═be3eb371-7a04-4326-948f-1ffacb005f14
 # ╠═ec291d41-8382-4154-9df8-a1a991603446
-# ╠═cdec2e91-8eb4-4fa1-a237-23b1f91574b9
 # ╠═3f4d487a-02bd-4bda-a5f8-3e90be439481
 # ╠═c749092f-d7b1-45b4-b77a-f6792d27a2a6
 # ╠═c2c25125-cc7f-423d-9ce1-b48e06b477ae

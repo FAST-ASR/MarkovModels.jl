@@ -1,38 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-
-function totalsum(α, T, ω, n)
-    v = α
-    total = dot(v, ω)
-    for i in 2:n
-        v = T' * v
-        total += dot(v, ω)
-    end
-    total
-end
-
-"""
-    totalweightsum(fsm::FSM, n)
-
-Compute the `n`th partial total weight sum of `fsm`.
-"""
-totalweightsum(fsm::FSM, n = nstates(fsm)) = totalsum(fsm.α, fsm.T, fsm.ω, n)
-
-"""
-    totalweightsum(fsm::FSM, n)
-
-Compute the `n`th partial total label sum of `fsm`.
-"""
-function totallabelsum(fsm::FSM, n = nstates(fsm))
-    λ = UnionConcatSemiring.([Set([λᵢ]) for λᵢ in fsm.λ])
-    totalsum(
-        tobinary(UnionConcatSemiring, fsm.α) .* λ,
-        tobinary(UnionConcatSemiring, fsm.T) * spdiagm(λ),
-        tobinary(UnionConcatSemiring, fsm.ω),
-        n
-   )
-end
-
 """
     union(fsms::FSM{K}...) where K
 
@@ -159,36 +126,36 @@ function propagate(fsm::FSM{K}) where K
         o += fsm.ω .* v
 
         # Prune the states that have been visited.
-        SparseArrays.fkeep!(v, (i, x) -> i ∉ visited)
-        if nnz(v) > 0 push!(visited, findnz(v)[1]...) end
+        #SparseArrays.fkeep!(v, (i, x) -> i ∉ visited)
+        #if nnz(v) > 0 push!(visited, findnz(v)[1]...) end
     end
     FSM(fsm.α, A, o, fsm.λ)
 end
 
 
 # Extract the non-zero states as an array of tuples.
-_det_getstates(x) = [tuple(sort(map(a -> parse(Int, a), collect(val(x))))...)
+_det_getstates(x) = [tuple(sort(map(a -> val(a)[1], collect(val(x))))...)
                      for x in nonzeros(x)]
 
 """
     determinize(fsm[, match])
+
 Return an equivalent deterministic FSM. States `i` and `j` can be
 merged if `match(i, j)` is `true`. Note that to guarantee the
 equivalence of the returned FSM, you need to [`propagate`](@ref) weight
 on `fsm` prior to call `determinize`.
 """
 function determinize(fsm::FSM{K}, match = Base.:(==)) where K
-    λ = UnionConcatSemiring.([Set([λᵢ]) for λᵢ in fsm.λ])
-
     # We precompute the necessary matrices to estimate the new states
     # (i.e. set of states of the original fsm) and their transition weight.
-    labels = [UnionConcatSemiring(Set([l])) for l in sort(collect(val(sum(λ))))]
-    Mₗ = mapping(UnionConcatSemiring, 1:nstates(fsm), labels, (i, l) -> λ[i] == l)
-    M = mapping(K, 1:nstates(fsm), labels, (i, l) -> λ[i] == l)
+    labels = sort(collect(Set(fsm.λ)), by = val)
+    Mₗ = mapping(UnionConcatSemiring{LabelMonoid}, 1:nstates(fsm), labels,
+                 (i, l) -> fsm.λ[i] == l)
+    M = mapping(K, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
     α, T, ω = fsm.α, fsm.T, fsm.ω
-    statelabels = UnionConcatSemiring.([Set(["$i"]) for i in 1:nstates(fsm)])
-    αₗ = tobinary(UnionConcatSemiring, fsm.α) .* statelabels
-    Tₗ = tobinary(UnionConcatSemiring, fsm.T) * spdiagm(statelabels)
+    statelabels = UnionConcatSemiring{LabelMonoid}.([Set([Label(i)]) for i in 1:nstates(fsm)])
+    αₗ = tobinary(UnionConcatSemiring{LabelMonoid}, fsm.α) .* statelabels
+    Tₗ = tobinary(UnionConcatSemiring{LabelMonoid}, fsm.T) * spdiagm(statelabels)
 
     # Initialize the queue for the powerset construction algorithm.
     newstates = Dict()
@@ -204,7 +171,8 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
         state = popfirst!(queue)
         finalweight = sum(ω[collect(state)])
 
-        zₗ = sparsevec(collect(state), one(UnionConcatSemiring), nstates(fsm))
+        zₗ = sparsevec(collect(state), one(UnionConcatSemiring{LabelMonoid}),
+                       nstates(fsm))
         nextstates = _det_getstates(Mₗ' * Tₗ' * zₗ)
 
         z = sparsevec(collect(state), one(K), nstates(fsm))

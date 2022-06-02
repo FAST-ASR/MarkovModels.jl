@@ -21,9 +21,20 @@ export determinize
 export minimize
 export propagate
 export renorm
-export totalweightsum, totallabelsum
 
 include("fsmops.jl")
+
+export totcalcumsum
+export totalsum
+export totalweightsum
+export totallabelsum
+
+include("algorithms.jl")
+
+export totalngramsum
+export LanguageModelFSM
+
+include("lmfsm.jl")
 
 ##======================================================================
 #API to build and manipulate FSM.

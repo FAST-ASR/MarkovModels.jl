@@ -1,0 +1,162 @@
+# SPDX-License-Identifier: MIT
+
+"""
+    totalcumsum(α, T, ω, n)
+
+Partial total cumulative sum algorithm.
+"""
+function totalcumsum(α, T, ω, n)
+    v = α
+    total = dot(v, ω)
+    for i in 2:n
+        v = T' * v
+        total += dot(v, ω)
+    end
+    total
+end
+
+"""
+    totalsum(α, T, ω, n)
+
+Partial total sum algorithm.
+"""
+function totalsum(α, T, ω, n)
+    v = α
+    for i in 2:n
+        v = T' * v
+    end
+    dot(v, ω)
+end
+
+"""
+    totalweightsum(fsm::FSM, n)
+
+Compute the `n`th partial total weight sum of `fsm`.
+"""
+totalweightsum(fsm::FSM, n = nstates(fsm)) = totalcumsum(fsm.α, fsm.T, fsm.ω, n)
+
+"""
+    totallabelsum(fsm::FSM, n)
+
+Compute the `n`th partial total label sum of `fsm`.
+"""
+function totallabelsum(fsm::FSM, n = nstates(fsm))
+    λ = UnionConcatSemiring.([Set([LabelMonoid(val(λᵢ))]) for λᵢ in fsm.λ])
+    totalcumsum(
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.α) .* λ,
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.T) * spdiagm(λ),
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.ω),
+         n
+   )
+end
+
+_unfold(x::Semiring) = x
+function _unfold(x::ProductSemiring)
+    v1, v2 = val(x)
+    (_unfold(v1), _unfold(v2))
+end
+
+"""
+    totalngramsum(fsm::FSM; order)
+
+Calculate the n-gram statistics from `fsm` of order `order`.
+"""
+function totalngramsum(fsm::FSM; order)
+    K = eltype(fsm.α)
+
+    # To avoid missing sequences shorter than `order` with "pad"
+    # FSM with empty states.
+    if order > 1
+        pad = FSM(
+              sparsevec([1], [one(K)], order-1),
+              spdiagm(1 => ones(K, order-2)),
+              sparsevec([order-1], [one(K)], order-1),
+              repeat([Label()], order-1)
+        )
+        fsm = cat(pad, fsm)
+    end
+
+    T1 = ProductSemiring{AppendConcatSemiring{LabelMonoid},K}
+    T2 = ProductSemiring{K,K}
+    S = ProductSemiring{T1,T2}
+
+    α = [AppendConcatSemiring([S(T1(AppendConcatSemiring([λᵢ]), one(K)),
+                                    T2(αᵢ, one(K)))])
+         for (λᵢ, αᵢ) in zip(fsm.λ, fsm.α)]
+
+    I, J, V = findnz(fsm.T)
+    V2 = [AppendConcatSemiring([S(T1(AppendConcatSemiring([fsm.λ[J[i]]]),
+                                        V[i]), one(T2))])
+          for i in 1:length(V)]
+    T = sparse(I, J, V2, nstates(fsm), nstates(fsm))
+
+    ω = [AppendConcatSemiring([S(one(T1), T2(one(K), ωᵢ))])
+         for ωᵢ in fsm.ω]
+
+    # N-gram statistics are evaluated with the total-sum algorithm.
+    stats = totalsum(α, T, ω, order)
+
+    # We merge all identical n-grams
+    ngrams = Dict()
+    for s in val(stats)
+        ((array_ngram, w), (iw, fw)) = _unfold(s)
+
+        # 1. By construction, `array_ngram` is guaranteed to have only
+        #    one element.
+        # 2. We need to reverse the sequence as Julia does not respect
+        #    the right or left multiplication (it always
+        #    right-multiply).
+        ngram = reverse(val(val(array_ngram)[1]))
+
+        a, b, c = get(ngrams, ngram, (zero(K), zero(K), zero(K)))
+        ngrams[ngram] = (a+iw, b+w, c+fw)
+    end
+
+    ngrams
+end
+
+"""
+    LanguagageModelFSM(ngrams)
+
+Build a language model FSM from ngram statistics.
+"""
+function LanguageModelFSM(K::Type{<:Semiring}, ngrams)
+	states = Dict()
+	initstates = Dict()
+	finalstates = Dict()
+	arcs = Dict()
+
+    # Calcultate the ngram order by checking the maximum ngram length.
+    order = 0
+    for key in keys(ngrams)
+        order = max(length(key), order)
+    end
+
+	for (ngram, (iw, w, fw)) in ngrams
+		if length(ngram) == 1 && ! iszero(iw)
+			states[ngram] = get(states, ngram, length(states) + 1)
+			initstates[ngram] = iw + get(initstates, ngram, zero(K))
+			if ! iszero(fw)
+				finalstates[ngram] = fw + get(finalstates, ngram, zero(K))
+			end
+		elseif length(ngram) > 1
+			src = ngram[1:min(order, length(ngram)) - 1]
+			dest = ngram[max(1, length(ngram) - order + 2):end]
+			states[src] = get(states, src, length(states) + 1)
+			states[dest] = get(states, dest, length(states) + 1)
+			arcs[(src, dest)] = w + get(arcs, (src, dest), zero(K))
+
+			if ! iszero(fw)
+				finalstates[dest] = fw + get(finalstates, dest, zero(K))
+			end
+		end
+	end
+
+	FSM(
+		[states[s] => v for (s, v) in initstates],
+		[(states[src], states[dest]) => v for ((src, dest), v) in arcs],
+		[states[s] => v for (s, v) in finalstates],
+		[SequenceMonoid(s) for (s, _) in sort(collect(states), by = p -> p[2])]
+	) |> renorm
+end
+
