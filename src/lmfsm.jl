@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: MIT
 
+_unfold(x::Semiring) = x
+function _unfold(x::ProductSemiring)
+    v1, v2 = val(x)
+    (_unfold(v1), _unfold(v2))
+end
+
 """
     totalngramsum(fsm::FSM; order)
 

@@ -55,7 +55,7 @@ fsm_phones = FSM(
 	fsm.α,
 	fsm.T,
 	fsm.ω,
-	[MarkovModels.decompose(λᵢ)[end] for λᵢ in fsm.λ]
+	[Label(val(λᵢ)[end]) for λᵢ in fsm.λ]
 ) |> propagate
 
 # ╔═╡ 094db5ea-99d6-4bdf-a20e-30f1b42b8329
