@@ -64,7 +64,7 @@ end
 
 Build a language model FSM from ngram statistics.
 """
-function LanguageModelFSM(K::Type{<:Semiring}, ngrams)
+function LanguageModelFSM(ngrams)
 	states = Dict()
 	initstates = Dict()
 	finalstates = Dict()
@@ -79,19 +79,19 @@ function LanguageModelFSM(K::Type{<:Semiring}, ngrams)
 	for (ngram, (iw, w, fw)) in ngrams
 		if length(ngram) == 1 && ! iszero(iw)
 			states[ngram] = get(states, ngram, length(states) + 1)
-			initstates[ngram] = iw + get(initstates, ngram, zero(K))
+			initstates[ngram] = iw + get(initstates, ngram, zero(iw))
 			if ! iszero(fw)
-				finalstates[ngram] = fw + get(finalstates, ngram, zero(K))
+				finalstates[ngram] = fw + get(finalstates, ngram, zero(fw))
 			end
 		elseif length(ngram) > 1
 			src = ngram[1:min(order, length(ngram)) - 1]
 			dest = ngram[max(1, length(ngram) - order + 2):end]
 			states[src] = get(states, src, length(states) + 1)
 			states[dest] = get(states, dest, length(states) + 1)
-			arcs[(src, dest)] = w + get(arcs, (src, dest), zero(K))
+			arcs[(src, dest)] = w + get(arcs, (src, dest), zero(w))
 
 			if ! iszero(fw)
-				finalstates[dest] = fw + get(finalstates, dest, zero(K))
+				finalstates[dest] = fw + get(finalstates, dest, zero(fw))
 			end
 		end
 	end

@@ -110,7 +110,7 @@ begin
 	)
 
 	fsm1 = fsm1 ∪ fsm1
-	#fsm2 = determinize(fsm1)
+	#fm2 = determinize(fsm1)
 end
 
 # ╔═╡ 6b2d3c99-0697-4b9e-aae5-ebc64b774662

@@ -68,7 +68,7 @@ totallabelsum(fsm_phones).val
 ngrams = totalngramsum(fsm_phones, order = 3)
 
 # ╔═╡ 308d6804-f4b1-476b-aa5c-a707380bb3ac
-LanguageModelFSM(K, ngrams)
+LanguageModelFSM(ngrams)
 
 # ╔═╡ Cell order:
 # ╠═20d75084-ddc1-11ec-362a-0d63b16271b7
