@@ -70,6 +70,12 @@ ngrams = totalngramsum(fsm_phones, order = 3)
 # ╔═╡ 308d6804-f4b1-476b-aa5c-a707380bb3ac
 LanguageModelFSM(ngrams)
 
+# ╔═╡ 17e49b92-6c8b-4a2f-a570-227ebecf5ef4
+ngrams2 = totalngramsum(fsm, order = 3)
+
+# ╔═╡ f78f865a-2a64-44a1-a037-a2a202767349
+LanguageModelFSM(ngrams2)
+
 # ╔═╡ Cell order:
 # ╠═20d75084-ddc1-11ec-362a-0d63b16271b7
 # ╠═32c63dfa-4939-4705-a910-25b5de836078
@@ -81,3 +87,5 @@ LanguageModelFSM(ngrams)
 # ╠═879de4bc-4707-4c3f-9eb7-2863add8be40
 # ╠═97bbbc67-9118-4ca7-a2c6-17416c651846
 # ╠═308d6804-f4b1-476b-aa5c-a707380bb3ac
+# ╠═17e49b92-6c8b-4a2f-a570-227ebecf5ef4
+# ╠═f78f865a-2a64-44a1-a037-a2a202767349

@@ -14,6 +14,14 @@ Calculate the n-gram statistics from `fsm` of order `order`.
 function totalngramsum(fsm::FSM; order)
     K = eltype(fsm.α)
 
+    # We just keep the last element of the labels' sequence.
+    fsm = FSM(
+        fsm.α,
+        fsm.T,
+        fsm.ω,
+        [Label(val(λᵢ)[end]) for λᵢ in fsm.λ]
+    )
+
     # To avoid missing sequences shorter than `order` with "pad"
     # FSM with empty states.
     if order > 1
