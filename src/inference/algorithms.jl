@@ -80,7 +80,7 @@ function _drop_extradims(fsm, γ)
 end
 
 """
-    pdfposteriors(mfsm::MatrixFSM{SF} lhs) where SF <: Semifield
+    pdfposteriors(mfsm::MatrixFSM{SF} lhs) where SF <: Semiring
     pdfposteriors(union(mfsm1, mfsm2, ...), batch_lhs)
 
 Calculate the conditional posterior of "assigning" the \$n\$th frame
@@ -93,7 +93,7 @@ and per-batch values.
 pdfposteriors
 
 function pdfposteriors(mfsm::MatrixFSM{SR},
-                       in_lhs::AbstractMatrix{T}) where {SR<:LogSemifield,T}
+                       in_lhs::AbstractMatrix{T}) where {SR<:LogSemiring,T}
     # Convert the likelihood matrix to the mfsm' semiring.
     lhs = copyto!(similar(in_lhs, SR), in_lhs)
 
@@ -117,16 +117,16 @@ function pdfposteriors(mfsm::MatrixFSM{SR},
     eldiv!(γ, γ, sums)
 
     # Convert the result to the Real-semiring
-    out = copyto!(similar(in_lhs), γ[1:end-1,1:end-1])
+    out = val.(γ[1:end-1,1:end-1])
     out = map!(exp, out, out)
 
-    out, convert(T, minimum(sums))
+    out, val(minimum(sums))
 end
 
 function pdfposteriors(mfsm::UnionMatrixFSM{SR},
                        in_lhs::AbstractArray{T,3},
                        seqlengths,
-                      ) where {SR<:LogSemifield,T}
+                      ) where {SR<:LogSemiring,T}
 
     # Convert the likelihood tensor to the mfsm's semiring.
     lhs_tensor = copyto!(similar(in_lhs, SR), in_lhs)
@@ -157,11 +157,11 @@ function pdfposteriors(mfsm::UnionMatrixFSM{SR},
     eldiv!(γ, γ, sums)
 
     # Convert the result to the Real-semiring
-    out = copyto!(similar(in_lhs), γ[1:end-1,1:end-1,:])
+    out = val.(γ[1:end-1,1:end-1,:])
     out = map!(exp, out, out)
 
     ttl = dropdims(minimum(sums, dims = (1, 2)), dims = (1, 2))
-    out, copyto!(similar(ttl, T), ttl)
+    out, val.(ttl)
 end
 
 @deprecate stateposteriors(mfsm, lhs) pdfposteriors(mfsm, lhs)

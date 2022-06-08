@@ -2,6 +2,7 @@
 
 using CUDA, CUDA.CUSPARSE, SparseArrays
 import LogExpFunctions: logsumexp, logaddexp
+import Semirings: val
 using MarkovModels
 using Test
 

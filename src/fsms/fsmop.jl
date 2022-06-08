@@ -41,12 +41,12 @@ Base.union(f::AbstractFSM{T}, o::AbstractFSM{T}...) where T =
     foldl(union, o, init = f)
 
 """
-    renormalize(fsm::AbstractFSM{T}) where T<:Semifield
+    renormalize(fsm::AbstractFSM{T}) where T<:Semiring
 
 Ensure the that the weights of all the outgoing arcs leaving a
 state sum up to `one(T)`.
 """
-function renormalize(fsm::AbstractFSM{T}) where T<:Semifield
+function renormalize(fsm::AbstractFSM{T}) where T<:Semiring
     total_initweight = zero(T)
     for s in filter(isinit, states(fsm)) total_initweight += s.initweight end
 
@@ -243,7 +243,7 @@ function label_closure!(
         closure::Vector, fsm::AbstractFSM{T}, state::State, label;
         weight::T=one(T), visited::Vector{State} = State[],
         matchfn = (x,y) -> x != y
-) where T <: Semifield
+) where T <: Semiring
 
     if state in visited
         return closure
@@ -266,7 +266,7 @@ end
 
 Removes all states from`fsm` with label `label`.
 """
-function remove_label(fsm::AbstractFSM{T}, label) where T <: Semifield
+function remove_label(fsm::AbstractFSM{T}, label) where T <: Semiring
     nfsm = VectorFSM{T}()
     label_states = []
 

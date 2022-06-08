@@ -1,11 +1,12 @@
 name = "MarkovModels"
 uuid = "c2ae6250-d0a1-11ea-0991-234599ce5244"
 authors = ["Lucas Ondel <lucas.ondel@gmail.com>", "Martin Kocour <ikocour@fit.vutbr.cz>"]
-version = "0.8.0"
+version = "0.9.0"
 
 [deps]
 CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+Semirings = "900aad66-9ca5-44d4-b043-321c62cb7767"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]

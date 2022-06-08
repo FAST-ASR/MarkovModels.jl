@@ -65,13 +65,13 @@ _getindex(x::AbstractVector{T}, i, j) where T = x[i]
 
 function matmul!(out, X::AbstractMatrix{T1}, y::AbstractArray{T2}) where {T1,T2}
     T = promote_type(T1, T2)
-    mul!(out, X, y, one(T), zero(T))
+    mul!(out, X, y, true, false)
 end
 
 function matmul!(out, X::AbstractSparseMatrix{T1}, y::AbstractArray{T2}) where {T1,T2}
     T = promote_type(T1, T2)
     fill!(out, zero(T))
-    mul!(out, X, y, one(T), zero(T))
+    mul!(out, X, y, true, false)
 end
 
 matmul!(out, X::CuMatrix, Y::CuMatrix) = mul_dmdm!(out, X, Y)
