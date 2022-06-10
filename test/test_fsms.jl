@@ -41,13 +41,13 @@ function fsmequal(fsm1::AbstractFSM, fsm2::AbstractFSM)
     end
 
     same_strings = Set([t[1] for t in ws1]) == Set([t[1] for t in ws2])
-    same_weights = all(sort([convert(Float64, t[2]) for t in ws1]) .≈
-                       sort([convert(Float64, t[2]) for t in ws2]))
+    same_weights = all(sort([val(t[2]) for t in ws1]) .≈
+                       sort([val(t[2]) for t in ws2]))
     same_strings && same_weights
 end
 
 @testset "renormalize" begin
-    SR = ProbabilitySemifield{Float32}
+    SR = ProbSemiring{Float32}
     fsm = VectorFSM{SR}()
     s1 = addstate!(fsm, "a", initweight = SR(0.5))
     s2 = addstate!(fsm, "b", initweight = SR(0.5))
@@ -74,7 +74,7 @@ end
 end
 
 @testset "union" begin
-    SR = LogSemifield{Float32}
+    SR = LogSemiring{Float32}
 
     fsm = VectorFSM{SR}()
     s1 = addstate!(fsm, "a"; initweight = one(SR), finalweight = one(SR))
@@ -104,7 +104,7 @@ end
 end
 
 @testset "determinize" begin
-    SR = ProbabilitySemifield{Float64}
+    SR = ProbSemiring{Float64}
 
     fsm = VectorFSM{SR}()
     s1 = addstate!(fsm, "a"; initweight = SR(0.5))
@@ -130,7 +130,7 @@ end
 end
 
 @testset "minimize" begin
-    SR = ProbabilitySemifield{Float64}
+    SR = ProbSemiring{Float64}
 
     fsm = VectorFSM{SR}()
     s1 = addstate!(fsm, "a"; initweight = SR(0.5))
@@ -177,7 +177,7 @@ end
 end
 
 @testset "transpose" begin
-    SR = ProbabilitySemifield{Float64}
+    SR = ProbSemiring{Float64}
 
     fsm = VectorFSM{SR}()
     s1 = addstate!(fsm, "a"; initweight = SR(0.5))
@@ -203,7 +203,7 @@ end
 end
 
 @testset "HierarchicalFSM" begin
-    SR = ProbabilitySemifield{Float64}
+    SR = ProbSemiring{Float64}
 
     fsma = VectorFSM{SR}()
     s1 = addstate!(fsma, "a"; initweight = SR(0.5))
@@ -275,7 +275,7 @@ end
 end
 
 @testset "MatrixFSM" begin
-    SR = ProbabilitySemifield{Float64}
+    SR = ProbSemiring{Float64}
 
     fsm = VectorFSM{SR}()
     s1 = addstate!(fsm, ("a", 1); initweight = SR(0.5))

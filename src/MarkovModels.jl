@@ -11,15 +11,11 @@ using SparseArrays
 Semiring algebras.
 ======================================================================#
 
-include("semirings/Semirings.jl")
-
-using .Semirings
+using Semirings
 
 export Semiring
-export Semifield
-
-export ProbabilitySemifield
-export LogSemifield
+export ProbSemiring
+export LogSemiring
 export TropicalSemiring
 
 #======================================================================
