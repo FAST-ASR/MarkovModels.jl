@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: MIT
 
+using CUDA, CUDA.CUSPARSE, SparseArrays
+import LogExpFunctions: logsumexp, logaddexp
+import Semirings: val
 using MarkovModels
 using Semirings
 using SparseArrays

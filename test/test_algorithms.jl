@@ -7,7 +7,7 @@ const K = 3 # Number of emissions
 const N = 7 # number of frames
 
 const T = Float32
-const SF = LogSemifield{T}
+const SF = LogSemiring{T}
 
 
 function makefsm(SF, S)
@@ -74,7 +74,7 @@ if CUDA.functional()
         yg = CuSparseVector(y)
         out = similar(xg)
         MarkovModels.Inference.elmul_svdv!(out, yg, xg)
-        @test all(convert(Vector{T}, out) .≈ x .* y)
+        @test all(val.(out) .≈ x .* y)
 
         x = ones(T, D)
         y = spzeros(T, D)
@@ -82,7 +82,7 @@ if CUDA.functional()
         yg = CuSparseVector(y)
         out = similar(xg)
         MarkovModels.Inference.elmul_svdv!(out, yg, xg)
-        @test all(convert(Vector{T}, out) .≈ x .* y)
+        @test all(val.(out) .≈ x .* y)
 
         for Yᵀ in [spdiagm(y), spzeros(T, length(y))]
             Yᵀ = spdiagm(y)
@@ -90,7 +90,7 @@ if CUDA.functional()
             Yg = CuSparseMatrixCSR( Yᵀg.colPtr, Yᵀg.rowVal, Yᵀg.nzVal, (D,D))
             out = similar(xg)
             MarkovModels.Inference.mul_smdv!(out, Yg, xg)
-            @test all(convert(Vector{T}, out) .≈ transpose(Yᵀ) * x)
+            @test all(val.(out) .≈ transpose(Yᵀ) * x)
         end
 
         x = ones(T, D)
@@ -104,7 +104,7 @@ if CUDA.functional()
         Yg = CuSparseMatrixCSR(Yg.colPtr, Yg.rowVal, Yg.nzVal, Yg.dims)
         out = similar(Xg)
         MarkovModels.Inference.elmul_svdm!(out, yg, Xg)
-        @test all(convert(Matrix{T}, out) .≈ X .* reshape(y, :, 1))
+        @test all(val.(out) .≈ X .* reshape(y, :, 1))
 
         x = ones(T, D)
         y = spzeros(T, D)
@@ -120,7 +120,7 @@ if CUDA.functional()
         Yg = CuSparseMatrixCSR(Yg.colPtr, Yg.rowVal, Yg.nzVal, Yg.dims)
         out = similar(Xg)
         MarkovModels.Inference.elmul_svdm!(out, yg, Xg)
-        @test all(convert(Matrix{T}, out) .≈ X .* reshape(y, :, 1))
+        @test all(val.(out) .≈ X .* reshape(y, :, 1))
 
         A = spzeros(3, 3)
         Ag = CuSparseMatrixCSC(A)
@@ -129,7 +129,7 @@ if CUDA.functional()
         Yg = CuArray(Y)
         out = similar(Yg)
         MarkovModels.Inference.mul_smdm!(out, Ag, Yg)
-        @test all(convert(Matrix{T}, out) .≈ A' * Y)
+        @test all(val.(out) .≈ A' * Y)
 
         A = spzeros(3, 3)
         A[1, 1] = 1/2
@@ -143,7 +143,7 @@ if CUDA.functional()
         Yg = CuArray(Y)
         out = similar(Yg)
         MarkovModels.Inference.mul_smdm!(out, Ag, Yg)
-        @test all(convert(Matrix{T}, out) .≈ A' * Y)
+        @test all(val.(out) .≈ A' * Y)
 
         A = ones(T, 3, 2)
         Ag = CuArray(A)
@@ -151,7 +151,7 @@ if CUDA.functional()
         Bg = CuArray(B)
         out = similar(Ag, 3, 3)
         MarkovModels.Inference.mul_dmdm!(out, Ag, Bg)
-        @test all(convert(Matrix{T}, out) .≈ A * B)
+        @test all(val.(out) .≈ A * B)
     end
 
     @testset "array" begin
@@ -171,7 +171,7 @@ if CUDA.functional()
         gX₂ = CuSparseMatrixCSR(cu(X₂))
         gY = blockdiag(gX₁, gX₂)
 
-        @test all(convert(Array{T}, gY) .≈ convert(Array{T}, Y))
+        @test all(val.(gY) .≈ val.(Y))
 
         x₁ = spzeros(T, 3)
         x₂ = spzeros(T, 2)
@@ -197,10 +197,10 @@ end
     mfsm = MatrixFSM(fsm, label2pdfid)
 
     γ_ref, ttl_ref = forward_backward(
-        convert(Matrix{T}, mfsm.T),
-        convert(Matrix{T}, mfsm.Tᵀ),
-        convert(Vector{T}, mfsm.π),
-        convert(Matrix{T}, lhs)
+        val.(mfsm.T),
+        val.(mfsm.Tᵀ),
+        val.(mfsm.π),
+        lhs
     )
 
     γ_scpu, ttl_scpu = pdfposteriors(mfsm, lhs)
@@ -210,7 +210,7 @@ end
     if CUDA.functional()
         mfsm = mfsm |> gpu
         γ_sgpu, ttl_sgpu = pdfposteriors(mfsm, CuArray(lhs))
-        @test all(γ_ref .≈ convert(Matrix{T}, γ_sgpu))
+        @test all(γ_ref .≈ val.(γ_sgpu))
         @test ttl_ref ≈ ttl_sgpu
     end
 end
@@ -225,17 +225,17 @@ end
     mfsm = MatrixFSM(fsm, label2pdfid)
 
     γ_ref1, ttl_ref1 = forward_backward(
-        convert(Matrix{T}, mfsm.T),
-        convert(Matrix{T}, mfsm.Tᵀ),
-        convert(Vector{T}, mfsm.π),
-        convert(Matrix{T}, lhs[:, 1:5, 1])
+        val.(mfsm.T),
+        val.(mfsm.Tᵀ),
+        val.(mfsm.π),
+        lhs[:, 1:5, 1]
     )
 
     γ_ref2, ttl_ref2 = forward_backward(
-        convert(Matrix{T}, mfsm.T),
-        convert(Matrix{T}, mfsm.Tᵀ),
-        convert(Vector{T}, mfsm.π),
-        convert(Matrix{T}, lhs[:, 1:7, 1])
+        val.(mfsm.T),
+        val.(mfsm.Tᵀ),
+        val.(mfsm.π),
+        lhs[:, 1:7, 1]
     )
 
 
@@ -251,11 +251,11 @@ end
         mfsm = mfsm |> gpu
         mfsms = union([mfsm for i in 1:B]...)
         γ_sgpu, ttl_sgpu = pdfposteriors(mfsms, CuArray(lhs), seqlengths)
-        @test all(γ_ref1 .≈ convert(Array{T,3}, γ_sgpu)[:,1:5,1])
-        @test ttl_ref1 ≈ convert(Vector{T}, ttl_sgpu)[1]
-        @test all(γ_ref2 .≈ convert(Array{T,3}, γ_sgpu)[:,1:7,2])
-        @test ttl_ref2 ≈ convert(Vector{T}, ttl_sgpu)[2]
-        @test all(convert(Array{T,3}, γ_sgpu)[:,6:7,1] .== zero(T))
+        @test all(γ_ref1 .≈ val.(γ_sgpu)[:,1:5,1])
+        @test ttl_ref1 ≈ val.(ttl_sgpu)[1]
+        @test all(γ_ref2 .≈ val.(γ_sgpu)[:,1:7,2])
+        @test ttl_ref2 ≈ val.(ttl_sgpu)[2]
+        @test all(val.(γ_sgpu)[:,6:7,1] .== zero(T))
     end
 end
 
