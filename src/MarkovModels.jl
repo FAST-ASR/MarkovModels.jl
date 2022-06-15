@@ -2,6 +2,9 @@
 
 module MarkovModels
 
+using Adapt
+using CUDA
+using CUDA.CUSPARSE
 using JSON
 using LinearAlgebra
 using SparseArrays
@@ -36,40 +39,6 @@ export LanguageModelFSM
 
 include("lmfsm.jl")
 
-##======================================================================
-#API to build and manipulate FSM.
-#======================================================================#
-#
-#include("fsms/FSMs.jl")
-#
-#using .FSMs
-#
-#export AbstractFSM
-#export states
-#export arcs
-#export semiring
-#
-#export AbstractMutableFSM
-#export addstate!
-#export addarc!
-#
-#export State
-#export isinit
-#export isfinal
-#
-#export Arc
-#
-#export VectorFSM
-#export HierarchicalFSM
-#export MatrixFSM
-#export UnionMatrixFSM
-#
-#export gpu
-#export determinize
-#export minimize
-#export remove_label
-#export renormalize
-#export transpose
 #
 ##======================================================================
 #Inference algorithms.

@@ -13,6 +13,10 @@ struct FSM{K<:Semiring,L}
     λ::AbstractVector{L}
 end
 
+function Adapt.adapt_structure(to, fsm::FSM)
+    FSM(adapt(to, fsm.α), adapt(to, fsm.T), adapt(to, fsm.ω), fsm.λ)
+end
+
 function FSM(initws, arcs, finalws, λ)
     # Get the set of states indices.
     states = (Set(map(first, initws))
@@ -65,6 +69,11 @@ SVG display of FSM
 showlabel(label) = join(val(label), ":")
 
 function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
+    # Move the FSM to the CPU memory.
+    if typeof(fsm.T) <: AbstractCuSparseMatrix
+        fsm = adapt(Array, fsm)
+    end
+
     dotpath, dotfile = mktemp()
     svgpath, svgfile = mktemp()
 
