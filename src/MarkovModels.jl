@@ -11,43 +11,35 @@ using SparseArrays
 using BlockDiagonals
 using Semirings
 
+export
+    # FSM creation
+    FSM,
+    Label,
+    nstates,
+
+    # FSM operations
+    compose,
+    determinize,
+    minimize,
+    propagate,
+    renorm,
+
+    # Total sum algorithm and its variants
+    totalcumsum,
+    totalsum,
+    totalweightsum,
+    totallabelsum,
+
+    # Building n-gram language model
+    totalngramsum,
+    LanguageModelFSM
+
 include("utils.jl")
-
-export FSM
-export Label
-export nstates
-
 include("fsm.jl")
-
-export compose
-export determinize
-export minimize
-export propagate
-export renorm
-
 include("fsmops.jl")
-
-export totcalcumsum
-export totalsum
-export totalweightsum
-export totallabelsum
-
 include("algorithms.jl")
-
-export totalngramsum
-export LanguageModelFSM
-
 include("lmfsm.jl")
 
-#
-##======================================================================
-#Inference algorithms.
-#======================================================================#
-#
-#include("inference/Inference.jl")
-#
-#using .Inference
-#
 #export pdfposteriors
 #export maxstateposteriors
 #export bestpath
