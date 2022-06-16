@@ -14,7 +14,7 @@ SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
 BlockDiagonals = "0.1"
-CUDA = "3.10"
+CUDA = "3.9"
 JSON = "0.21"
 Semirings = "0.5"
 julia = "1.7"
