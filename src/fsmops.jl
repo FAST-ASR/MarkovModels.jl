@@ -60,15 +60,6 @@ function renorm(::Type{Divisible}, fsm::FSM{K}) where K
 end
 renorm(fsm::FSM{K}) where K = renorm(IsDivisible(K), fsm)
 
-function _mapping_matrix(K::Type{<:Semiring}, fsm₁, fsms)
-    blocks = []
-    for fsmⁱ in fsms
-        n = nstates(fsmⁱ)
-        push!(blocks, sparse(1:n, ones(n), ones(K, n)))
-    end
-    blockdiag(blocks...)
-end
-
 function _weighted_sparse_vcat(x, ys)
     K = eltype(x)
     I, V = Int64[], K[]
@@ -99,7 +90,7 @@ function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
         _weighted_sparse_vcat(fsm₁.α, [fsmⁱ.α for fsmⁱ in fsms]),
         blockdiag([fsmⁱ.T for fsmⁱ in fsms]...) + Ω * fsm₁.T * A',
         _weighted_sparse_vcat(fsm₁.ω, [fsmⁱ.ω for fsmⁱ in fsms]),
-        vcat([compose.(λ₁ᵢ, fsmⁱ.λ) for (λ₁ᵢ, fsmⁱ) in zip(fsm₁.λ, fsms)]...)
+        vcat([λ₁ᵢ * fsmⁱ.λ for (λ₁ᵢ, fsmⁱ) in zip(fsm₁.λ, fsms)]...)
     )
 end
 

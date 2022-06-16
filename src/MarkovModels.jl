@@ -40,7 +40,11 @@ include("fsm.jl")
 include("fsmops.jl")
 include("algorithms.jl")
 include("lmfsm.jl")
+include("cusparsearrays.jl")
+include("cukernels.jl")
 include("linalg.jl")
+
+
 
 #export pdfposteriors
 #export maxstateposteriors

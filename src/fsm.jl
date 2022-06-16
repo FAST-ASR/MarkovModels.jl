@@ -3,8 +3,6 @@
 const LabelMonoid = SequenceMonoid
 Label() = one(LabelMonoid)
 Label(x) = LabelMonoid(tuple(x))
-compose(x::LabelMonoid, y::LabelMonoid) = x * y
-decompose(x::LabelMonoid) = [Label(i) for i in val(x)]
 
 struct FSM{K<:Semiring,L}
     α::AbstractSparseVector{K}
