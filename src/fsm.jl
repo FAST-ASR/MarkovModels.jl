@@ -6,13 +6,33 @@ Label(x) = LabelMonoid(tuple(x))
 
 struct FSM{K<:Semiring,L}
     α::AbstractSparseVector{K}
-    T::AbstractSparseMatrix{K}
-    ω::AbstractSparseVector{K}
+
+    # Transition matrix T extended with a "final" state. All the
+    # edges to the final state encode the "ω" vector.
+    Ω::AbstractSparseMatrix{K}
+
     λ::AbstractVector{L}
 end
 
-function Adapt.adapt_structure(to, fsm::FSM)
-    FSM(adapt(to, fsm.α), adapt(to, fsm.T), adapt(to, fsm.ω), fsm.λ)
+function FSM(α::AbstractSparseVector, T::AbstractSparseMatrix,
+             ω::AbstractSparseVector, λ::AbstractVector)
+
+    Tω = hcat(T, ω)
+    p = fill!(similar(ω, length(ω) + 1), zero(eltype(ω)))
+    p[end] = one(eltype(ω))
+    Ω = vcat(Tω, reshape(p, 1, :))
+
+    FSM(α, Ω, λ)
+end
+
+function Base.getproperty(fsm::FSM, sym::Symbol)
+    if sym === :ω
+        return fsm.Ω[1:end-1, end]
+    elseif sym === :T
+        return fsm.Ω[1:end-1, 1:end-1]
+    else
+        return getfield(fsm, sym)
+    end
 end
 
 function FSM(initws, arcs, finalws, λ)
