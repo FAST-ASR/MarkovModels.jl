@@ -3,6 +3,7 @@
 module MarkovModels
 
 using Adapt
+using Base.Broadcast: BroadcastStyle, Broadcasted, flatten
 using CUDA
 using CUDA.CUSPARSE
 using JSON
@@ -39,6 +40,7 @@ include("fsm.jl")
 include("fsmops.jl")
 include("algorithms.jl")
 include("lmfsm.jl")
+include("linalg.jl")
 
 #export pdfposteriors
 #export maxstateposteriors
