@@ -5,11 +5,13 @@ Label() = one(LabelMonoid)
 Label(x) = LabelMonoid(tuple(x))
 
 struct FSM{K<:Semiring,L}
-    α::AbstractSparseVector{K}
+    # Initial weight vectors extended with a final state with initial
+    # initial weight of zero.
+    α̂::AbstractSparseVector{K}
 
     # Transition matrix T extended with a "final" state. All the
     # edges to the final state encode the "ω" vector.
-    Ω::AbstractSparseMatrix{K}
+    T̂::AbstractSparseMatrix{K}
 
     λ::AbstractVector{L}
 end
@@ -20,16 +22,18 @@ function FSM(α::AbstractSparseVector, T::AbstractSparseMatrix,
     Tω = hcat(T, ω)
     p = fill!(similar(ω, length(ω) + 1), zero(eltype(ω)))
     p[end] = one(eltype(ω))
-    Ω = vcat(Tω, reshape(p, 1, :))
+    T̂ = vcat(Tω, reshape(p, 1, :))
 
-    FSM(α, Ω, λ)
+    FSM(vcat(α, zero(eltype(α))), T̂, λ)
 end
 
 function Base.getproperty(fsm::FSM, sym::Symbol)
-    if sym === :ω
-        return fsm.Ω[1:end-1, end]
+    if sym === :α
+        return fsm.α̂[1:end-1]
+    elseif sym === :ω
+        return fsm.T̂[1:end-1, end]
     elseif sym === :T
-        return fsm.Ω[1:end-1, 1:end-1]
+        return fsm.T̂[1:end-1, 1:end-1]
     else
         return getfield(fsm, sym)
     end

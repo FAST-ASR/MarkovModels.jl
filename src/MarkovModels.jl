@@ -33,17 +33,19 @@ export
 
     # Building n-gram language model
     totalngramsum,
-    LanguageModelFSM
+    LanguageModelFSM,
+
+    # Inference
+    αrecursion,
+    βrecursion
 
 include("utils.jl")
 include("fsm.jl")
 include("fsmops.jl")
 include("algorithms.jl")
 include("lmfsm.jl")
-include("cusparsearrays.jl")
-include("cukernels.jl")
 include("linalg.jl")
-
+include("inference.jl")
 
 
 #export pdfposteriors
