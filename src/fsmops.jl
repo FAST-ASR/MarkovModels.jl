@@ -96,7 +96,7 @@ end
 
 
 function compose(fsm1::FSM, dictfsms::AbstractDict)
-    compose(fsm1, [dictfsms[decompose(λᵢ)[end]]  for λᵢ in fsm1.λ])
+    compose(fsm1, [dictfsms[Label(val(λᵢ)[end])]  for λᵢ in fsm1.λ])
 end
 
 Base.:∘(fsm1::FSM, fsm2) = compose(fsm1, fsm2)

@@ -224,6 +224,12 @@ end
         @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
         @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
         @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
+
+        fsm = fsm2 ∘ Dict(Label(:a) => fsm1, Label(:b) => fsm1)
+        @test fsmequal(fsm, fsm3)
+        @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
+        @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
+        @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
     end
 end
 
