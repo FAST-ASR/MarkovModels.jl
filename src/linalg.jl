@@ -209,7 +209,7 @@ end
 
 function Broadcast.copy(bc::Broadcasted{CUDA.CUSPARSE.CuSparseVecStyle})
     bcf = Broadcast.flatten(bc)
-    _copy(bcf.f, cfg.args...)
+    _copy(bcf.f, bcf.args...)
 end
 
 function Broadcast.copyto!(dest::CuArray, bc::Broadcasted{CUDA.CUSPARSE.CuSparseVecStyle})
