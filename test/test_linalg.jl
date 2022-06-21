@@ -1,4 +1,33 @@
 
+@testset "vcat" begin
+    pKs = [LogSemiring, ProbSemiring, TropicalSemiring]
+    Ts = [Float32, Float64]
+    for pK = pKs, T = Ts
+        K = pK{T}
+        sv = sparsevec([1, 3], K[0.1, 0.2], 3)
+        cu_sv = adapt(CuArray, sv)
+
+        r = vcat(sv, sv)
+        cu_sv = vcat(cu_sv, cu_sv)
+        @test cu_sv isa CuSparseVector
+        @test all(r .≈ adapt(Array, cu_sv))
+    end
+end
+
+@testset "blockdiag" begin
+    pKs = [LogSemiring, ProbSemiring, TropicalSemiring]
+    Ts = [Float32, Float64]
+    for pK = pKs, T = Ts
+        K = pK{T}
+        sm = sparse([1, 2, 2], [3, 2, 3], K[1, 2, 3], 3, 3)
+        cu_sm = adapt(CuArray, sm)
+
+        r = blockdiag(sm, sm, sm)
+        cu_r = blockdiag(cu_sm, cu_sm, cu_sm)
+        @test all(r .≈ adapt(Array, cu_r))
+    end
+end
+
 @testset "broadcast" begin
     pKs = [LogSemiring, ProbSemiring, TropicalSemiring]
     Ts = [Float32, Float64]

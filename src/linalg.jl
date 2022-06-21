@@ -1,6 +1,66 @@
 # SPDX-License-Identifier: MIT
 
 #======================================================================
+Building a block diagonal matrix from CUDA sparse matrices.
+======================================================================#
+
+function SparseArrays.blockdiag(X::CuSparseMatrixCSC{K}...) where K
+    num = length(X)
+    mX = Int[ size(x, 1) for x in X ]
+    nX = Int[ size(x, 2) for x in X ]
+    m = sum(mX)
+    n = sum(nX)
+
+    colPtr = CuVector{Cint}(undef, n+1)
+    nnzX = Int[ nnz(x) for x in X ]
+    nnz_res = sum(nnzX)
+    rowVal = CuVector{Cint}(undef, nnz_res)
+    nzVal = CuVector{K}(undef, nnz_res)
+
+    nnz_sofar = 0
+    nX_sofar = 0
+    mX_sofar = 0
+    for i = 1:num
+        colPtr[ (1:nX[i]+1) .+ nX_sofar ] = X[i].colPtr .+ nnz_sofar
+        rowVal[ (1:nnzX[i]) .+ nnz_sofar ] = X[i].rowVal .+ mX_sofar
+        nzVal[ (1:nnzX[i]) .+ nnz_sofar ] = nonzeros(X[i])
+        nnz_sofar += nnzX[i]
+        nX_sofar += nX[i]
+        mX_sofar += mX[i]
+
+    end
+    CUDA.@allowscalar colPtr[n+1] = nnz_sofar + 1
+
+    CuSparseMatrixCSC{K}(colPtr, rowVal, nzVal, (m, n))
+end
+
+#======================================================================
+Vertical concatenation of CUDA sparse vectors.
+======================================================================#
+
+function Base.vcat(X::CuSparseVector{K}...) where K
+    num = length(X)
+    nX = Int[length(x) for x in X]
+    n = sum(nX)
+
+    nnzX = Int[nnz(x) for x in X]
+    nnz_total = sum(nnzX)
+    iPtr = CuVector{Cint}(undef, nnz_total)
+    nzVal = CuVector{K}(undef, nnz_total)
+
+    nX_sofar = 0
+    nnz_sofar = 0
+    for i = 1:num
+        iPtr[ (1:nnzX[i]) .+ nnz_sofar ] = X[i].iPtr .+ nX_sofar
+        nzVal[ (1:nnzX[i]) .+ nnz_sofar ] = nonzeros(X[i])
+        nX_sofar += nX[i]
+        nnz_sofar += nnzX[i]
+    end
+
+    CuSparseVector{K}(iPtr, nzVal, n)
+end
+
+#======================================================================
 Sparse matrix (CSC) and dense vector multiplication.
 ======================================================================#
 
@@ -78,6 +138,7 @@ function _cukernel_mul_smTdv!(c, rowPtr, colVal, nzVal, b)
     end
     return
 end
+
 #======================================================================
 Sparse matrix (CSC) and dense matrix multiplication.
 ======================================================================#
