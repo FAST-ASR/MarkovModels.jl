@@ -39,6 +39,14 @@ function Base.getproperty(fsm::FSM, sym::Symbol)
     end
 end
 
+function Adapt.adapt_structure(to, fsm::FSM)
+    FSM(
+        adapt(to, fsm.α̂),
+        adapt(to, fsm.T̂),
+        fsm.λ
+    )
+end
+
 function FSM(initws, arcs, finalws, λ)
     # Get the set of states indices.
     states = (Set(map(first, initws))
