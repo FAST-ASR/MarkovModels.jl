@@ -306,3 +306,26 @@ end
     end
 end
 
+if CUDA.functional()
+    @testset "cu adapt" begin
+        for S in divisible_semirings, T in types
+            K = S ∈ parametric_semirings ? S{T} : S
+            fsm = FSM(
+                [1 => one(K), ],
+                [(1,1) => one(K), (1, 2) => one(K), (1, 3) => one(K),
+                 (2, 4) => one(K), (3, 4) => one(K)],
+                [4 => one(K)],
+                [Label(:a), Label(:b), Label(:c), Label(:d)]
+            )
+
+            cufsm = adapt(CuArray, fsm)
+            @test cufsm.α̂ isa CuSparseVector
+            @test cufsm.T̂ isa CuSparseMatrix
+            @test cufsm.λ isa Array
+            @test all(fsm.α̂ .≈ adapt(Array, cufsm.α̂))
+            @test all(fsm.T̂ .≈ adapt(Array, cufsm.T̂))
+         end
+    end
+end
+
+
