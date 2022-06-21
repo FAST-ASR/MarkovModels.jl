@@ -23,6 +23,7 @@ export
     determinize,
     minimize,
     propagate,
+    rawunion,
     renorm,
 
     # Total sum algorithm and its variants

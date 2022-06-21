@@ -16,6 +16,25 @@ end
 Base.union(fsm1::FSM{K}, fsms::FSM{K}...) where K =
     foldl(union, fsms, init = fsm1)
 
+"""
+    rawunion(fsms::FSM{K}...) where K
+
+Contrary to the standard union, the raw union blindly stack the
+internal storages of the FSMs. Consequently, the "virtual" final state
+won't be merge together and the resulting FSM will have several
+"virtual" final state. The output of `rawunion` should be considered
+as several independent FSMs packed in a single structure.
+"""
+function rawunion(fsm1::FSM{K}, fsm2::FSM{K}) where K
+    FSM(
+        vcat(fsm1.α̂, fsm2.α̂),
+        blockdiag(fsm1.T̂, fsm2.T̂),
+        vcat(fsm1.λ, fsm2.λ)
+    )
+end
+rawunion(fsm1::FSM{K}, fsms::FSM{K}...) where K =
+    foldl(rawunion, fsms, init = fsm1)
+
 
 """
     cat(fsms::FSM{K}...) where K
