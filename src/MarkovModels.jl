@@ -37,6 +37,7 @@ export
     LanguageModelFSM,
 
     # Inference
+    expand,
     αrecursion,
     βrecursion
 
