@@ -39,7 +39,8 @@ export
     # Inference
     expand,
     αrecursion,
-    βrecursion
+    βrecursion,
+    pdfposteriors
 
 include("utils.jl")
 include("fsm.jl")
@@ -50,7 +51,6 @@ include("linalg.jl")
 include("inference.jl")
 
 
-#export pdfposteriors
 #export maxstateposteriors
 #export bestpath
 

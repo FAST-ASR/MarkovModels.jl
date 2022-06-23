@@ -322,8 +322,8 @@ if CUDA.functional()
             @test cufsm.α̂ isa CuSparseVector
             @test cufsm.T̂ isa CuSparseMatrix
             @test cufsm.λ isa Array
-            @test all(fsm.α̂ .≈ adapt(Array, cufsm.α̂))
-            @test all(fsm.T̂ .≈ adapt(Array, cufsm.T̂))
+            @test all(fsm.α̂ .≈ SparseVector(cufsm.α̂))
+            @test all(fsm.T̂ .≈ SparseMatrixCSC(cufsm.T̂))
          end
     end
 end

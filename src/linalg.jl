@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: MIT
 
+const CuAdjOrTranspose{K} = Union{Adjoint{K, <:CuSparseMatrix},
+                                  Transpose{K, <:CuSparseMatrix}} where K
+
 #======================================================================
 Conversion from/to CSR/CSC matrix with semiring elements.
 In all cases, it is necessary to convert the underlying data to
@@ -29,13 +32,13 @@ end
 function CUDA.CUSPARSE.CuSparseMatrixCSC(M::CuSparseMatrixCSR{K}) where K <: Semiring
     T = K.parameters[1]
 
-    tmp_csc = CuSparseMatrixCSR{T}(
+    tmp_csr = CuSparseMatrixCSR{T}(
         M.rowPtr,
         M.colVal,
         convert(CuVector{T}, M.nzVal),
         M.dims
     )
-    tmp_csc = CUDA.CUSPARSE.CuSparseMatrixCSC(tmp_csc)
+    tmp_csc = CUDA.CUSPARSE.CuSparseMatrixCSC(tmp_csr)
 
     CUDA.CUSPARSE.CuSparseMatrixCSC{K}(
         tmp_csc.colPtr,
@@ -97,6 +100,36 @@ function SparseArrays.blockdiag(X::CuSparseMatrixCSC{K}...) where K
     CuSparseMatrixCSC{K}(colPtr, rowVal, nzVal, (m, n))
 end
 
+function SparseArrays.blockdiag(X::CuSparseMatrixCSR{T}...) where T
+    num = length(X)
+    mX = Int[ size(x, 1) for x in X ]
+    nX = Int[ size(x, 2) for x in X ]
+    m = sum(mX) # number of rows
+    n = sum(nX) # number of cols
+
+    rowPtr = CuVector{Cint}(undef, m+1)
+    nnzX = Int[ nnz(x) for x in X ]
+    nnz_res = sum(nnzX)
+    colVal = CuVector{Cint}(undef, nnz_res)
+    nzVal = CuVector{T}(undef, nnz_res)
+
+    nnz_sofar = 0
+    nX_sofar = 0
+    mX_sofar = 0
+    for i = 1:num
+        rowPtr[ (1:mX[i]+1) .+ mX_sofar ] = X[i].rowPtr .+ nnz_sofar
+        colVal[ (1:nnzX[i]) .+ nnz_sofar ] = X[i].colVal .+ nX_sofar
+        nzVal[ (1:nnzX[i]) .+ nnz_sofar ] = nonzeros(X[i])
+        nnz_sofar += nnzX[i]
+        nX_sofar += nX[i]
+        mX_sofar += mX[i]
+
+    end
+    CUDA.@allowscalar rowPtr[m+1] = nnz_sofar + 1
+
+    CuSparseMatrixCSR{T}(rowPtr, colVal, nzVal, (m, n))
+end
+
 #======================================================================
 Vertical concatenation of CUDA sparse vectors.
 ======================================================================#
@@ -150,6 +183,11 @@ function LinearAlgebra.mul!(c::CuVector{K}, A::CuSparseMatrixCSR{K},
     c
 end
 
+LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuAdjOrTranspose{K},
+                   b::CuVector{K}, α::Number, β::Number) where K =
+    mul!(c, copy(Aᵀ), b, α, β)
+
+
 function _cukernel_mul_smdv!(c, rowPtr, colVal, nzVal, b)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
@@ -191,6 +229,10 @@ function LinearAlgebra.mul!(C::CuMatrix{K}, A::CuSparseMatrixCSR{K},
     C
 end
 
+LinearAlgebra.mul!(C::CuMatrix{K}, Aᵀ::CuAdjOrTranspose{K},
+                   B::CuMatrix{K}, α::Number, β::Number) where K =
+    mul!(C, copy(Aᵀ), B, α, β)
+
 function _cukernel_mul_smdm!(C, rowPtr, colVal, nzVal, B)
     index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     stride = blockDim().x * gridDim().x
@@ -219,7 +261,6 @@ function _copyto!(f::SupportedOperator, dest::CuArray{K}, x::CuSparseVector{K},
     nzInd = SparseArrays.nonzeroinds(x)
     nzVal = nonzeros(x)
     nnz = length(nzVal)
-
 
     if nnz > 0
         ckernel = @cuda launch=false _cukernel_bc_svdv!(
@@ -258,3 +299,4 @@ function Broadcast.copyto!(dest::CuArray, bc::Broadcasted{CUDA.CUSPARSE.CuSparse
     bcf = Broadcast.flatten(bc)
     _copyto!(bcf.f, dest, bcf.args...)
 end
+

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 using Adapt
-using CUDA, CUDA.CUSPARSE, SparseArrays
+using CUDA, CUDA.CUSPARSE
 import LogExpFunctions: logsumexp, logaddexp
 import Semirings: val
 using LinearAlgebra

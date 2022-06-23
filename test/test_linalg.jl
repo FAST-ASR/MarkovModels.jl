@@ -10,7 +10,7 @@
         r = vcat(sv, sv)
         cu_sv = vcat(cu_sv, cu_sv)
         @test cu_sv isa CuSparseVector
-        @test all(r .≈ adapt(Array, cu_sv))
+        @test all(r .≈ SparseVector(cu_sv))
     end
 end
 
@@ -20,11 +20,14 @@ end
     for pK = pKs, T = Ts
         K = pK{T}
         sm = sparse([1, 2, 2], [3, 2, 3], K[1, 2, 3], 3, 3)
-        cu_sm = adapt(CuArray, sm)
+        cu_sm_csc = adapt(CuArray, sm)
+        cu_sm_csr = CuSparseMatrixCSR(cu_sm_csc)
 
         r = blockdiag(sm, sm, sm)
-        cu_r = blockdiag(cu_sm, cu_sm, cu_sm)
-        @test all(r .≈ adapt(Array, cu_r))
+        cu_r_csc = blockdiag(cu_sm_csc, cu_sm_csc, cu_sm_csc)
+        cu_r_csr = blockdiag(cu_sm_csr, cu_sm_csr, cu_sm_csr)
+        @test all(r .≈ SparseMatrixCSC(cu_r_csc))
+        @test all(r .≈ SparseMatrixCSC(cu_r_csr))
     end
 end
 
@@ -41,11 +44,11 @@ end
         for op in [*, /]
             r = broadcast!(op, similar(dv), sv, dv)
             cu_r = broadcast!(op, similar(cu_dv), cu_sv, cu_dv)
-            @test all(r .≈ adapt(Array, cu_r))
+            @test all(r .≈ Array(cu_r))
 
             r = broadcast(op, sv, dv)
             cu_r = broadcast(op, cu_sv, cu_dv)
-            @test all(r .≈ adapt(Array, cu_r))
+            @test all(r .≈ Array(cu_r))
         end
     end
 end
@@ -96,11 +99,11 @@ end
 
         r = mul!(similar(dm, 4, 4), sm, dm)
         cu_r = mul!(similar(cu_dm, 4, 4), cu_sm, cu_dm)
-        @test all(r .≈ adapt(Array, cu_r))
+        @test all(r .≈ Array(cu_r))
 
         r = mul!(similar(dv, 4), sm, dv)
         cu_r = mul!(similar(cu_dv, 4), cu_sm, cu_dv)
-        @test all(r .≈ adapt(Array, cu_r))
+        @test all(r .≈ Array(cu_r))
     end
 end
 

@@ -39,10 +39,10 @@ function Base.getproperty(fsm::FSM, sym::Symbol)
     end
 end
 
-function Adapt.adapt_structure(to, fsm::FSM)
+function Adapt.adapt_structure(::Type{<:CuArray}, fsm::FSM)
     FSM(
-        adapt(to, fsm.α̂),
-        adapt(to, fsm.T̂),
+        CuSparseVector(fsm.α̂),
+        CuSparseMatrixCSR(CuSparseMatrixCSC(fsm.T̂)),
         fsm.λ
     )
 end
