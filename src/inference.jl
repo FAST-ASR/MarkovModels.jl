@@ -59,17 +59,17 @@ function βrecursion(T̂::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
 end
 
 function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
-
     V̂ = vcat(V̂s...)
     Ĉ = blockdiag(Ĉs...)
     ĈV̂ = (Ĉ * V̂)
-
     state_A = αrecursion(fsm.α̂, fsm.T̂', ĈV̂)
     state_B = βrecursion(fsm.T̂, ĈV̂)
-    state_AB = broadcast(*, state_A, state_B)
+    state_AB = broadcast!(*, state_A, state_A, state_B)
     AB = Ĉ' * state_AB
     Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3))
-    Ẑ = broadcast(/, Ẑ, sum(Ẑ, dims = 2))
-
-    (exp ∘ val).(Ẑ[:, 1:end-1, 1:end-1])
+    sums = sum(Ẑ, dims = 2)
+    Ẑ = broadcast!(/, Ẑ, Ẑ, sums)
+    ttl = dropdims(minimum(sums, dims = (2, 3)), dims = (2, 3))
+    (exp ∘ val).(Ẑ[:, 1:end-1, 1:end-1]), ttl
 end
+

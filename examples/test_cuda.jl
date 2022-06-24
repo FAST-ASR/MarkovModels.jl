@@ -52,7 +52,7 @@ smapfile = joinpath(rootdir, "sup_s03_lm3/numfsms/train/smap.scp")
 gpu() = false
 
 # ╔═╡ d63c9c25-a998-4401-ba93-adf24ff43c37
-batchsize = 1
+batchsize = 4
 
 # ╔═╡ 7c981e9e-8598-48a0-9aeb-ae3fd3bf4b4e
 begin
@@ -115,7 +115,7 @@ end;
 
 # ╔═╡ 2e1bf652-2b02-45e6-8ced-5d3a038bdbf9
 begin
-	_pytorch_v = convert(Array{K}, randn(batchsize, max(seqlengths...), numpdf))
+	_pytorch_v = convert(Array{K}, 0*randn(batchsize, max(seqlengths...), numpdf))
 	pytorch_v = gpu() ? adapt(Ta, _pytorch_v) : _pytorch_v
 	v = permutedims(pytorch_v, (1, 3, 2))
 end
@@ -124,6 +124,12 @@ end
 L = map(t -> MarkovModels.expand(t...),
 		 zip(eachslice(v, dims = 1), seqlengths))
 
+# ╔═╡ 11d4cdce-55e9-4b6d-ba3d-f037b684cb00
+a, ttl = MarkovModels.pdfposteriors(batch_fsms, L, Cs)
+
+# ╔═╡ 752059cd-b7f6-4df0-a6b9-a7cbc99d687a
+ttl
+
 # ╔═╡ 5b7cc6df-e784-4a5b-b985-1893c5e1f4f4
 # ╠═╡ disabled = true
 #=╠═╡
@@ -131,19 +137,19 @@ L = map(t -> MarkovModels.expand(t...),
   ╠═╡ =#
 
 # ╔═╡ ab1e01c3-a413-4071-a3cb-3abee7a52740
-@time pZ = Array(MarkovModels.pdfposteriors(batch_fsms, L, Cs))
+@time pZ, ttl_num = MarkovModels.pdfposteriors(batch_fsms, L, Cs)
 
 # ╔═╡ 49d92be7-b03b-4bae-8d1f-23a8b8414cce
-@time pZd = Array(MarkovModels.pdfposteriors(batch_denfsm, L, batch_denĈ))
+@time pZd, ttl_den = MarkovModels.pdfposteriors(batch_denfsm, L, batch_denĈ)
 
 # ╔═╡ 7df99757-a041-4427-926d-8f0baf4c272b
-heatmap(pZ[1, :, :])
+heatmap(Array(pZ)[1, :, :])
 
 # ╔═╡ cd9ffc16-1e18-4b12-886f-3f7ca2a65060
-heatmap(pZd[1, :, :])
+heatmap(Array(pZd)[1, :, :])
 
 # ╔═╡ cd26c22e-40fd-4ebb-8d59-45044c192ddc
-heatmap((pZ - pZd)[1, :, :])
+heatmap(Array(pZ - pZd)[1, :, :])
 
 # ╔═╡ a8e756f8-76a9-48a8-b6e5-359084b4ee2c
 # ╠═╡ disabled = true
@@ -195,6 +201,8 @@ A = αrecursion(
 # ╠═a5cb6e28-1a69-4d1d-ab39-6fd7eb645061
 # ╠═2e1bf652-2b02-45e6-8ced-5d3a038bdbf9
 # ╠═dae82fef-b62e-4220-85ce-46b8c18403a1
+# ╠═11d4cdce-55e9-4b6d-ba3d-f037b684cb00
+# ╠═752059cd-b7f6-4df0-a6b9-a7cbc99d687a
 # ╠═5b7cc6df-e784-4a5b-b985-1893c5e1f4f4
 # ╠═ab1e01c3-a413-4071-a3cb-3abee7a52740
 # ╠═49d92be7-b03b-4bae-8d1f-23a8b8414cce
