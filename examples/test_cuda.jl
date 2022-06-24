@@ -115,7 +115,7 @@ end;
 
 # ╔═╡ 2e1bf652-2b02-45e6-8ced-5d3a038bdbf9
 begin
-	_pytorch_v = convert(Array{K}, 0*randn(batchsize, max(seqlengths...), numpdf))
+	_pytorch_v = randn(batchsize, max(seqlengths...), numpdf)
 	pytorch_v = gpu() ? adapt(Ta, _pytorch_v) : _pytorch_v
 	v = permutedims(pytorch_v, (1, 3, 2))
 end
