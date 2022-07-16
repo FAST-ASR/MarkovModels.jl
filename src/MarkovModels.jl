@@ -2,67 +2,56 @@
 
 module MarkovModels
 
+using Adapt
+using Base.Broadcast: BroadcastStyle, Broadcasted, flatten
 using CUDA
 using CUDA.CUSPARSE
+using JSON
 using LinearAlgebra
 using SparseArrays
-
-#======================================================================
-Semiring algebras.
-======================================================================#
-
+using BlockDiagonals
 using Semirings
 
-export Semiring
-export ProbSemiring
-export LogSemiring
-export TropicalSemiring
+export
+    # FSM creation
+    FSM,
+    Label,
+    nstates,
 
-#======================================================================
-API to build and manipulate FSM.
-======================================================================#
+    # FSM operations
+    compose,
+    determinize,
+    minimize,
+    propagate,
+    rawunion,
+    renorm,
 
-include("fsms/FSMs.jl")
+    # Total sum algorithm and its variants
+    totalcumsum,
+    totalsum,
+    totalweightsum,
+    totallabelsum,
 
-using .FSMs
+    # Building n-gram language model
+    totalngramsum,
+    LanguageModelFSM,
 
-export AbstractFSM
-export states
-export arcs
-export semiring
+    # Inference
+    expand,
+    αrecursion,
+    βrecursion,
+    pdfposteriors
 
-export AbstractMutableFSM
-export addstate!
-export addarc!
+include("utils.jl")
+include("fsm.jl")
+include("fsmops.jl")
+include("algorithms.jl")
+include("lmfsm.jl")
+include("linalg.jl")
+include("inference.jl")
 
-export State
-export isinit
-export isfinal
 
-export Arc
-
-export VectorFSM
-export HierarchicalFSM
-export MatrixFSM
-export UnionMatrixFSM
-
-export gpu
-export determinize
-export minimize
-export remove_label
-export renormalize
-export transpose
-
-#======================================================================
-Inference algorithms.
-======================================================================#
-
-include("inference/Inference.jl")
-
-using .Inference
-
-export pdfposteriors
-export maxstateposteriors
-export bestpath
+#export maxstateposteriors
+#export bestpath
 
 end
