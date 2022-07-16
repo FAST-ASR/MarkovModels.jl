@@ -1,7 +1,7 @@
 name = "MarkovModels"
 uuid = "c2ae6250-d0a1-11ea-0991-234599ce5244"
 authors = ["Lucas Ondel <lucas.ondel@gmail.com>", "Martin Kocour <ikocour@fit.vutbr.cz>"]
-version = "0.9.0"
+version = "0.10.0"
 
 [deps]
 Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
