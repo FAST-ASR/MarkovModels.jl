@@ -1,11 +1,14 @@
 # Releases
 
-## 0.9.0
+## 0.10.0
 ### Added
 * All the different storage of FSM are now replaced with a single type:
   FSM which is internally a matrix-based FSM. Construction and
   inference algorithms are applied directly on this format.
 * FSM constructor using a JSON-formatted string.
+
+## 0.9.0
+### Added
 * Removed the old code `src/semirings` with semiring algebra and replace it
   with new external `Semirings` package.
 
