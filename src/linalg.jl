@@ -1,7 +1,74 @@
 # SPDX-License-Identifier: MIT
 
-const CuAdjOrTranspose{K} = Union{Adjoint{K, <:CuSparseMatrix},
-                                  Transpose{K, <:CuSparseMatrix}} where K
+const SparseAdjOrTrans{K} = Union{Adjoint{K, <:AbstractSparseMatrix{K}},
+                                  Transpose{K, <:AbstractSparseMatrix{K}}} where K
+const AnySparseMatrix{K} = Union{SparseAdjOrTrans{K},
+                                 AbstractSparseMatrix{K}} where K
+
+const CuSparseAdjOrTrans{K} = Union{Adjoint{K, <:CuSparseMatrix},
+                                    Transpose{K, <:CuSparseMatrix}} where K
+
+const IndexRange = Union{UnitRange, Colon}
+
+#======================================================================
+Sparse Low-Rank matrix, i.e. a matrix given by the sum of a sparse and
+a low-rank matrix.
+======================================================================#
+
+struct SparseLowRankMatrix{K,
+                           TS <: AbstractSparseMatrix{K},
+                           TU <: AbstractMatrix{K},
+                           TV<: AbstractMatrix{K}
+	                      } <: AbstractMatrix{K}
+    S::TS
+	U::TU
+	V::TV
+end
+
+Base.size(M::SparseLowRankMatrix) = size(M.S)
+Base.getindex(M::SparseLowRankMatrix, i::Int, j::Int) =
+    M.S[i, j] + dot(M.U[i, :], M.V[j, :])
+Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j::IndexRange) =
+    SparseLowRankMatrix(M.S[i, j], M.U[i, :], M.V[j, :])
+
+Base.:*(A::SparseLowRankMatrix, B::AnySparseMatrix) =
+    SparseLowRankMatrix(A.S * B, A.U, B' * A.V)
+Base.:*(A::AnySparseMatrix, B::SparseLowRankMatrix) =
+	SparseLowRankMatrix(A * B.S, A * B.U, B.V)
+
+Base.:+(A::SparseLowRankMatrix, B::AnySparseMatrix) =
+    SparseLowRankMatrix(A.S + B, A.U, A.V)
+Base.:+(A::AnySparseMatrix, B::SparseLowRankMatrix) = B + A
+
+function Base.hcat(A::SparseLowRankMatrix{K,TS,TU,TV},
+                   v::AbstractVector{K}) where {
+                        K,
+                        TS<:AbstractSparseMatrix{K},
+                        TU<:AbstractMatrix{K},
+                        TV<:AbstractMatrix{K}
+                    }
+    pad = fill!(similar(v, 1, size(A.V, 2)), zero(eltype(A)))
+    SparseLowRankMatrix(
+        hcat(A.S, v),
+        A.U,
+        vcat(A.V, pad)
+    )
+end
+
+function Base.vcat(A::SparseLowRankMatrix{K,TS,TU,TV},
+                   v::AbstractMatrix{K}) where {
+                        K,
+                        TS<:AbstractSparseMatrix{K},
+                        TU<:AbstractMatrix{K},
+                        TV<:AbstractMatrix{K}
+                    }
+    pad = fill!(similar(v, 1, size(A.U, 2)), zero(eltype(A)))
+    SparseLowRankMatrix(
+        vcat(A.S, v),
+        vcat(A.U, pad),
+        A.V,
+    )
+end
 
 #======================================================================
 Conversion from/to CSR/CSC matrix with semiring elements.
@@ -183,7 +250,7 @@ function LinearAlgebra.mul!(c::CuVector{K}, A::CuSparseMatrixCSR{K},
     c
 end
 
-LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuAdjOrTranspose{K},
+LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuSparseAdjOrTrans{K},
                    b::CuVector{K}, α::Number, β::Number) where K =
     mul!(c, copy(Aᵀ), b, α, β)
 
@@ -229,7 +296,7 @@ function LinearAlgebra.mul!(C::CuMatrix{K}, A::CuSparseMatrixCSR{K},
     C
 end
 
-LinearAlgebra.mul!(C::CuMatrix{K}, Aᵀ::CuAdjOrTranspose{K},
+LinearAlgebra.mul!(C::CuMatrix{K}, Aᵀ::CuSparseAdjOrTrans{K},
                    B::CuMatrix{K}, α::Number, β::Number) where K =
     mul!(C, copy(Aᵀ), B, α, β)
 

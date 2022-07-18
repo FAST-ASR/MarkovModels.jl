@@ -4,6 +4,9 @@ const LabelMonoid = SequenceMonoid
 Label() = one(LabelMonoid)
 Label(x) = LabelMonoid(tuple(x))
 
+const TransitionMatrix{K} =
+    Union{AbstractSparseMatrix{K}, SparseLowRankMatrix{K}} where K
+
 struct FSM{K<:Semiring,L}
     # Initial weight vectors extended with a final state with initial
     # initial weight of zero.
@@ -11,12 +14,12 @@ struct FSM{K<:Semiring,L}
 
     # Transition matrix T extended with a "final" state. All the
     # edges to the final state encode the "ω" vector.
-    T̂::AbstractSparseMatrix{K}
+    T̂::TransitionMatrix{K}
 
     λ::AbstractVector{L}
 end
 
-function FSM(α::AbstractSparseVector, T::AbstractSparseMatrix,
+function FSM(α::AbstractSparseVector, T::TransitionMatrix,
              ω::AbstractSparseVector, λ::AbstractVector)
 
     Tω = hcat(T, ω)
@@ -83,11 +86,19 @@ end
 
 nstates(m::FSM) = length(m.α)
 
-function arcs(T::AbstractSparseArray)
+function arcs(T::AbstractSparseMatrix)
     I, J, V = findnz(T)
     retval = []
     for (i, j, v) in zip(I, J, V)
         push!(retval, (i, j, v))
+    end
+    retval
+end
+
+function arcs(T::AbstractMatrix)
+    retval = []
+    for (i, j) in zip(1:size(T, 1), 1:size(T, 2))
+        push!(retval, (i, j, T[i, j]))
     end
     retval
 end
@@ -139,7 +150,30 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsm::FSM)
         write(dotfile, "$name [ $attrs ];\n")
     end
 
-    for (i, j, w) in arcs(fsm.T)
+    if fsm.T isa SparseLowRankMatrix
+        for i in (1:size(fsm.T.U, 2)) .+ nstates
+            write(dotfile, "$i [ label=\"ϵ\" shape=circle style=filled ];\n")
+        end
+        S = fsm.T.S
+
+        for (i, j, w) in arcs(fsm.T.U)
+            weight = round(convert(Float64, w.val), digits = 3)
+            srcname = "$i"
+            destname = "$(nstates + j)"
+            write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
+        end
+
+        for (i, j, w) in arcs(fsm.T.V)
+            weight = round(convert(Float64, w.val), digits = 3)
+            srcname = "$(nstates + j)"
+            destname = "$i"
+            write(dotfile, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
+        end
+    else
+        S = fsm.T
+    end
+
+    for (i, j, w) in arcs(S)
         weight = round(convert(Float64, w.val), digits = 3)
         srcname = "$i"
         destname = "$j"

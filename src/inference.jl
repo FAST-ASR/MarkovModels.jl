@@ -38,11 +38,11 @@ function αrecursion(α̂::AbstractVector{K}, T̂ᵀ::AbstractMatrix{K},
     A
 end
 
-αrecursion(α̂::AbstractVector{K}, T̂ᵀ::CuAdjOrTranspose{K},
+αrecursion(α̂::AbstractVector{K}, T̂ᵀ::CuSparseAdjOrTrans{K},
            lhs::AbstractMatrix{K}) where K =
     αrecursion(α̂, copy(T̂ᵀ), lhs)
 
-βrecursion(T̂ᵀ::CuAdjOrTranspose{K}, lhs::AbstractMatrix{K}) where K =
+βrecursion(T̂ᵀ::CuSparseAdjOrTrans{K}, lhs::AbstractMatrix{K}) where K =
     βrecursion(copy(T̂ᵀ), lhs)
 
 function βrecursion(T̂::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
