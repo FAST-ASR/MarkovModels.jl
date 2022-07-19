@@ -189,7 +189,7 @@ end
     end
 end
 
-@testset "compose" begin
+@testset "replace" begin
     for S in weight_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
         fsm1 = FSM(
@@ -219,13 +219,16 @@ end
              Label(:a) * Label(3), Label(:b) * Label(1),
              Label(:b) * Label(2), Label(:b) * Label(3)]
         )
-        fsm = fsm2 ∘ [fsm1, fsm1]
+        fsm = replace(fsm2, [fsm1, fsm1])
         @test fsmequal(fsm, fsm3)
         @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
         @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
         @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
 
-        fsm = fsm2 ∘ Dict(Label(:a) => fsm1, Label(:b) => fsm1)
+        dict = Dict(:a => fsm1, :b => fsm1)
+        fsm = replace(fsm2) do i
+            dict[val(fsm2.λ[i])[end]]
+        end
         @test fsmequal(fsm, fsm3)
         @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
         @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
@@ -283,7 +286,7 @@ end
         @test nstates(fsm2) < nstates(fsm1)
         @test fsmequal(fsm2 |> renorm, fsm1 |> renorm)
 
-        cfsm1 = compose(fsm1, repeat([fsm1], nstates(fsm1)))
+        cfsm1 = replace(fsm1, repeat([fsm1], nstates(fsm1)))
         cfsm2 = determinize(cfsm1)
         @test issetequal(Set(cfsm1.λ), Set(cfsm2.λ))
     end

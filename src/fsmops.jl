@@ -95,12 +95,8 @@ function _weighted_sparse_vcat(x, ys)
     return sparsevec(I, V, count)
 end
 
-"""
-    compose(fsm₁, fsms)
 
-Return the composition of `fsm₁` with a list of FSMs.
-"""
-function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
+function Base.replace(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
                  sep = Label(":")) where K
     A = blockdiag([fsmⁱ.α[:,1:1] for fsmⁱ in fsms]...)
     Ω = blockdiag([fsmⁱ.ω[:,1:1] for fsmⁱ in fsms]...)
@@ -113,12 +109,13 @@ function compose(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
     )
 end
 
+"""
+    replace(new::Function, fsm)
 
-function compose(fsm1::FSM, dictfsms::AbstractDict)
-    compose(fsm1, [dictfsms[Label(val(λᵢ)[end])]  for λᵢ in fsm1.λ])
-end
-
-Base.:∘(fsm1::FSM, fsm2) = compose(fsm1, fsm2)
+Replace `i`th node of `fsm` with the fsm `new(i)`.
+"""
+Base.replace(new::Function, fsm::FSM) =
+    replace(fsm, [new(i)  for i in 1:nstates(fsm)])
 
 """
     propagate(fsm)
@@ -128,7 +125,7 @@ Propagate the weights along the FSM's arcs.
 function propagate(fsm::FSM{K}) where K
     v = fsm.α
     A = spdiagm(v) * fsm.T
-    o = fsm.ω .* v#spzeros(K, nstates(fsm))
+    o = fsm.ω .* v
     visited = Set(findnz(v)[1])
     for n in 2:(nstates(fsm))
         v = fsm.T' * v
@@ -136,8 +133,8 @@ function propagate(fsm::FSM{K}) where K
         o += fsm.ω .* v
 
         # Prune the states that have been visited.
-        #SparseArrays.fkeep!(v, (i, x) -> i ∉ visited)
-        #if nnz(v) > 0 push!(visited, findnz(v)[1]...) end
+        SparseArrays.fkeep!(v, (i, x) -> i ∉ visited)
+        if nnz(v) > 0 push!(visited, findnz(v)[1]...) end
     end
     FSM(fsm.α, A, o, fsm.λ)
 end

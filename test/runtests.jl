@@ -19,7 +19,7 @@ if CUDA.functional()
         include("test_linalg.jl")
     end
 else
-    @warn "CUDA is not functional skipping tests."
+    @warn "CUDA is not functional - skipping tests."
 end
 
 #@testset verbose=true "algorithms" begin
