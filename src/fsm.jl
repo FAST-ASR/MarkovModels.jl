@@ -59,12 +59,45 @@ function FSM(initws, arcs, finalws, λ)
     K = typeof(initws[1][2])
 
     if size(arcs, 1) > 0
-        T = sparse(map(x -> x[1][1], arcs),
-                   map(x -> x[1][2], arcs),
-                   map(x -> x[2], arcs), nstates, nstates)
+        # Check if there are epsilon nodes.
+        nodes = Set()
+        for a in arcs
+            push!(nodes, a.first...)
+        end
+        has_epsilons = minimum(nodes) > 0 ? false : true
+
+        if ! has_epsilons
+            T = sparse(map(x -> x[1][1], arcs),
+                       map(x -> x[1][2], arcs),
+                       map(x -> x[2], arcs), nstates, nstates)
+        else
+            I_S, J_S, V_S = [], [], K[]
+            I_U, J_U, V_U = [], [], K[]
+            I_V, J_V, V_V = [], [], K[]
+            for a in arcs
+                if minimum(a.first) > 0
+                    push!(I_S, a.first[1])
+                    push!(J_S, a.first[2])
+                    push!(V_S, a.second)
+                elseif a.first[1] <= 0 # outgoing arc from epsilon node
+                    push!(J_V, 1 - a.first[1])
+                    push!(I_V, a.first[2])
+                    push!(V_V, a.second)
+                else # incoming arc to epsilon node
+                    push!(I_U, a.first[1])
+                    push!(J_U, 1 - a.first[2])
+                    push!(V_U, a.second)
+                end
+            end
+            S = sparse(I_S, J_S, V_S, nstates, nstates)
+            U = sparse(I_U, J_U, V_U)
+            V = sparse(I_V, J_V, V_V)
+            T = SparseLowRankMatrix(S, U, V)
+        end
     else
         T = spzeros(K, nstates, nstates)
     end
+
     FSM(
         sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates),
         T,

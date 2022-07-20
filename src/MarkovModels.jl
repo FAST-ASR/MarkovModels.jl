@@ -25,6 +25,7 @@ export
     propagate,
     rawunion,
     renorm,
+    rmepsilon,
 
     # Total sum algorithm and its variants
     totalcumsum,

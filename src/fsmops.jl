@@ -1,6 +1,20 @@
 # SPDX-License-Identifier: MIT
 
 """
+   rmepsilon(fsm::FSM)
+
+Remove the epsilon arcs.
+"""
+function rmepsilon(fsm::FSM)
+    if ! (fsm.T isa SparseLowRankMatrix)
+        # No epsilon, simply returning the fsm.
+        return fsm
+    end
+    T = fsm.T.S + fsm.T.U * fsm.T.V'
+    FSM(fsm.α, T, fsm.ω, fsm.λ)
+end
+
+"""
     union(fsms::FSM{K}...) where K
 
 Return the union of the given FSMs.

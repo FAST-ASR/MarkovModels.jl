@@ -30,6 +30,8 @@ Base.getindex(M::SparseLowRankMatrix, i::Int, j::Int) =
     M.S[i, j] + dot(M.U[i, :], M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j::IndexRange) =
     SparseLowRankMatrix(M.S[i, j], M.U[i, :], M.V[j, :])
+Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j) =
+    M.S[i, j] + (M.U * M.V')[i, j]
 
 Base.:*(A::SparseLowRankMatrix, B::AnySparseMatrix) =
     SparseLowRankMatrix(A.S * B, A.U, B' * A.V)
