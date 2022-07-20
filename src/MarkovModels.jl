@@ -43,11 +43,9 @@ export
     βrecursion,
     pdfposteriors
 
-include("utils.jl")
 include("linalg.jl")
 include("fsm.jl")
 include("fsmops.jl")
-include("algorithms.jl")
 include("lmfsm.jl")
 include("inference.jl")
 

@@ -17,17 +17,19 @@ a low-rank matrix.
 
 struct SparseLowRankMatrix{K,
                            TS <: AbstractSparseMatrix{K},
+                           TD <: AbstractMatrix{K},
                            TU <: AbstractMatrix{K},
                            TV<: AbstractMatrix{K}
 	                      } <: AbstractMatrix{K}
     S::TS
+    D::TD
 	U::TU
 	V::TV
 end
 
 Base.size(M::SparseLowRankMatrix) = size(M.S)
 Base.getindex(M::SparseLowRankMatrix, i::Int, j::Int) =
-    M.S[i, j] + dot(M.U[i, :], M.V[j, :])
+    M.S[i, j] + dot(M.U[i, :] , M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j::IndexRange) =
     SparseLowRankMatrix(M.S[i, j], M.U[i, :], M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j) =

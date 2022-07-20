@@ -1,5 +1,39 @@
 # SPDX-License-Identifier: MIT
 
+#=====================================================================#
+# Utility functions
+
+"""
+    tobinary(K::Type{<:Semiring}, x)
+
+Create `y`, a sparse vector or a sparse matrix of the same size of `x`
+where `y[i] = one(K)` if `x[i] ≂̸ zero(K)`.
+"""
+tobinary(K::Type{<:Semiring}, x::AbstractSparseVector{<:Semiring}) =
+    sparsevec(findnz(x)[1], ones(K, nnz(x)), length(x))
+tobinary(K::Type{<:Semiring}, x::AbstractSparseMatrix{<:Semiring}) =
+    sparse(findnz(x)[1], findnz(x)[2], ones(K, nnz(x)), size(x)...)
+
+"""
+    mapping(K::Type{<:Semiring}, x, y[, match::Function])
+
+Create a sparse mapping matrix `M` such that `M[i, j] = one(K)`
+if `match(x[i], y[j])` and `zero(K)` otherwise.
+"""
+function mapping(K::Type{<:Semiring}, x, y, match = ==)
+    I, J, V = [], [], K[]
+    for i in 1:length(x), j in 1:length(y)
+        if match(x[i], y[j])
+            push!(I, i)
+            push!(J, j)
+            push!(V, one(K))
+        end
+    end
+    sparse(I, J, V, length(x), length(y))
+end
+
+#=====================================================================#
+
 """
    rmepsilon(fsm::FSM)
 
@@ -238,4 +272,54 @@ equivalence of the returned FSM, you need to [`propagate`](@ref) weight
 on `fsm` prior to call `minimize`.
 """
 minimize = adjoint ∘ determinize ∘ adjoint ∘ determinize
+
+"""
+    totalcumsum(α, T, ω, n)
+
+Partial total cumulative sum algorithm.
+"""
+function totalcumsum(α, T, ω, n)
+    v = α
+    total = dot(v, ω)
+    for i in 2:n
+        v = T' * v
+        total += dot(v, ω)
+    end
+    total
+end
+
+"""
+    totalsum(α, T, ω, n)
+
+Partial total sum algorithm.
+"""
+function totalsum(α, T, ω, n)
+    v = α
+    for i in 2:n
+        v = T' * v
+    end
+    dot(v, ω)
+end
+
+"""
+    totalweightsum(fsm::FSM, n)
+
+Compute the `n`th partial total weight sum of `fsm`.
+"""
+totalweightsum(fsm::FSM, n = nstates(fsm)) = totalcumsum(fsm.α, fsm.T, fsm.ω, n)
+
+"""
+    totallabelsum(fsm::FSM, n)
+
+Compute the `n`th partial total label sum of `fsm`.
+"""
+function totallabelsum(fsm::FSM, n = nstates(fsm))
+    λ = UnionConcatSemiring.([Set([LabelMonoid(val(λᵢ))]) for λᵢ in fsm.λ])
+    totalcumsum(
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.α) .* λ,
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.T) * spdiagm(λ),
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.ω),
+         n
+   )
+end
 
