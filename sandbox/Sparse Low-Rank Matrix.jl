@@ -22,6 +22,9 @@ struct SparseLowRankMatrix{
 	V::TV
 end
 
+# ╔═╡ ec239b76-452f-4847-91c2-fc51b722cf49
+I + sprandn(3, 3, 0.2)
+
 # ╔═╡ 9a94d506-5de2-4372-98aa-e6de9e9615ab
 M = SparseLowRankMatrix(
 	sprandn(3, 3, 0.2),
@@ -57,6 +60,9 @@ Base.:*(A::SparseLowRankMatrix, B::AbstractSparseMatrix) =
 # ╔═╡ 7dcb81a8-1c61-410d-ba19-11d0a0065601
 Base.:*(A::AbstractSparseMatrix, B::SparseLowRankMatrix) = 
 	SparseLowRankMatrix(A * B.S, A * B.U, B.V)
+
+# ╔═╡ b0bf3367-0424-4b10-aaef-9f1785844892
+I*[1, 2]
 
 # ╔═╡ 97be84c6-c6f2-4428-acb1-9c31a019d68e
 x = [1, 2, 3]
@@ -128,6 +134,8 @@ uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
 # ╟─71810a80-0534-11ed-136b-bbaeb8a00ff0
 # ╟─7da8cf1a-387f-4af6-b815-9c7cca8f0a35
 # ╠═3e42c05c-6c51-4879-91b8-f47183f35fe3
+# ╠═ec239b76-452f-4847-91c2-fc51b722cf49
+# ╠═b0bf3367-0424-4b10-aaef-9f1785844892
 # ╠═9a94d506-5de2-4372-98aa-e6de9e9615ab
 # ╠═6c72fd89-8d49-4dd2-a43c-fc267c0dfe6e
 # ╠═2d5c5c78-162b-4ff9-a75b-8ec8e20d6831

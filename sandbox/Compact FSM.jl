@@ -19,15 +19,17 @@ end
 K = ProbSemiring{Float64}
 
 # ╔═╡ 8ccaa6d2-9038-48a7-aace-1d9c6df7ff9c
-HMM() = FSM(
+HMM() = FSA(
 	[1 => one(K)],
 	[
 		(1, 2) => one(K),
 		(2, 2) => one(K)
 	],
 	[2 => one(K)],
-	[Label(1), Label(2)]
-) |> renorm
+) 
+
+# ╔═╡ 2bbfd1a0-6fce-4465-837d-de82ec47566f
+HMM()
 
 # ╔═╡ c8dd5117-ec53-4a86-82f8-de99eab61464
 hmms = Dict(
@@ -37,27 +39,29 @@ hmms = Dict(
 )
 
 # ╔═╡ 191b642f-3d43-4773-8529-f512fc47105f
-G = FSM(
+G = FSA(
 	[1 => one(K)],
 	[
+		(1, 2) => one(K),
 		(1, 0) => one(K),
 		(2, 0) => one(K),
 		(3, -1) => one(K),
 		(-1, 1) => K(1/2),
 		(-1, 2) => K(1/3),
 		(0, 3) => K(1/6),
+		(0, -1) => one(K)
 	],
 	[3 => one(K)],
 	[Label("a"), Label("b"), Label("c")]
-)
-
-# ╔═╡ 51ce18df-2ca0-4d88-89ff-592eff643277
-GH = replace(G) do i
-	hmms[val(G.λ[i])[1]]
-end
+) 
 
 # ╔═╡ b05848ed-7ec5-49be-a56f-22f697e82455
-GH.T
+replace(G) do i
+	hmms[val(G.λ[i])]
+end
+
+# ╔═╡ d2663a8c-fef0-4ec4-a425-6db4f050e038
+copy(G.T.S)
 
 # ╔═╡ 41d25708-f2af-4ec0-9b12-e6d7d3eefab8
 ?MarkovModels.SparseLowRankMatrix
@@ -89,7 +93,7 @@ rmepsilon(GH)
 GH.T̂[1:6,1:6][1:2, 1]
 
 # ╔═╡ 7a718d01-b352-40d5-92e8-4c78bd22eb9c
-GH.T̂.S[1:6, end]
+	GH.T̂.S[1:6, end]
 
 # ╔═╡ f9100a5e-1314-4ae1-a571-53699b0ab422
 nnz((GH.T̂.U * GH.T̂.V')[1:6, end])
@@ -98,10 +102,11 @@ nnz((GH.T̂.U * GH.T̂.V')[1:6, end])
 # ╠═47e5098e-0547-11ed-3bcb-b5efb72654e8
 # ╠═e6ac8d98-2e76-4cab-bc1d-770c98280d43
 # ╠═8ccaa6d2-9038-48a7-aace-1d9c6df7ff9c
+# ╠═2bbfd1a0-6fce-4465-837d-de82ec47566f
 # ╠═c8dd5117-ec53-4a86-82f8-de99eab61464
 # ╠═191b642f-3d43-4773-8529-f512fc47105f
-# ╠═51ce18df-2ca0-4d88-89ff-592eff643277
 # ╠═b05848ed-7ec5-49be-a56f-22f697e82455
+# ╠═d2663a8c-fef0-4ec4-a425-6db4f050e038
 # ╠═41d25708-f2af-4ec0-9b12-e6d7d3eefab8
 # ╠═90096772-ef50-4886-932d-20046d2d6fdb
 # ╠═c632f809-132c-459d-b442-4f79a8a3d600

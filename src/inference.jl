@@ -1,5 +1,23 @@
 # SPDX-License-Identifier: MIT
 
+#======================================================================
+We use a different data structure to store the FSA for inference.
+======================================================================#
+#struct CompactFSA
+#    α
+#    T
+#    ω
+#    λ
+#end
+#
+#function Adapt.adapt_structure(::Type{<:CuArray}, fsm::FSM)
+#    FSM(
+#        CuSparseVector(fsm.α̂),
+#        CuSparseMatrixCSR(CuSparseMatrixCSC(fsm.T̂)),
+#        fsm.λ
+#    )
+#end
+
 """
     expand(V::AbstractMatrix{K}, seqlength = size(lhs, 2)) where K
 

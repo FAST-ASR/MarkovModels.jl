@@ -28,32 +28,34 @@ struct SparseLowRankMatrix{K,
 end
 
 Base.size(M::SparseLowRankMatrix) = size(M.S)
-Base.getindex(M::SparseLowRankMatrix, i::Int, j::Int) =
-    M.S[i, j] + dot(M.U[i, :] , M.V[j, :])
+Base.getindex(M::SparseLowRankMatrix{K}, i::Int, j::Int) where K =
+    M.S[i, j] + dot((M.U * (I + M.D))[i, :], M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j::IndexRange) =
-    SparseLowRankMatrix(M.S[i, j], M.U[i, :], M.V[j, :])
+    SparseLowRankMatrix(M.S[i, j], M.D[i, j], M.U[i, :], M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j) =
-    M.S[i, j] + (M.U * M.V')[i, j]
+    M.S[i, j] + (M.U * (I + D) * M.V')[i, j]
 
 Base.:*(A::SparseLowRankMatrix, B::AnySparseMatrix) =
-    SparseLowRankMatrix(A.S * B, A.U, B' * A.V)
+    SparseLowRankMatrix(A.S * B, A.D, A.U, B' * A.V)
 Base.:*(A::AnySparseMatrix, B::SparseLowRankMatrix) =
-	SparseLowRankMatrix(A * B.S, A * B.U, B.V)
+	SparseLowRankMatrix(A * B.S, B.D, A * B.U, B.V)
 
 Base.:+(A::SparseLowRankMatrix, B::AnySparseMatrix) =
-    SparseLowRankMatrix(A.S + B, A.U, A.V)
+    SparseLowRankMatrix(A.S + B, A.D, A.U, A.V)
 Base.:+(A::AnySparseMatrix, B::SparseLowRankMatrix) = B + A
 
-function Base.hcat(A::SparseLowRankMatrix{K,TS,TU,TV},
+function Base.hcat(A::SparseLowRankMatrix{K,TS,TD, TU,TV},
                    v::AbstractVector{K}) where {
                         K,
                         TS<:AbstractSparseMatrix{K},
+                        TD<:AbstractMatrix{K},
                         TU<:AbstractMatrix{K},
                         TV<:AbstractMatrix{K}
                     }
     pad = fill!(similar(v, 1, size(A.V, 2)), zero(eltype(A)))
     SparseLowRankMatrix(
         hcat(A.S, v),
+        A.D,
         A.U,
         vcat(A.V, pad)
     )
@@ -69,6 +71,7 @@ function Base.vcat(A::SparseLowRankMatrix{K,TS,TU,TV},
     pad = fill!(similar(v, 1, size(A.U, 2)), zero(eltype(A)))
     SparseLowRankMatrix(
         vcat(A.S, v),
+        A.D,
         vcat(A.U, pad),
         A.V,
     )

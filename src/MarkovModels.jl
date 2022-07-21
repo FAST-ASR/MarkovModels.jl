@@ -14,7 +14,7 @@ using Semirings
 
 export
     # FSM creation
-    FSM,
+    FSA,
     Label,
     nstates,
 
@@ -44,10 +44,10 @@ export
     pdfposteriors
 
 include("linalg.jl")
-include("fsm.jl")
-include("fsmops.jl")
-include("lmfsm.jl")
-include("inference.jl")
+include("fsa.jl")
+#include("fsmops.jl")
+#include("lmfsm.jl")
+#include("inference.jl")
 
 
 #export maxstateposteriors
