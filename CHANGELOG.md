@@ -1,11 +1,22 @@
 # Releases
 
+## 0.11.0
+### Added
+* FSM is renamed by FSA.
+* FSA can have epsilon nodes which corresponds to a specific
+  factorization of the transition matrix.
+* new function `hasepsilons(fsa)` to check if `fsa` has epsilon nodes.
+* The list of symbol is now optional when creating a FSA and replaced
+  by a default symbol table if not provided.
+* supported Julia version is now 1.6 instead of 1.7
+
 ## 0.10.0
 ### Added
 * All the different storage of FSM are now replaced with a single type:
   FSM which is internally a matrix-based FSM. Construction and
   inference algorithms are applied directly on this format.
 * FSM constructor using a JSON-formatted string.
+* Supported Julia version is 1.7.
 
 ## 0.9.0
 ### Added
