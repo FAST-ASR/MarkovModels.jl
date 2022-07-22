@@ -35,97 +35,93 @@ end
 #=====================================================================#
 
 """
-   rmepsilon(fsm::FSM)
+    hasepsilons(fsa)
+
+Return true if `fsa` contains epsilon nodes.
+"""
+hasepsilons(fsa::FSA{K, <:TransitionMatrix}) where K = false
+hasepsilons(fsa::FSA{K, <:SparseLowRankMatrix}) where K = true
+
+"""
+   rmepsilon(fsa::FSA)
 
 Remove the epsilon arcs.
 """
-function rmepsilon(fsm::FSM)
-    if ! (fsm.T isa SparseLowRankMatrix)
-        # No epsilon, simply returning the fsm.
-        return fsm
-    end
-    T = fsm.T.S + fsm.T.U * fsm.T.V'
-    FSM(fsm.α, T, fsm.ω, fsm.λ)
-end
+rmepsilon(fsa::FSA) = FSA(fsa.α, copy(fsa.T), fsa.ω, fsa.λ)
 
 """
     union(fsms::FSM{K}...) where K
 
 Return the union of the given FSMs.
 """
-function Base.union(fsm1::FSM{K}, fsm2::FSM{K}) where K
-    FSM(
-        vcat(fsm1.α, fsm2.α),
-        blockdiag(fsm1.T, fsm2.T),
-        vcat(fsm1.ω, fsm2.ω),
-        vcat(fsm1.λ, fsm2.λ)
+function Base.union(fsa1::FSA{K}, fsa2::FSA{K}) where K
+    FSA(
+        vcat(fsa1.α, fsa2.α),
+        blockdiag(fsa1.T, fsa2.T),
+        vcat(fsa1.ω, fsa2.ω),
+        vcat(fsa1.λ, fsa2.λ)
     )
 end
-Base.union(fsm1::FSM{K}, fsms::FSM{K}...) where K =
-    foldl(union, fsms, init = fsm1)
+Base.union(fsa1::FSA{K}, fsas::FSA{K}...) where K = foldl(union, fsas, init = fsa1)
+
+#"""
+#    rawunion(fsms::FSM{K}...) where K
+#
+#Contrary to the standard union, the raw union blindly stack the
+#internal storages of the FSMs. Consequently, the "virtual" final state
+#won't be merge together and the resulting FSM will have several
+#"virtual" final state. The output of `rawunion` should be considered
+#as several independent FSMs packed in a single structure.
+#"""
+#function rawunion(fsm1::FSM{K}, fsm2::FSM{K}) where K
+#    FSM(
+#        vcat(fsm1.α̂, fsm2.α̂),
+#        blockdiag(fsm1.T̂, fsm2.T̂),
+#        vcat(fsm1.λ, fsm2.λ)
+#    )
+#end
+#rawunion(fsm1::FSM{K}, fsms::FSM{K}...) where K =
+#    foldl(rawunion, fsms, init = fsm1)
+
 
 """
-    rawunion(fsms::FSM{K}...) where K
+    cat(fsas::FSA...)
 
-Contrary to the standard union, the raw union blindly stack the
-internal storages of the FSMs. Consequently, the "virtual" final state
-won't be merge together and the resulting FSM will have several
-"virtual" final state. The output of `rawunion` should be considered
-as several independent FSMs packed in a single structure.
+Return the concatenated FSAs.
 """
-function rawunion(fsm1::FSM{K}, fsm2::FSM{K}) where K
-    FSM(
-        vcat(fsm1.α̂, fsm2.α̂),
-        blockdiag(fsm1.T̂, fsm2.T̂),
-        vcat(fsm1.λ, fsm2.λ)
+function Base.cat(fsa1::FSA, fsa2::FSA)
+    FSA(
+        vcat(fsa1.α, zero(fsa2.α)),
+        blockdiag(fsa1.T, fsa2.T) + vcat(fsa1.ω, zero(fsa2.α)) * vcat(zero(fsa1.ω), fsa2.α)',
+        vcat(zero(fsa1.ω), fsa2.ω),
+        vcat(fsa1.λ, fsa2.λ)
     )
 end
-rawunion(fsm1::FSM{K}, fsms::FSM{K}...) where K =
-    foldl(rawunion, fsms, init = fsm1)
-
+Base.cat(fsa1::FSA, fsas::FSA...)  = foldl(cat, fsas, init = fsa1)
 
 """
-    cat(fsms::FSM{K}...) where K
+    Base.adjoint(fsa::FSA)
+    fsa'
 
-Return the concatenated FSMs.
+Return the reversal of `fsa`.
+#"""
+Base.adjoint(fsa::FSA) = FSA(fsa.ω, sparse(fsa.T'), fsa.α, fsa.λ)
+
 """
-function Base.cat(fsm1::FSM{K}, fsm2::FSM{K}) where K
-    FSM(
-        vcat(fsm1.α, zero(fsm2.α)),
-        [fsm1.T       fsm1.ω * fsm2.α';
-         zero(fsm2.ω * fsm1.α')     fsm2.T],
-        vcat(zero(fsm1.ω), fsm2.ω),
-        vcat(fsm1.λ, fsm2.λ)
+    renorm(fsa::FSA)
+
+Return a normalized FSA.
+"""
+function renorm(::Type{Divisible}, fsa::FSA)
+    Z = one(eltype(fsa.α)) ./ (sum(fsa.T, dims=2) .+ fsa.ω)
+    FSA(
+        fsa.α ./ sum(fsa.α),
+        spdiagm(Z[:, 1]) * fsa.T,
+        fsa.ω .* Z[:, 1],
+        fsa.λ
     )
 end
-Base.cat(fsm1::FSM{K}, fsms::FSM{K}...) where K =
-    foldl(cat, fsms, init = fsm1)
-
-"""
-    Base.adjoint(fsm::FSM)
-    fsm'
-
-Return the reversal of `fsm`.
-"""
-function Base.adjoint(fsm::FSM)
-    FSM(fsm.ω, sparse(fsm.T'), fsm.α, fsm.λ)
-end
-
-"""
-    renorm(fsm::FSM)
-
-Return a normalized FSM.
-"""
-function renorm(::Type{Divisible}, fsm::FSM{K}) where K
-    Z = one(K) ./ (sum(fsm.T, dims=2) .+ fsm.ω)
-    FSM(
-        fsm.α ./ sum(fsm.α),
-        fsm.T .* Z,
-        fsm.ω .* Z[:,1],
-        fsm.λ
-    )
-end
-renorm(fsm::FSM{K}) where K = renorm(IsDivisible(K), fsm)
+renorm(fsa::FSA{K}) where K = renorm(IsDivisible(K), fsa)
 
 function _weighted_sparse_vcat(x, ys)
     K = eltype(x)
@@ -144,47 +140,46 @@ function _weighted_sparse_vcat(x, ys)
 end
 
 
-function Base.replace(fsm₁::FSM, fsms::AbstractVector{<:FSM{K}},
-                 sep = Label(":")) where K
-    A = blockdiag([fsmⁱ.α[:,1:1] for fsmⁱ in fsms]...)
-    Ω = blockdiag([fsmⁱ.ω[:,1:1] for fsmⁱ in fsms]...)
-
-    FSM(
-        _weighted_sparse_vcat(fsm₁.α, [fsmⁱ.α for fsmⁱ in fsms]),
-        blockdiag([fsmⁱ.T for fsmⁱ in fsms]...) + Ω * fsm₁.T * A',
-        _weighted_sparse_vcat(fsm₁.ω, [fsmⁱ.ω for fsmⁱ in fsms]),
-        vcat([λ₁ᵢ * fsmⁱ.λ for (λ₁ᵢ, fsmⁱ) in zip(fsm₁.λ, fsms)]...)
+function Base.replace(fsa1::FSA, fsas::AbstractVector{<:FSA})
+    A = blockdiag([fsaⁱ.α[:,1:1] for fsaⁱ in fsas]...)
+    Ω = blockdiag([fsaⁱ.ω[:,1:1] for fsaⁱ in fsas]...)
+    FSA(
+        _weighted_sparse_vcat(fsa1.α, [fsaⁱ.α for fsaⁱ in fsas]),
+        blockdiag([fsaⁱ.T for fsaⁱ in fsas]...) + Ω * fsa1.T * A',
+        _weighted_sparse_vcat(fsa1.ω, [fsaⁱ.ω for fsaⁱ in fsas]),
+        vcat([λ₁ᵢ * fsaⁱ.λ for (λ₁ᵢ, fsaⁱ) in zip(fsa1.λ, fsas)]...)
     )
 end
 
 """
-    replace(new::Function, fsm)
+    replace(new::Function, fsa)
 
-Replace `i`th node of `fsm` with the fsm `new(i)`.
+Replace `i`th node of `fsa` with the fsa `new(i)`.
 """
-Base.replace(new::Function, fsm::FSM) =
-    replace(fsm, [new(i)  for i in 1:nstates(fsm)])
+Base.replace(new::Function, fsa::FSA) =
+    replace(fsa, [new(i)  for i in 1:nstates(fsa)])
 
 """
-    propagate(fsm)
+    propagate(fsa)
 
-Propagate the weights along the FSM's arcs.
+Propagate the weights along the FSA's arcs. `fsa` should be epslion
+free.
 """
-function propagate(fsm::FSM{K}) where K
-    v = fsm.α
-    A = spdiagm(v) * fsm.T
-    o = fsm.ω .* v
+function propagate(fsa::FSA)
+    v = fsa.α
+    A = spdiagm(v) * fsa.T
+    o = fsa.ω .* v
     visited = Set(findnz(v)[1])
-    for n in 2:(nstates(fsm))
-        v = fsm.T' * v
-        A += spdiagm(v) * fsm.T
-        o += fsm.ω .* v
+    for n in 2:(nstates(fsa))
+        v = fsa.T' * v
+        A += spdiagm(v) * fsa.T
+        o += fsa.ω .* v
 
         # Prune the states that have been visited.
         SparseArrays.fkeep!(v, (i, x) -> i ∉ visited)
         if nnz(v) > 0 push!(visited, findnz(v)[1]...) end
     end
-    FSM(fsm.α, A, o, fsm.λ)
+    FSA(fsa.α, A, o, fsa.λ)
 end
 
 
@@ -193,24 +188,25 @@ _det_getstates(x) = [tuple(sort(map(a -> val(a)[1], collect(val(x))))...)
                      for x in nonzeros(x)]
 
 """
-    determinize(fsm[, match])
+    determinize(fsa[, match])
 
-Return an equivalent deterministic FSM. States `i` and `j` can be
+Return an equivalent deterministic FSA. States `i` and `j` can be
 merged if `match(i, j)` is `true`. Note that to guarantee the
-equivalence of the returned FSM, you need to [`propagate`](@ref) weight
-on `fsm` prior to call `determinize`.
+equivalence of the returned FSA, you need to [`propagate`](@ref)
+weights on `fsa` prior to call `determinize`. `fsa` should be
+epsilon free.
 """
-function determinize(fsm::FSM{K}, match = Base.:(==)) where K
+function determinize(fsa::FSA{K}, match = Base.:(==)) where K
     # We precompute the necessary matrices to estimate the new states
-    # (i.e. set of states of the original fsm) and their transition weight.
-    labels = sort(collect(Set(fsm.λ)), by = val)
-    Mₗ = mapping(UnionConcatSemiring{LabelMonoid}, 1:nstates(fsm), labels,
-                 (i, l) -> fsm.λ[i] == l)
-    M = mapping(K, 1:nstates(fsm), labels, (i, l) -> fsm.λ[i] == l)
-    α, T, ω = fsm.α, fsm.T, fsm.ω
-    statelabels = UnionConcatSemiring{LabelMonoid}.([Set([Label(i)]) for i in 1:nstates(fsm)])
-    αₗ = tobinary(UnionConcatSemiring{LabelMonoid}, fsm.α) .* statelabels
-    Tₗ = tobinary(UnionConcatSemiring{LabelMonoid}, fsm.T) * spdiagm(statelabels)
+    # (i.e. set of states of the original fsa) and their transition weight.
+    labels = sort(collect(Set(fsa.λ)), by = val)
+    Mₗ = mapping(UnionConcatSemiring{LabelMonoid}, 1:nstates(fsa), labels,
+                 (i, l) -> fsa.λ[i] == l)
+    M = mapping(K, 1:nstates(fsa), labels, (i, l) -> fsa.λ[i] == l)
+    α, T, ω = fsa.α, fsa.T, fsa.ω
+    statelabels = UnionConcatSemiring{LabelMonoid}.([Set([Label(i)]) for i in 1:nstates(fsa)])
+    αₗ = tobinary(UnionConcatSemiring{LabelMonoid}, fsa.α) .* statelabels
+    Tₗ = tobinary(UnionConcatSemiring{LabelMonoid}, fsa.T) * spdiagm(statelabels)
 
     # Initialize the queue for the powerset construction algorithm.
     newstates = Dict()
@@ -227,10 +223,10 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
         finalweight = sum(ω[collect(state)])
 
         zₗ = sparsevec(collect(state), one(UnionConcatSemiring{LabelMonoid}),
-                       nstates(fsm))
+                       nstates(fsa))
         nextstates = _det_getstates(Mₗ' * Tₗ' * zₗ)
 
-        z = sparsevec(collect(state), one(K), nstates(fsm))
+        z = sparsevec(collect(state), one(K), nstates(fsa))
         nextweights = nonzeros(M' * T' * z)
 
         for (ns, nw) in zip(nextstates, nextweights)
@@ -244,10 +240,10 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
         end
     end
 
-    # We build the actual fsm from the result of the powerset
+    # We build the actual fsa from the result of the powerset
     # construction.
     state2idx = Dict(s => i for (i, s) in enumerate(keys(newstates)))
-    newlabels = [fsm.λ[s[1]] for s in keys(newstates)]
+    newlabels = [fsa.λ[s[1]] for s in keys(newstates)]
     α₂ = []
     ω₂ = []
     T₂ = []
@@ -261,15 +257,15 @@ function determinize(fsm::FSM{K}, match = Base.:(==)) where K
             end
         end
     end
-    FSM(α₂, T₂, ω₂, newlabels)
+    FSA(α₂, T₂, ω₂, newlabels)
 end
 
 """
-    minimize(fsm[, match])
+    minimize(fsa)
 
-Return an equivalent minimal FSM. Note that to guarantee the
-equivalence of the returned FSM, you need to [`propagate`](@ref) weight
-on `fsm` prior to call `minimize`.
+Return an equivalent minimal FSA. Note that to guarantee the
+equivalence of the returned FSA, you need to [`propagate`](@ref) weight
+on `fsa` prior to call `minimize`. `fsa` should be epsilon free.
 """
 minimize = adjoint ∘ determinize ∘ adjoint ∘ determinize
 
@@ -302,23 +298,23 @@ function totalsum(α, T, ω, n)
 end
 
 """
-    totalweightsum(fsm::FSM, n)
+    totalweightsum(fsa::FSA, n)
 
-Compute the `n`th partial total weight sum of `fsm`.
+Compute the `n`th partial total weight sum of `fsa`.
 """
-totalweightsum(fsm::FSM, n = nstates(fsm)) = totalcumsum(fsm.α, fsm.T, fsm.ω, n)
+totalweightsum(fsa::FSA, n = nstates(fsa)) = totalcumsum(fsa.α, fsa.T, fsa.ω, n)
 
 """
-    totallabelsum(fsm::FSM, n)
+    totallabelsum(fsa::FSA, n)
 
-Compute the `n`th partial total label sum of `fsm`.
+Compute the `n`th partial total label sum of `fsa`.
 """
-function totallabelsum(fsm::FSM, n = nstates(fsm))
-    λ = UnionConcatSemiring.([Set([LabelMonoid(val(λᵢ))]) for λᵢ in fsm.λ])
+function totallabelsum(fsa::FSA, n = nstates(fsa))
+    λ = UnionConcatSemiring.([Set([LabelMonoid(val(λᵢ))]) for λᵢ in fsa.λ])
     totalcumsum(
-         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.α) .* λ,
-         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.T) * spdiagm(λ),
-         tobinary(UnionConcatSemiring{LabelMonoid}, fsm.ω),
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsa.α) .* λ,
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsa.T) * spdiagm(λ),
+         tobinary(UnionConcatSemiring{LabelMonoid}, fsa.ω),
          n
    )
 end

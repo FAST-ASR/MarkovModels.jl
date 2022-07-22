@@ -6,12 +6,12 @@ const parametric_semirings = Set([LogSemiring, ProbSemiring, TropicalSemiring])
 const divisible_semirings = Set([LogSemiring, ProbSemiring, TropicalSemiring])
 const types = [Float32, Float64]
 
-function fsmequal(fsm1::FSM, fsm2::FSM)
-    n = max(nstates(fsm1), nstates(fsm2))
-    ls1 = totallabelsum(fsm1, n)
-    ls2 = totallabelsum(fsm2, n)
-    ws1 = totalweightsum(fsm1, n)
-    ws2 = totalweightsum(fsm2, n)
+function fsaequal(fsa1::FSA, fsa2::FSA)
+    n = max(nstates(fsa1), nstates(fsa2))
+    ls1 = totallabelsum(fsa1, n)
+    ls2 = totallabelsum(fsa2, n)
+    ws1 = totalweightsum(fsa1, n)
+    ws2 = totalweightsum(fsa2, n)
     ls1 == ls2 && isapprox(val(ws1), val(ws2), atol=1e-12)
 end
 
@@ -29,17 +29,17 @@ end
         T = [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 1) => one(K)]
         ω = [2 => one(K)]
-        fsm1 = FSM(α, T, ω, [Label(1), Label(2)])
-        fsm2 = FSM(
+        fsa1 = FSA(α, T, ω, [Label(1), Label(2)])
+        fsa2 = FSA(
             sparsevec([1], [one(K)], 2),
             sparse([1, 1, 2, 2], [1, 2, 2, 1], ones(K, 4), 2, 2),
             sparsevec([2], [one(K)], 2),
             [Label(1), Label(2)]
         )
-        @test fsmequal(fsm1, fsm2)
+        @test fsaequal(fsa1, fsa2)
 
         onestr = "$(val(one(K)))"
-        fsm3 = FSM("""
+        fsa3 = FSA("""
         {
             "semiring": "$K",
             "initstates": [[1, $onestr]],
@@ -49,40 +49,40 @@ end
             "labels": [1, 2]
         }
         """)
-        @test fsmequal(fsm1, fsm3)
+        @test fsaequal(fsa1, fsa3)
 
         α = [1 => one(K)]
         T = []
         ω = [1 => one(K)]
-        fsm1 = FSM(α, T, ω, [Label(1)])
-        fsm2 = FSM(
+        fsa1 = FSA(α, T, ω, [Label(1)])
+        fsa2 = FSA(
             sparsevec([1], [one(K)], 1),
             spzeros(K, 1, 1),
             sparsevec([1], [one(K)], 1),
             [Label(1)]
         )
-        @test fsmequal(fsm1, fsm2)
+        @test fsaequal(fsa1, fsa2)
     end
 end
 
 @testset "union" begin
     for S in weight_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
             [3 => one(K)],
             [Label(1), Label(2), Label(3)]
         )
-        fsm2 = FSM(
+        fsa2 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
             [3 => one(K)],
             [Label(4), Label(5), Label(6)]
         )
-        fsm3 = FSM(
+        fsa3 = FSA(
             [1 => one(K), 4 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K),
@@ -91,32 +91,32 @@ end
             [3 => one(K), 6 => one(K)],
             [Label(1), Label(2), Label(3), Label(4), Label(5), Label(6)]
         )
-        fsm = union(fsm1, fsm2)
-        @test fsmequal(fsm, fsm3)
-        @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
-        @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
-        @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
+        fsa = union(fsa1, fsa2)
+        @test fsaequal(fsa, fsa3)
+        @test length(nonzeros(fsa.α)) == length(nonzeros(fsa3.α))
+        @test length(nonzeros(fsa.T)) == length(nonzeros(fsa3.T))
+        @test length(nonzeros(fsa.ω)) == length(nonzeros(fsa3.ω))
     end
 end
 
 @testset "concatenation" begin
     for S in weight_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
             [3 => one(K)],
             [Label(1), Label(2), Label(3)]
         )
-        fsm2 = FSM(
+        fsa2 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
             [3 => one(K)],
             [Label(4), Label(5), Label(6)]
         )
-        fsm3 = FSM(
+        fsa3 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K), (3, 4) => one(K),
@@ -125,18 +125,18 @@ end
             [6 => one(K)],
             [Label(1), Label(2), Label(3), Label(4), Label(5), Label(6)]
         )
-        fsm = cat(fsm1, fsm2)
-        @test fsmequal(fsm, fsm3)
-        @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
-        @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
-        @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
+        fsa = cat(fsa1, fsa2)
+        @test fsaequal(fsa, fsa3)
+        @test length(nonzeros(fsa.α)) == length(nonzeros(fsa3.α))
+        @test length(nonzeros(fsa.T)) == length(nonzeros(fsa3.T))
+        @test length(nonzeros(fsa.ω)) == length(nonzeros(fsa3.ω))
     end
 end
 
 @testset "renormalize" begin
     for S in divisible_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K) + one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
@@ -144,7 +144,7 @@ end
             [Label(1), Label(2), Label(3)]
         )
         Z = one(K) + one(K)
-        fsm2 = FSM(
+        fsa2 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K) / Z,
              (1, 2) => one(K) / Z,
@@ -154,18 +154,18 @@ end
             [3 => one(K) / Z],
             [Label(1), Label(2), Label(3)]
         )
-        fsm = renorm(fsm1)
-        @test fsmequal(fsm, fsm2)
-        @test length(nonzeros(fsm.α)) == length(nonzeros(fsm2.α))
-        @test length(nonzeros(fsm.T)) == length(nonzeros(fsm2.T))
-        @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm2.ω))
+        fsa = renorm(fsa1)
+        @test fsaequal(fsa, fsa2)
+        @test length(nonzeros(fsa.α)) == length(nonzeros(fsa2.α))
+        @test length(nonzeros(fsa.T)) == length(nonzeros(fsa2.T))
+        @test length(nonzeros(fsa.ω)) == length(nonzeros(fsa2.ω))
     end
 end
 
 @testset "reversal" begin
     for S in weight_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
@@ -173,7 +173,7 @@ end
             [Label(1), Label(2), Label(3)]
         )
         Z = one(K) + one(K)
-        fsm2 = FSM(
+        fsa2 = FSA(
             [3 => one(K)],
             [(1, 1) => one(K),
              (2, 1) => one(K),
@@ -183,30 +183,30 @@ end
             [1 => one(K)],
             [Label(1), Label(2), Label(3)]
         )
-        fsm = fsm1'
-        @test fsmequal(fsm, fsm2)
-        @test fsmequal(fsm', fsm1)
+        fsa = fsa1'
+        @test fsaequal(fsa, fsa2)
+        @test fsaequal(fsa', fsa1)
     end
 end
 
 @testset "replace" begin
     for S in weight_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K)],
             [3 => one(K)],
             [Label(1), Label(2), Label(3)]
         )
-        fsm2 = FSM(
+        fsa2 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K),
              (2, 2) => one(K), (2, 1) => one(K)],
             [2 => one(K)],
             [Label(:a), Label(:b)]
         )
-        fsm3 = FSM(
+        fsa3 = FSA(
             [1 => one(K)],
             [(1, 1) => one(K), (1, 2) => one(K), (2, 2) => one(K),
              (2, 3) => one(K), (3, 3) => one(K),
@@ -219,20 +219,20 @@ end
              Label(:a) * Label(3), Label(:b) * Label(1),
              Label(:b) * Label(2), Label(:b) * Label(3)]
         )
-        fsm = replace(fsm2, [fsm1, fsm1])
-        @test fsmequal(fsm, fsm3)
-        @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
-        @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
-        @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
+        fsa = replace(fsa2, [fsa1, fsa1])
+        @test fsaequal(fsa, fsa3)
+        @test length(nonzeros(fsa.α)) == length(nonzeros(fsa3.α))
+        @test length(nonzeros(fsa.T)) == length(nonzeros(fsa3.T))
+        @test length(nonzeros(fsa.ω)) == length(nonzeros(fsa3.ω))
 
-        dict = Dict(:a => fsm1, :b => fsm1)
-        fsm = replace(fsm2) do i
-            dict[val(fsm2.λ[i])[end]]
+        dict = Dict(:a => fsa1, :b => fsa1)
+        fsa = replace(fsa2) do i
+            dict[val(fsa2.λ[i])[end]]
         end
-        @test fsmequal(fsm, fsm3)
-        @test length(nonzeros(fsm.α)) == length(nonzeros(fsm3.α))
-        @test length(nonzeros(fsm.T)) == length(nonzeros(fsm3.T))
-        @test length(nonzeros(fsm.ω)) == length(nonzeros(fsm3.ω))
+        @test fsaequal(fsa, fsa3)
+        @test length(nonzeros(fsa.α)) == length(nonzeros(fsa3.α))
+        @test length(nonzeros(fsa.T)) == length(nonzeros(fsa3.T))
+        @test length(nonzeros(fsa.ω)) == length(nonzeros(fsa3.ω))
     end
 end
 
@@ -240,7 +240,7 @@ end
     for S in [LogSemiring, ProbSemiring], T in types
         K = S{T}
         v1, v2, v3 = one(K), one(K) + one(K), one(K) + one(K) + one(K)
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => v2],
             [(1,2) => v1,
              (1,3) => v1,
@@ -250,7 +250,7 @@ end
             [Label(:a), Label(:b), Label(:c), Label(:d)]
         )
 
-        fsm2 = FSM(
+        fsa2 = FSA(
             [1 => v2],
             [(1,2) => v2 * v1,
              (1,3) => v2 * v1,
@@ -260,13 +260,13 @@ end
             [Label(:a), Label(:b), Label(:c), Label(:d)]
         )
 
-        @test fsmequal(propagate(fsm1), fsm2)
-        @test length(nonzeros(fsm1.α)) == length(nonzeros(fsm2.α))
-        @test length(nonzeros(fsm1.T)) == length(nonzeros(fsm2.T))
-        @test length(nonzeros(fsm1.ω)) == length(nonzeros(fsm2.ω))
+        @test fsaequal(propagate(fsa1), fsa2)
+        @test length(nonzeros(fsa1.α)) == length(nonzeros(fsa2.α))
+        @test length(nonzeros(fsa1.T)) == length(nonzeros(fsa2.T))
+        @test length(nonzeros(fsa1.ω)) == length(nonzeros(fsa2.ω))
 
-        fsm = FSM([1 => one(K)], [], [1 => one(K)], [Label(1)])
-        @test fsmequal(propagate(fsm), fsm)
+        fsa = FSA([1 => one(K)], [], [1 => one(K)], [Label(1)])
+        @test fsaequal(propagate(fsa), fsa)
     end
 end
 
@@ -274,38 +274,38 @@ end
 @testset "determinize" begin
     for S in divisible_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K), ],
             [(1,1) => one(K), (1, 2) => one(K), (1, 3) => one(K),
              (2, 4) => one(K), (3, 4) => one(K)],
             [4 => one(K)],
             [Label(:a), Label(:b), Label(:c), Label(:d)]
         )
-        fsm1 = fsm1 ∪ fsm1
-        fsm2 = determinize(fsm1)
-        @test nstates(fsm2) < nstates(fsm1)
-        @test fsmequal(fsm2 |> renorm, fsm1 |> renorm)
+        fsa1 = fsa1 ∪ fsa1
+        fsa2 = determinize(fsa1)
+        @test nstates(fsa2) < nstates(fsa1)
+        @test fsaequal(fsa2 |> renorm, fsa1 |> renorm)
 
-        cfsm1 = replace(fsm1, repeat([fsm1], nstates(fsm1)))
-        cfsm2 = determinize(cfsm1)
-        @test issetequal(Set(cfsm1.λ), Set(cfsm2.λ))
+        cfsa1 = replace(fsa1, repeat([fsa1], nstates(fsa1)))
+        cfsa2 = determinize(cfsa1)
+        @test issetequal(Set(cfsa1.λ), Set(cfsa2.λ))
     end
 end
 
 @testset "minimize" begin
     for S in divisible_semirings, T in types
         K = S ∈ parametric_semirings ? S{T} : S
-        fsm1 = FSM(
+        fsa1 = FSA(
             [1 => one(K), ],
             [(1,1) => one(K), (1, 2) => one(K), (1, 3) => one(K),
              (2, 4) => one(K), (3, 4) => one(K)],
             [4 => one(K)],
             [Label(:a), Label(:b), Label(:c), Label(:d)]
         )
-        fsm1 = fsm1 ∪ fsm1
-        fsm2 = minimize(fsm1)
-        @test nstates(fsm2) < nstates(fsm1)
-        @test fsmequal(fsm2 |> renorm, fsm1 |> renorm)
+        fsa1 = fsa1 ∪ fsa1
+        fsa2 = minimize(fsa1)
+        @test nstates(fsa2) < nstates(fsa1)
+        @test fsaequal(fsa2 |> renorm, fsa1 |> renorm)
     end
 end
 
@@ -313,7 +313,7 @@ if CUDA.functional()
     @testset "cu adapt" begin
         for S in divisible_semirings, T in types
             K = S ∈ parametric_semirings ? S{T} : S
-            fsm = FSM(
+            fsa = FSA(
                 [1 => one(K), ],
                 [(1,1) => one(K), (1, 2) => one(K), (1, 3) => one(K),
                  (2, 4) => one(K), (3, 4) => one(K)],
@@ -321,12 +321,12 @@ if CUDA.functional()
                 [Label(:a), Label(:b), Label(:c), Label(:d)]
             )
 
-            cufsm = adapt(CuArray, fsm)
-            @test cufsm.α̂ isa CuSparseVector
-            @test cufsm.T̂ isa CuSparseMatrix
-            @test cufsm.λ isa Array
-            @test all(fsm.α̂ .≈ SparseVector(cufsm.α̂))
-            @test all(fsm.T̂ .≈ SparseMatrixCSC(cufsm.T̂))
+            cufsa = adapt(CuArray, fsa)
+            @test cufsa.α̂ isa CuSparseVector
+            @test cufsa.T̂ isa CuSparseMatrix
+            @test cufsa.λ isa Array
+            @test all(fsa.α̂ .≈ SparseVector(cufsa.α̂))
+            @test all(fsa.T̂ .≈ SparseMatrixCSC(cufsa.T̂))
          end
     end
 end

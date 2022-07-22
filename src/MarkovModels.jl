@@ -21,6 +21,7 @@ export
     # FSM operations
     compose,
     determinize,
+    hasepsilons,
     minimize,
     propagate,
     rawunion,
@@ -45,7 +46,7 @@ export
 
 include("linalg.jl")
 include("fsa.jl")
-#include("fsmops.jl")
+include("fsmops.jl")
 #include("lmfsm.jl")
 #include("inference.jl")
 

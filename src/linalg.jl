@@ -27,13 +27,55 @@ struct SparseLowRankMatrix{K,
 	V::TV
 end
 
+Base.copy(M::SparseLowRankMatrix) = M.S + M.U * (I + M.D) * M.V'
+
+SparseArrays.sparse(M::Union{Adjoint{<:Number, <:SparseLowRankMatrix},
+                             Transpose{<:Number, <:SparseLowRankMatrix}}) =
+    SparseLowRankMatrix(sparse(parent(M).S'), sparse(parent(M).D'),
+                        parent(M).V, parent(M).U)
+
 Base.size(M::SparseLowRankMatrix) = size(M.S)
+
 Base.getindex(M::SparseLowRankMatrix{K}, i::Int, j::Int) where K =
     M.S[i, j] + dot((M.U * (I + M.D))[i, :], M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j::IndexRange) =
     SparseLowRankMatrix(M.S[i, j], M.D[i, j], M.U[i, :], M.V[j, :])
 Base.getindex(M::SparseLowRankMatrix, i::IndexRange, j) =
     M.S[i, j] + (M.U * (I + D) * M.V')[i, j]
+
+function SparseArrays.blockdiag(Ms::SparseLowRankMatrix...)
+    SparseLowRankMatrix(
+        blockdiag(Any[M.S for M in Ms]...),
+        blockdiag(Any[M.D for M in Ms]...),
+        blockdiag(Any[M.U for M in Ms]...),
+        blockdiag(Any[M.V for M in Ms]...),
+    )
+end
+
+function LinearAlgebra.mul!(C::SparseLowRankMatrix{K}, A::AnySparseMatrix{K},
+                            B::AnySparseMatrix{K}, α::Number, β::Number) where K
+    @boundscheck size(A, 2) == size(B, 1) || throw(DimensionMismatch())
+    @boundscheck size(A, 1) == size(C, 1) || throw(DimensionMismatch())
+    @boundscheck size(B, 2) == size(C, 2) || throw(DimensionMismatch())
+
+    if β != 1
+        β != 0 ? rmul!(C, β) : fill!(C, zero(eltype(C)))
+    end
+    if length(A.nzVal) > 0
+        ckernel = @cuda launch=false _cukernel_mul_smdm!(
+            C,
+            A.rowPtr,
+            A.colVal,
+            A.nzVal,
+            B)
+        config = launch_configuration(ckernel.fun)
+        threads = min(size(C, 1), config.threads)
+        blocks = cld(size(C, 1), threads)
+        ckernel(C, A.rowPtr, A.colVal, A.nzVal, B; threads, blocks)
+    end
+    C
+end
+
 
 Base.:*(A::SparseLowRankMatrix, B::AnySparseMatrix) =
     SparseLowRankMatrix(A.S * B, A.D, A.U, B' * A.V)
@@ -323,7 +365,7 @@ end
 
 
 #======================================================================
-Sparse vector and dense veector broadcasting.
+Sparse vector and dense vector broadcasting.
 ======================================================================#
 
 const SupportedOperator = Union{typeof(*), typeof(/)}

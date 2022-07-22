@@ -18,12 +18,13 @@ Label(x) = LabelMonoid(tuple(x))
 Symbol table
 ======================================================================#
 
-struct DefaultSymbolTable
+struct DefaultSymbolTable <: AbstractArray{LabelMonoid, 1}
     size::Int
 end
 
-Base.size(symtable::DefaultSymbolTable, i::Int) = i == 1 ? symtable.size : 1
-Base.getindex(symtable::DefaultSymbolTable, i) = Label(i)
+Base.size(st::DefaultSymbolTable) = (st.size,)
+Base.IndexStyle(::Type{<:DefaultSymbolTable}) = IndexLinear()
+Base.getindex(::DefaultSymbolTable, i::Int) = Label(i)
 
 const SymbolTable = Union{AbstractVector, DefaultSymbolTable}
 
@@ -74,14 +75,19 @@ nstates(m::FSA) = length(m.α)
 FSA construction
 ======================================================================#
 
-function _build_T_no_epsilon(arcs, nstates)
-    sparse(
-        map(x -> x[1][1], arcs),
-        map(x -> x[1][2], arcs),
-        map(x -> x[2], arcs),
-        nstates,
-        nstates
-    )
+function _build_T_no_epsilon(arcs, nstates, K)
+    if size(arcs, 1) > 0
+        T = sparse(
+            map(x -> x[1][1], arcs),
+            map(x -> x[1][2], arcs),
+            map(x -> x.second, arcs),
+            nstates,
+            nstates
+        )
+    else
+        T = spzeros(K, nstates, nstates)
+    end
+    T
 end
 
 function _build_T_with_epsilon(arcs, nstates, n_eps, K)
@@ -145,7 +151,7 @@ function FSA(initws, arcs, finalws, λ = missing)
     if n_eps > 0
         T = _build_T_with_epsilon(arcs, nstates, n_eps, K)
     else
-        T = _build_T_no_epsilon(arcs, nstates)
+        T = _build_T_no_epsilon(arcs, nstates, K)
     end
 
     FSA(
