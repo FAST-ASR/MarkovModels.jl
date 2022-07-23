@@ -26,6 +26,25 @@ Adapt.adapt_structure(::Type{<:CuArray}, fsa::CompiledFSA) =
     )
 
 """
+    batch(fsas::FSA{K}...) where K
+
+Contrary to the standard union, the raw union blindly stack the
+internal storages of the FSAs. Consequently, the "virtual" final state
+won't be merge together and the resulting FSA will have several
+"virtual" final state. The output of `batch` should be considered
+as several independent FSAs packed in a single structure.
+"""
+function batch(fsa1::FSA{K}, fsa2::FSA{K}) where K
+    FSA(
+        vcat(fsa1.α̂, fsa2.α̂),
+        blockdiag(fsa1.T̂, fsa2.T̂),
+        vcat(fsa1.λ, fsa2.λ)
+    )
+end
+batch(fsa1::FSA{K}, fsas::FSA{K}...) where K =
+    foldl(batch, fsas, init = fsa1)
+
+"""
     expand(V::AbstractMatrix{K}, seqlength = size(lhs, 2)) where K
 
 Expand the ``D x N`` matrix of likelihoods `V` to a ``D+1 x N+1``

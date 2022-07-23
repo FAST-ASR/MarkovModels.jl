@@ -24,7 +24,6 @@ export
     hasepsilons,
     minimize,
     propagate,
-    rawunion,
     renorm,
     rmepsilon,
 
@@ -39,6 +38,7 @@ export
     LanguageModelFSA,
 
     # Inference
+    batch,
     compile,
     CompiledFSA,
     expand,
