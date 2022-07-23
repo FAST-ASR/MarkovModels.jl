@@ -9,7 +9,6 @@ using CUDA.CUSPARSE
 using JSON
 using LinearAlgebra
 using SparseArrays
-using BlockDiagonals
 using Semirings
 
 export
@@ -46,9 +45,9 @@ export
 
 include("linalg.jl")
 include("fsa.jl")
-include("fsmops.jl")
-include("lmfsm.jl")
-include("inference.jl")
+include("fsa_ops.jl")
+#include("lmfsm.jl")
+#include("inference.jl")
 
 
 #export maxstateposteriors
