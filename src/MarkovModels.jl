@@ -47,8 +47,8 @@ export
 include("linalg.jl")
 include("fsa.jl")
 include("fsmops.jl")
-#include("lmfsm.jl")
-#include("inference.jl")
+include("lmfsm.jl")
+include("inference.jl")
 
 
 #export maxstateposteriors
