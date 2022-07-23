@@ -49,7 +49,7 @@ export
 include("linalg.jl")
 include("fsa.jl")
 include("fsa_ops.jl")
-#include("lmfsm.jl")
+include("lmfsa.jl")
 include("inference.jl")
 
 

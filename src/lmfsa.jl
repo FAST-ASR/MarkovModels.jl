@@ -7,31 +7,31 @@ function _unfold(x::ProductSemiring)
 end
 
 """
-    totalngramsum(fsm::FSM; order)
+    totalngramsum(fsa::FSA; order)
 
-Calculate the n-gram statistics from `fsm` of order `order`.
+Calculate the n-gram statistics from `fsa` of order `order`.
 """
-function totalngramsum(fsm::FSM; order)
-    K = eltype(fsm.α)
+function totalngramsum(fsa::FSA; order)
+    K = eltype(fsa.α)
 
     # We just keep the last element of the labels' sequence.
-    fsm = FSM(
-        fsm.α,
-        fsm.T,
-        fsm.ω,
-        [Label(val(λᵢ)[end]) for λᵢ in fsm.λ]
+    fsa = FSA(
+        fsa.α,
+        fsa.T,
+        fsa.ω,
+        [Label(val(λᵢ)[end]) for λᵢ in fsa.λ]
     )
 
     # To avoid missing sequences shorter than `order` with "pad"
-    # FSM with empty states.
+    # FSA with empty states.
     if order > 1
-        pad = FSM(
+        pad = FSA(
               sparsevec([1], [one(K)], order-1),
               spdiagm(1 => ones(K, order-2)),
               sparsevec([order-1], [one(K)], order-1),
               repeat([Label()], order-1)
         )
-        fsm = cat(pad, fsm)
+        fsa = cat(pad, fsa)
     end
 
     T1 = ProductSemiring{AppendConcatSemiring{LabelMonoid},K}
@@ -40,16 +40,16 @@ function totalngramsum(fsm::FSM; order)
 
     α = [AppendConcatSemiring([S(T1(AppendConcatSemiring([λᵢ]), one(K)),
                                     T2(αᵢ, one(K)))])
-         for (λᵢ, αᵢ) in zip(fsm.λ, fsm.α)]
+         for (λᵢ, αᵢ) in zip(fsa.λ, fsa.α)]
 
-    I, J, V = findnz(fsm.T)
-    V2 = [AppendConcatSemiring([S(T1(AppendConcatSemiring([fsm.λ[J[i]]]),
+    I, J, V = findnz(fsa.T)
+    V2 = [AppendConcatSemiring([S(T1(AppendConcatSemiring([fsa.λ[J[i]]]),
                                         V[i]), one(T2))])
           for i in 1:length(V)]
-    T = sparse(I, J, V2, nstates(fsm), nstates(fsm))
+    T = sparse(I, J, V2, nstates(fsa), nstates(fsa))
 
     ω = [AppendConcatSemiring([S(one(T1), T2(one(K), ωᵢ))])
-         for ωᵢ in fsm.ω]
+         for ωᵢ in fsa.ω]
 
     # N-gram statistics are evaluated with the total-sum algorithm.
     stats = totalsum(α, T, ω, order)
@@ -74,11 +74,11 @@ function totalngramsum(fsm::FSM; order)
 end
 
 """
-    LanguagageModelFSM(ngrams)
+    LanguagageModelFSA(ngrams)
 
-Build a language model FSM from ngram statistics.
+Build a language model FSA from ngram statistics.
 """
-function LanguageModelFSM(ngrams)
+function LanguageModelFSA(ngrams)
 	states = Dict()
 	initstates = Dict()
 	finalstates = Dict()
@@ -110,7 +110,7 @@ function LanguageModelFSM(ngrams)
 		end
 	end
 
-	FSM(
+	FSA(
 		[states[s] => v for (s, v) in initstates],
 		[(states[src], states[dest]) => v for ((src, dest), v) in arcs],
 		[states[s] => v for (s, v) in finalstates],
