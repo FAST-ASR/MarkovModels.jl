@@ -12,12 +12,13 @@ using SparseArrays
 using Semirings
 
 export
-    # FSM creation
+    # FSA
     FSA,
     Label,
+    SymbolTable,
     nstates,
 
-    # FSM operations
+    # FSA operations
     compose,
     determinize,
     hasepsilons,
@@ -35,9 +36,11 @@ export
 
     # Building n-gram language model
     totalngramsum,
-    LanguageModelFSM,
+    LanguageModelFSA,
 
     # Inference
+    compile,
+    CompiledFSA,
     expand,
     αrecursion,
     βrecursion,
@@ -47,7 +50,7 @@ include("linalg.jl")
 include("fsa.jl")
 include("fsa_ops.jl")
 #include("lmfsm.jl")
-#include("inference.jl")
+include("inference.jl")
 
 
 #export maxstateposteriors

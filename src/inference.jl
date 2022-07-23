@@ -1,22 +1,29 @@
 # SPDX-License-Identifier: MIT
 
+
 #======================================================================
 We use a different data structure to store the FSA for inference.
 ======================================================================#
-#struct CompactFSA
-#    α
-#    T
-#    ω
-#    λ
-#end
-#
-#function Adapt.adapt_structure(::Type{<:CuArray}, fsm::FSM)
-#    FSM(
-#        CuSparseVector(fsm.α̂),
-#        CuSparseMatrixCSR(CuSparseMatrixCSC(fsm.T̂)),
-#        fsm.λ
-#    )
-#end
+struct CompiledFSA{K, TT̂<:TransitionMatrix{K}, Tα̂<:WeightVector{K}}
+    α̂::Tα̂
+    T̂::TT̂
+end
+
+function compile(fsa::FSA)
+    Tω = hcat(fsa.T, fsa.ω)
+    p = fill!(similar(fsa.ω, nstates(fsa) + 1), zero(eltype(fsa.ω)))
+    p[end] = one(eltype(fsa.ω))
+    T̂ = vcat(Tω, reshape(p, 1, :))
+
+    CompiledFSA(vcat(fsa.α, zero(eltype(fsa.α))), T̂)
+end
+
+
+Adapt.adapt_structure(::Type{<:CuArray}, fsa::CompiledFSA) =
+    CompiledFSA(
+        CuSparseVector(fsa.α̂),
+        CuSparseMatrixCSR(CuSparseMatrixCSC(fsa.T̂)),
+    )
 
 """
     expand(V::AbstractMatrix{K}, seqlength = size(lhs, 2)) where K
@@ -76,7 +83,7 @@ function βrecursion(T̂::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
     B
 end
 
-function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
+function pdfposteriors(fsm::CompiledFSA{K}, V̂s, Ĉs) where K
     V̂ = vcat(V̂s...)
     V̂k = copyto!(similar(V̂, K), V̂)
     Ĉ = blockdiag(Ĉs...)

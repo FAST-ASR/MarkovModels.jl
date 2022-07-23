@@ -10,12 +10,12 @@ using Semirings
 using SparseArrays
 using Test
 
-@testset verbose=true "FSMs" begin
-    include("test_fsms.jl")
+@testset verbose=true "FSAs" begin
+    include("test_fsas.jl")
 end
 
 if CUDA.functional()
-    @testset verbose=true "CuSparse linear algebra" begin
+    @testset verbose=true "linear algebra" begin
         include("test_linalg.jl")
     end
 else
