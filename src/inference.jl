@@ -26,22 +26,21 @@ Adapt.adapt_structure(::Type{<:CuArray}, fsa::CompiledFSA) =
     )
 
 """
-    batch(fsas::FSA{K}...) where K
+    batch(fsas::CompiledFSA{K}...) where K
 
-Contrary to the standard union, the raw union blindly stack the
-internal storages of the FSAs. Consequently, the "virtual" final state
-won't be merge together and the resulting FSA will have several
-"virtual" final state. The output of `batch` should be considered
-as several independent FSAs packed in a single structure.
+Stack the internal storages of the FSAs. Consequently, the "virtual"
+final state won't be merge together and the resulting FSA will have
+several "virtual" final state. The output of `batch` should be
+considered as several independent FSAs packed in a single structure.
 """
-function batch(fsa1::FSA{K}, fsa2::FSA{K}) where K
-    FSA(
+function batch(fsa1::CompiledFSA{K}, fsa2::FSA{K}) where K
+    CompiledFSA(
         vcat(fsa1.α̂, fsa2.α̂),
         blockdiag(fsa1.T̂, fsa2.T̂),
         vcat(fsa1.λ, fsa2.λ)
     )
 end
-batch(fsa1::FSA{K}, fsas::FSA{K}...) where K =
+batch(fsa1::CompiledFSA{K}, fsas::FSA{K}...) where K =
     foldl(batch, fsas, init = fsa1)
 
 """
