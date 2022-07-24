@@ -33,9 +33,9 @@ final state won't be merge together and the resulting FSA will have
 several "virtual" final state. The output of `batch` should be
 considered as several independent FSAs packed in a single structure.
 """
-batch(fsa1::CompiledFSA{K}, fsa2::FSA{K}) where K =
+batch(fsa1::CompiledFSA{K}, fsa2::CompiledFSA{K}) where K =
     CompiledFSA(vcat(fsa1.α̂, fsa2.α̂), blockdiag(fsa1.T̂, fsa2.T̂))
-batch(fsa1::CompiledFSA{K}, fsas::FSA{K}...) where K =
+batch(fsa1::CompiledFSA{K}, fsas::CompiledFSA{K}...) where K =
     foldl(batch, fsas, init = fsa1)
 
 """
