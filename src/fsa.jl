@@ -67,7 +67,7 @@ struct FSA{K,
 end
 
 FSA(α::WeightVector, T::TransitionMatrix, ω::WeightVector) =
-    FSA(α, T, ω, DefaultSymbolTable(size(α)))
+    FSA(α, T, ω, DefaultSymbolTable(size(α, 1)))
 
 nstates(m::FSA) = length(m.α)
 
