@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
 
 """
-    expand(V::AbstractMatrix{K}, seqlength = size(lhs, 2)) where K
+    expand(V::AbstractMatrix{K}, seqlength = size(V, 2)) where K
 
 Expand the ``D x N`` matrix of likelihoods `V` to a ``D+1 x N+1``
 matrix `V̂`. This function is to prepare the matrix of likelihood to
