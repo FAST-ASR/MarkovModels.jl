@@ -75,18 +75,18 @@ function αrecursion(α̂::AbstractVector{K}, T̂ᵀ::AbstractMatrix{K},
     A
 end
 
-function αrecursion(prune!::Function, α̂::AbstractVector{K},
-                    T̂ᵀ::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
-    S, N = length(α̂), size(lhs, 2)
-    A = similar(lhs, K, S, N)
-    A = [prune!(lhs[:, 1] .* α̂)]
-
-    for n in 2:N
-        buffer = T̂ᵀ * A[n-1][
-        push!(A, prune!(lhs[:, n] .* buffer))
-    end
-    LILMatrix(length(α̂), A)
-end
+#function αrecursion(prune!::Function, α̂::AbstractVector{K},
+#                    T̂ᵀ::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
+#    S, N = length(α̂), size(lhs, 2)
+#    A = similar(lhs, K, S, N)
+#    A = [prune!(lhs[:, 1] .* α̂)]
+#
+#    for n in 2:N
+#        buffer = T̂ᵀ * A[n-1][
+#        push!(A, prune!(lhs[:, n] .* buffer))
+#    end
+#    LILMatrix(length(α̂), A)
+#end
 
 αrecursion(α̂::AbstractVector{K}, T̂ᵀ::CuSparseAdjOrTrans{K},
            lhs::AbstractMatrix{K}) where K =
