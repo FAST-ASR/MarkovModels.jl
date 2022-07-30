@@ -180,7 +180,7 @@ SVG display of FSA
 function _write_states!(file, fsa::FSA)
     for i in 1:nstates(fsa)
         name = "$i"
-        label = join(val(fsa.λ[i]), ":")
+        label = join(escape_string(val(fsa.λ[i])), ":")
 
         penwidth = "1"
         if ! iszero(fsa.α[i])
