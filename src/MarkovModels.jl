@@ -21,6 +21,7 @@ export
 
     # FSA operations
     compose,
+    connect,
     determinize,
     hasepsilons,
     minimize,
@@ -48,6 +49,9 @@ export
     pdfposteriors
 
 include("linalg.jl")
+include("statevector.jl")
+include("transmatrix.jl")
+include("symtable.jl")
 include("fsa.jl")
 include("fsa_ops.jl")
 #include("lmfsa.jl")

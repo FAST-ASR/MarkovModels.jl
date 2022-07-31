@@ -1,21 +1,6 @@
 # SPDX-License-Identifier: MIT
 
 #======================================================================
-Symbol table
-======================================================================#
-
-struct DefaultSymbolTable{T} <: AbstractVector{T}
-    size::Int64
-end
-
-DefaultSymbolTable(size) = DefaultSymbolTable{Int64}(size)
-Base.size(st::DefaultSymbolTable) = (st.size,)
-Base.IndexStyle(::Type{<:DefaultSymbolTable}) = IndexLinear()
-Base.getindex(::DefaultSymbolTable{T}, i::Int) where T = T(i)
-
-const SymbolTable = Union{AbstractVector, DefaultSymbolTable}
-
-#======================================================================
 Matrix-based Finite State Acceptor
 ======================================================================#
 

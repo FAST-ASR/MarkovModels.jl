@@ -33,7 +33,7 @@ function mapping(K::Type{<:Semiring}, x, y, match = ==)
 end
 
 """
-    browse(fn:Function, fsa)
+    browse(fn:Function, fsa; reverse = false)
 
 Browse the fsa in a synchronous fahsion.
 
@@ -44,13 +44,27 @@ semiring). The return value of `fn(x)` is filtered version of `x`
 indicated from which state to continue the exploration. The iteration
 is finished when `fn(x)` returns a zero vector, i.e. not states are
 active.
+
+If `reverse` is true, iterate over the state by starting from the final
+point and going one step backward at each iteration.
 """
-function browse(fn::Function, fsa::FSA)
+browse(fn, fsa; reverse=false) = browse(fn, fsa, Val(reverse))
+
+function browse(fn::Function, fsa::FSA, ::Val{false})
     v = fn(fsa.α)
-    while nnz(v) > 0
+    while num_activestates(v) > 0
         v = fn(fsa.T' * v)
     end
 end
+
+function browse(fn::Function, fsa::FSA, ::Val{true})
+    v = fn(fsa.ω)
+    while num_activestates(v) > 0
+        v = fn(fsa.T * v)
+    end
+end
+
+
 
 #=====================================================================#
 
@@ -61,8 +75,84 @@ Trim `fsa` by removing states and arcs that are not on successful
 paths.
 """
 function connect(fsa::FSA)
+    visited_forward = Set()
+    browse(fsa) do x
+		y = prune((i, w) -> i ∉ visited_forward, x)
+		states, weights = activestates(y)
+		union!(visited_forward, Set(states))
+		y
+	end
 
+    visited_backward = Set()
+    browse(fsa; reverse = true) do x
+		y = prune((i, w) -> i ∉ visited_backward, x)
+		states, weights = activestates(y)
+		union!(visited_backward, Set(states))
+		y
+	end
+
+    mapping = Dict()
+    for s in sort(collect(intersect!(visited_forward, visited_backward)))
+        mapping[s] = length(mapping) + 1
+    end
+    reorder(fsa, mapping)
 end
+
+"""
+    Base.intersect(A::FSA, B::FSA)
+
+Return the intersection of `A` and `B`.
+"""
+function Base.intersect(A::FSA, B::FSA)
+    kron_AB = FSA(kron(A.α, B.α), kron(A.T, B.T), kron(A.ω, B.ω))
+
+    visited_forward = Set()
+    browse(kron_AB) do x
+		y = prune(x) do i, _
+            ia, ib = (i - 1) ÷ nstates(B) + 1, (i - 1) % nstates(B) + 1
+            i ∉ visited_forward && A.λ[ia] == B.λ[ib]
+        end
+		states, weights = activestates(y)
+		union!(visited_forward, Set(states))
+		y
+	end
+
+    visited_backward = Set()
+    browse(kron_AB; reverse = true) do x
+		y = prune(x) do i, _
+            ia, ib = (i - 1) ÷ nstates(B) + 1, (i - 1) % nstates(B) + 1
+            i ∉ visited_backward && A.λ[ia] == B.λ[ib]
+        end
+		states, weights = activestates(y)
+		union!(visited_backward, Set(states))
+		y
+	end
+
+    mapping = Dict()
+    λ = []
+    for s in sort(collect(intersect!(visited_forward, visited_backward)))
+        mapping[s] = length(mapping) + 1
+        ia = (s - 1) ÷ nstates(B) + 1
+        push!(λ, A.λ[ia])
+    end
+
+    rfsa = reorder(kron_AB, mapping)
+    FSA(rfsa.α, rfsa.T, rfsa.ω, λ)
+end
+
+
+"""
+    reorder(fsa, mapping)
+
+Reorder the state of a FSA.
+"""
+reorder(fsa::FSA, mapping) =
+    FSA(
+        reorder(fsa.α, mapping),
+        reorder(fsa.T, mapping),
+        reorder(fsa.ω, mapping),
+        reorder(fsa.λ, mapping)
+    )
 
 #"""
 #    hasepsilons(fsa)
