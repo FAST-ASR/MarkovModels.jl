@@ -1,40 +1,19 @@
 # SPDX-License-Identifier: MIT
 
-# TODOs
-# - rename FSM => FSA
-# - 2 different FSA: std / compiled
-# - Separate symbol table.
-# const SymbolTable = Union{AbstractVector, Missing}
-
-#======================================================================
-FSA Label
-======================================================================#
-
-const LabelMonoid = SequenceMonoid
-Label() = one(LabelMonoid)
-Label(x) = LabelMonoid(tuple(x))
-
 #======================================================================
 Symbol table
 ======================================================================#
 
-struct DefaultSymbolTable <: AbstractArray{LabelMonoid, 1}
-    size::Int
+struct DefaultSymbolTable{T} <: AbstractVector{T}
+    size::Int64
 end
 
+DefaultSymbolTable(size) = DefaultSymbolTable{Int64}(size)
 Base.size(st::DefaultSymbolTable) = (st.size,)
 Base.IndexStyle(::Type{<:DefaultSymbolTable}) = IndexLinear()
-Base.getindex(::DefaultSymbolTable, i::Int) = Label(i)
+Base.getindex(::DefaultSymbolTable{T}, i::Int) where T = T(i)
 
 const SymbolTable = Union{AbstractVector, DefaultSymbolTable}
-
-#======================================================================
-Transition matrix / Weight vector
-======================================================================#
-
-const WeightVector = AbstractSparseVector
-const TransitionMatrix{K} =
-    Union{AbstractSparseMatrix{K}, SparseLowRankMatrix{K}} where K
 
 #======================================================================
 Matrix-based Finite State Acceptor
@@ -48,17 +27,16 @@ Matrix-based Finite State Acceptor
         λ
     end
 
-Matrix-based FDA.
+Matrix-based FSA.
 
 # Constructor
 
     FSA(α, T, ω[, λ])
-    FSA(init_weights, arcs, final_weights[, symtable])
 """
 struct FSA{K,
-           TT<:TransitionMatrix{K},
-           Tα<:WeightVector{K},
-           Tω<:WeightVector{K},
+           TT<:AbstractMatrix{K},
+           Tα<:AbstractVector{K},
+           Tω<:AbstractVector{K},
            Tλ<:SymbolTable}
     α::Tα
     T::TT
@@ -66,9 +44,7 @@ struct FSA{K,
     λ::Tλ
 end
 
-FSA(α::WeightVector, T::TransitionMatrix, ω::WeightVector) =
-    FSA(α, T, ω, DefaultSymbolTable(size(α, 1)))
-
+FSA(α, T, ω) = FSA(α, T, ω, DefaultSymbolTable(size(α, 1)))
 nstates(m::FSA) = length(m.α)
 
 #======================================================================
@@ -122,7 +98,7 @@ function _build_T_with_epsilon(arcs, nstates, n_eps, K)
     T = SparseLowRankMatrix(S, D, U, V)
 end
 
-function FSA(initws, arcs, finalws, λ = missing)
+function SparseFSA(initws, arcs, finalws, λ = missing)
     # Get the semiring of the FSM.
     K = typeof(initws[1][2])
 
@@ -162,42 +138,19 @@ function FSA(initws, arcs, finalws, λ = missing)
     )
 end
 
-function FSA(s::AbstractString)
-    data = JSON.parse(s)
-    K = eval(Meta.parse(data["semiring"]))
-    FSA(
-        [a => K(b) for (a, b) in data["initstates"]],
-        [(a, b) => K(c) for (a, b, c) in data["arcs"]],
-        [a => K(b) for (a, b) in data["finalstates"]],
-        [Label(a) for a in data["labels"]]
-    )
-end
-
 #======================================================================
 SVG display of FSA
 ======================================================================#
 
-function _write_states!(file, fsa::FSA)
+function write_states!(file, fsa::FSA)
+    write(file, "0 [ shape=\"point\" ];\n")
+    write(file, "$(nstates(fsa) + 1) [ shape=\"point\" ];\n")
+
+    penwidth = "1"
+    shape = "circle"
     for i in 1:nstates(fsa)
         name = "$i"
-        label = join(val(fsa.λ[i]), ":")
-
-        penwidth = "1"
-        if ! iszero(fsa.α[i])
-            weight = round(convert(Float64, fsa.α[i].val), digits = 3)
-            label *= "/$(weight)"
-            penwidth = "2"
-        else
-            penwidth = "1"
-        end
-
-        if ! iszero(fsa.ω[i])
-            weight = round(convert(Float64, fsa.ω[i].val), digits = 3)
-            label *= "/$(weight)"
-            shape = "doublecircle"
-        else
-            shape = "circle"
-        end
+        label = "$(fsa.λ[i])"
 
         attrs = "shape=" * shape
         attrs *= " penwidth=" * penwidth
@@ -206,32 +159,44 @@ function _write_states!(file, fsa::FSA)
     end
 end
 
-function _write_arcs!(file, T::AbstractSparseMatrix; src_offset = 0,
-                      dest_offset = 0)
-    I, J, V = findnz(T)
-    for (i, j, w) in zip(I, J, V)
-        weight = round(convert(Float64, w.val), digits = 3)
+function write_arcs!(file, T::AbstractMatrix; src_offset = 0, dest_offset = 0)
+    for i = 1:size(T, 1), j = 1:size(T, 2)
+        iszero(T[i, j]) && continue
+        weight = round(convert(Float64, val(T[i, j])), digits = 3)
         srcname = "$(i + src_offset)"
         destname = "$(j + dest_offset)"
         write(file, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
     end
 end
 
-function _write_arcs!(file, fsa::FSA{<:Semiring, <:SparseLowRankMatrix})
+function write_arcs!(file, fsa::FSA{<:Semiring, <:SparseLowRankMatrix})
     n_eps = size(fsa.T.U, 2)
-    for i in (1:n_eps) .+ nstates(fsa)
+    for iw in (1:n_eps) .+ nstates(fsa)
         write(file, "$i [ label=\"ϵ\" shape=circle style=filled ];\n")
     end
 
-    _write_arcs!(file, fsa.T.U; dest_offset = nstates(fsa))
-    _write_arcs!(file, copy(fsa.T.V'); src_offset = nstates(fsa))
-    _write_arcs!(file, copy(fsa.T.D); src_offset = nstates(fsa),
-                 dest_offset = nstates(fsa))
-    _write_arcs!(file, fsa.T.S)
+    write_arcs!(file, fsa.T.U; dest_offset = nstates(fsa))
+    write_arcs!(file, copy(fsa.T.V'); src_offset = nstates(fsa))
+    write_arcs!(file, copy(fsa.T.D); src_offset = nstates(fsa),
+                dest_offset = nstates(fsa))
+    write_arcs!(file, fsa.T.S)
 end
 
-_write_arcs!(file, fsa::FSA{<:Semiring, <:AbstractSparseMatrix}) =
-    _write_arcs!(file, fsa.T)
+function write_arcs!(file, fsa::FSA{<:Semiring, <:AbstractSparseMatrix})
+    for i in 1:nstates(fsa)
+        if ! iszero(fsa.α[i])
+            weight = round(convert(Float64, val(fsa.α[i])), digits = 3)
+            write(file, "0 -> $i [ label=\"$(weight)\" ];\n")
+        end
+
+        if ! iszero(fsa.ω[i])
+            weight = round(convert(Float64, val(fsa.ω[i])), digits = 3)
+            write(file, "$i -> $(nstates(fsa) + 1) [ label=\"$(weight)\" ];\n")
+        end
+    end
+
+    write_arcs!(file, fsa.T)
+end
 
 function Base.show(io::IO, ::MIME"image/svg+xml", fsa::FSA)
     dotpath, dotfile = mktemp()
@@ -239,8 +204,8 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsa::FSA)
         write(dotfile, "Digraph {\n")
         write(dotfile, "rankdir=LR;")
 
-        _write_states!(dotfile, fsa)
-        _write_arcs!(dotfile, fsa)
+        write_states!(dotfile, fsa)
+        write_arcs!(dotfile, fsa)
 
         write(dotfile, "}\n")
         flush(dotfile)

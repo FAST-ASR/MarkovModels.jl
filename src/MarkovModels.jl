@@ -6,7 +6,6 @@ using Adapt
 using Base.Broadcast: BroadcastStyle, Broadcasted, flatten
 using CUDA
 using CUDA.CUSPARSE
-using JSON
 using LinearAlgebra
 using SparseArrays
 using Semirings
@@ -14,8 +13,10 @@ using Semirings
 export
     # FSA
     FSA,
-    Label,
+    SparseFSA,
     SymbolTable,
+
+    browse,
     nstates,
 
     # FSA operations
@@ -49,8 +50,8 @@ export
 include("linalg.jl")
 include("fsa.jl")
 include("fsa_ops.jl")
-include("lmfsa.jl")
-include("inference.jl")
+#include("lmfsa.jl")
+#include("inference.jl")
 
 
 #export maxstateposteriors
