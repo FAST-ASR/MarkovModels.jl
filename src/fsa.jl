@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-#======================================================================
-Matrix-based Finite State Acceptor
-======================================================================#
 
 """
     struct FSA
@@ -12,25 +9,39 @@ Matrix-based Finite State Acceptor
         λ
     end
 
-Matrix-based FSA.
+Matrix-based Finite State Automata.
 
 # Constructor
 
-    FSA(α, T, ω[, λ])
+    FSA(α, T, ω, λ)
 """
 struct FSA{K,
            TT<:AbstractMatrix{K},
            Tα<:AbstractVector{K},
            Tω<:AbstractVector{K},
-           Tλ<:SymbolTable}
+           Tλ<:AbstractVector}
     α::Tα
     T::TT
     ω::Tω
     λ::Tλ
 end
 
-FSA(α, T, ω) = FSA(α, T, ω, DefaultSymbolTable(size(α, 1)))
-nstates(m::FSA) = length(m.α)
+
+"""
+    nstates(fsa)
+
+Returns the number of states in `fsa` (not including epsilon states).
+"""
+nstates(fsa::FSA) = length(fsa.α)
+
+
+"""
+    narcs(fsa)
+
+Returns the number of arcs in `fsa`.
+"""
+narcs(fsa::FSA) = sum(findall(.! iszero.(fsa.T)))
+
 
 #======================================================================
 FSA construction
@@ -49,78 +60,6 @@ function _build_T_no_epsilon(arcs, nstates, K)
         T = spzeros(K, nstates, nstates)
     end
     T
-end
-
-function _build_T_with_epsilon(arcs, nstates, n_eps, K)
-    I_S, J_S, V_S = [], [], K[]
-    I_D, J_D, V_D = [], [], K[]
-    I_U, J_U, V_U = [], [], K[]
-    I_V, J_V, V_V = [], [], K[]
-    epsilon_nodes = Set()
-    for a in arcs
-        if minimum(a.first) > 0
-            push!(I_S, a.first[1])
-            push!(J_S, a.first[2])
-            push!(V_S, a.second)
-        elseif a.first[1] <= 0 && a.first[2] <= 0 # arc from and to epsilon node
-            push!(I_D, 1 - a.first[1])
-            push!(J_D, 1 - a.first[2])
-            push!(V_D, a.second)
-        elseif a.first[1] <= 0 # outgoing arc from epsilon node
-            push!(J_V, 1 - a.first[1])
-            push!(I_V, a.first[2])
-            push!(V_V, a.second)
-        else # incoming arc to epsilon node
-            push!(I_U, a.first[1])
-            push!(J_U, 1 - a.first[2])
-            push!(V_U, a.second)
-        end
-    end
-    S = sparse(I_S, J_S, V_S, nstates, nstates)
-    U = sparse(I_U, J_U, V_U, nstates, n_eps)
-    V = sparse(I_V, J_V, V_V, nstates, n_eps)
-    D = sparse(I_D, J_D, V_D, n_eps, n_eps)
-    T = SparseLowRankMatrix(S, D, U, V)
-end
-
-function SparseFSA(initws, arcs, finalws, λ = missing)
-    # Get the semiring of the FSM.
-    K = typeof(initws[1][2])
-
-    # Get the set of states indices.
-    states = reduce(
-        union,
-        [
-            Set(map(first, initws)),
-            Set(filter(x -> x > 0, map(x -> x.first[1], arcs))),
-            Set(filter(x -> x > 0, map(x -> x.first[2], arcs))),
-            Set(map(first, finalws))
-        ]
-    )
-    nstates = length(states)
-
-    # Count the epsilon states.
-    eps_states = reduce(
-        union,
-        [
-            Set(filter(x -> x <= 0, map(x -> x.first[1], arcs))),
-            Set(filter(x -> x <= 0, map(x -> x.first[2], arcs))),
-        ]
-    )
-    n_eps = length(eps_states)
-
-    if n_eps > 0
-        T = _build_T_with_epsilon(arcs, nstates, n_eps, K)
-    else
-        T = _build_T_no_epsilon(arcs, nstates, K)
-    end
-
-    FSA(
-        sparsevec(map(x -> x[1], initws), map(x -> x[2], initws), nstates),
-        T,
-        sparsevec(map(x -> x[1], finalws), map(x -> x[2], finalws), nstates),
-        ismissing(λ) ? DefaultSymbolTable(nstates) : λ
-    )
 end
 
 #======================================================================
@@ -142,6 +81,18 @@ function write_states!(file, fsa::FSA)
         attrs *= " label=\"" * label * "\""
         write(file, "$name [ $attrs ];\n")
     end
+
+    for i in 1:nstates(fsa)
+        if ! iszero(fsa.α[i])
+            weight = round(convert(Float64, val(fsa.α[i])), digits = 3)
+            write(file, "0 -> $i [ label=\"$(weight)\" ];\n")
+        end
+
+        if ! iszero(fsa.ω[i])
+            weight = round(convert(Float64, val(fsa.ω[i])), digits = 3)
+            write(file, "$i -> $(nstates(fsa) + 1) [ label=\"$(weight)\" ];\n")
+        end
+    end
 end
 
 function write_arcs!(file, T::AbstractMatrix; src_offset = 0, dest_offset = 0)
@@ -154,33 +105,25 @@ function write_arcs!(file, T::AbstractMatrix; src_offset = 0, dest_offset = 0)
     end
 end
 
-function write_arcs!(file, fsa::FSA{<:Semiring, <:SparseLowRankMatrix})
-    n_eps = size(fsa.T.U, 2)
-    for iw in (1:n_eps) .+ nstates(fsa)
-        write(file, "$i [ label=\"ϵ\" shape=circle style=filled ];\n")
-    end
-
-    write_arcs!(file, fsa.T.U; dest_offset = nstates(fsa))
-    write_arcs!(file, copy(fsa.T.V'); src_offset = nstates(fsa))
-    write_arcs!(file, copy(fsa.T.D); src_offset = nstates(fsa),
-                dest_offset = nstates(fsa))
-    write_arcs!(file, fsa.T.S)
+function write_arcs!(file, fsa::FSA)
+    write_arcs!(file, fsa.T)
 end
 
-function write_arcs!(file, fsa::FSA{<:Semiring, <:AbstractSparseMatrix})
-    for i in 1:nstates(fsa)
-        if ! iszero(fsa.α[i])
-            weight = round(convert(Float64, val(fsa.α[i])), digits = 3)
-            write(file, "0 -> $i [ label=\"$(weight)\" ];\n")
-        end
 
-        if ! iszero(fsa.ω[i])
-            weight = round(convert(Float64, val(fsa.ω[i])), digits = 3)
-            write(file, "$i -> $(nstates(fsa) + 1) [ label=\"$(weight)\" ];\n")
-        end
-    end
+function Base.show(io::IO, ::MIME"dot", fsa::FSA)
+    dotfile = io
+    write(dotfile, "Digraph {\n")
+    write(dotfile, "rankdir=LR;")
 
-    write_arcs!(file, fsa.T)
+    write_states!(dotfile, fsa)
+    write_arcs!(dotfile, fsa)
+
+    write(dotfile, "}\n")
+    flush(dotfile)
+
+    svgpath, svgfile = mktemp()
+    dotstr = read(dotfile, String)
+    write(io, dotstr)
 end
 
 function Base.show(io::IO, ::MIME"image/svg+xml", fsa::FSA)

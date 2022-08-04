@@ -13,8 +13,9 @@ using Semirings
 export
     # FSA
     FSA,
+    FactorizedFSA,
     SparseFSA,
-    SymbolTable,
+    DenseForwardFSA,
 
     browse,
     nstates,
@@ -49,11 +50,16 @@ export
     pdfposteriors
 
 include("linalg.jl")
+
 include("statevector.jl")
 include("transmatrix.jl")
-include("symtable.jl")
 include("fsa.jl")
-include("fsa_ops.jl")
+include("factorizedfsa.jl")
+include("sparsefsa.jl")
+#include("symtable.jl")
+
+include("forwardfsa.jl")
+#include("fsa_ops.jl")
 #include("lmfsa.jl")
 #include("inference.jl")
 

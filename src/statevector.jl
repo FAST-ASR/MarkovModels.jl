@@ -14,7 +14,7 @@ their corresponding dimension.
 - [`num_activestates`](@ref)
 - [`prune`](@ref)
 """
-const StateVector{K} = Union{SparseVector{K}}
+const StateVector{K} = Union{Vector{K}, SparseVector{K}}
 
 
 """
@@ -50,7 +50,7 @@ num_activestates
 Return a vector similar to `s` with `i`th state active if
 `fn(i, s[i]) == true`.
 """
-prune
+prune(fn::Function, x::StateVector) = Base.filter(fn, x)
 
 
 #======================================================================
