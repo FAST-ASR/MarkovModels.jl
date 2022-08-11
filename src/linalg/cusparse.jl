@@ -1,35 +1,7 @@
 # SPDX-License-Identifier: MIT
 
-const SparseAdjOrTrans{K} = Union{Adjoint{K, <:AbstractSparseMatrix{K}},
-                                  Transpose{K, <:AbstractSparseMatrix{K}}} where K
-const AnySparseMatrix{K} = Union{SparseAdjOrTrans{K},
-                                 AbstractSparseMatrix{K}} where K
-
 const CuSparseAdjOrTrans{K} = Union{Adjoint{K, <:CuSparseMatrix},
                                     Transpose{K, <:CuSparseMatrix}} where K
-
-const IndexRange = Union{UnitRange, Colon}
-
-#=====================================================================
-LIL (LIst of List) matrix format.
-======================================================================#
-
-struct LILMatrix{K, Tv <: AbstractVector{K}} <: AbstractMatrix{K}
-    numrows::Int64
-    cols::Vector{Tv}
-end
-
-Base.size(M::LILMatrix) = (M.numrows, length(M.cols))
-
-Base.getindex(M::LILMatrix, i::Int, j::Int) = M.cols[j][i]
-Base.getindex(M::LILMatrix, i::IndexRange, j::Int) = M.cols[j]
-Base.setindex!(M::LILMatrix, v, i::Int, j::Int) = M.cols[j][i] = v
-Base.setindex!(M::LILMatrix, v, i::IndexRange, j::Int) = M.cols[j] = v
-
-function lilzeros(K::Type{<:Any}, numrows::Int, numcols::Int)
-    LILMatrix(numrows, repeat([spzeros(K, numrows)], numcols))
-end
-lilzeros(numrows, numcols) = lilzeros(Float64, numrows, numcols)
 
 #======================================================================
 Conversion from/to CSR/CSC matrix with semiring elements.

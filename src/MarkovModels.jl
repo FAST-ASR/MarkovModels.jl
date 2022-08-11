@@ -49,16 +49,10 @@ export
     βrecursion,
     pdfposteriors
 
-include("linalg.jl")
 
-include("statevector.jl")
-include("transmatrix.jl")
-include("fsa.jl")
-include("factorizedfsa.jl")
-include("sparsefsa.jl")
-#include("symtable.jl")
+include("linalg/linalg.jl")
+include("fsa/fsa.jl")
 
-include("forwardfsa.jl")
 #include("fsa_ops.jl")
 #include("lmfsa.jl")
 #include("inference.jl")

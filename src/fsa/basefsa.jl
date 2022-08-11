@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 
-
 """
     struct FSA
         α
@@ -16,9 +15,9 @@ Matrix-based Finite State Automata.
     FSA(α, T, ω, λ)
 """
 struct FSA{K,
-           TT<:AbstractMatrix{K},
-           Tα<:AbstractVector{K},
-           Tω<:AbstractVector{K},
+           TT<:TransitionMatrix{K},
+           Tα<:StateVector{K},
+           Tω<:StateVector{K},
            Tλ<:AbstractVector}
     α::Tα
     T::TT
@@ -153,4 +152,3 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsa::FSA)
         rm(dotpath)
     end
 end
-
