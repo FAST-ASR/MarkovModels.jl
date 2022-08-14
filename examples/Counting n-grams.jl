@@ -49,32 +49,11 @@ lexicon = Dict(
 # ╔═╡ e15301db-ad13-4032-917c-73bea50b18e2
 fsm = utt ∘ lexicon
 
-# ╔═╡ 1a5cf417-25c3-41b9-ae46-9dbbae104375
-# Just keep the last sequence element for each label
-fsm_phones = FSM(
-	fsm.α,
-	fsm.T,
-	fsm.ω,
-	[Label(val(λᵢ)[end]) for λᵢ in fsm.λ]
-) |> propagate
-
-# ╔═╡ 094db5ea-99d6-4bdf-a20e-30f1b42b8329
-totallabelsum(fsm_phones, 7).val
-
-# ╔═╡ 879de4bc-4707-4c3f-9eb7-2863add8be40
-totallabelsum(fsm_phones).val
-
 # ╔═╡ 97bbbc67-9118-4ca7-a2c6-17416c651846
-ngrams = totalngramsum(fsm_phones, order = 3)
+ngrams = totalngramsum(fsm, order = 3)
 
 # ╔═╡ 308d6804-f4b1-476b-aa5c-a707380bb3ac
 LanguageModelFSM(ngrams)
-
-# ╔═╡ 17e49b92-6c8b-4a2f-a570-227ebecf5ef4
-ngrams2 = totalngramsum(fsm, order = 3)
-
-# ╔═╡ f78f865a-2a64-44a1-a037-a2a202767349
-LanguageModelFSM(ngrams2)
 
 # ╔═╡ Cell order:
 # ╠═20d75084-ddc1-11ec-362a-0d63b16271b7
@@ -82,10 +61,5 @@ LanguageModelFSM(ngrams2)
 # ╠═4e8152de-a3fb-4f29-bced-8ab285d0446c
 # ╠═d038a5e1-828d-49a1-8d63-33b0f2c3e86f
 # ╠═e15301db-ad13-4032-917c-73bea50b18e2
-# ╠═1a5cf417-25c3-41b9-ae46-9dbbae104375
-# ╠═094db5ea-99d6-4bdf-a20e-30f1b42b8329
-# ╠═879de4bc-4707-4c3f-9eb7-2863add8be40
 # ╠═97bbbc67-9118-4ca7-a2c6-17416c651846
 # ╠═308d6804-f4b1-476b-aa5c-a707380bb3ac
-# ╠═17e49b92-6c8b-4a2f-a570-227ebecf5ef4
-# ╠═f78f865a-2a64-44a1-a037-a2a202767349

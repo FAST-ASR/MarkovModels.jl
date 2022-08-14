@@ -65,76 +65,59 @@ end
 SVG display of FSA
 ======================================================================#
 
-function write_states!(file, fsa::FSA)
-    write(file, "0 [ shape=\"point\" ];\n")
-    write(file, "$(nstates(fsa) + 1) [ shape=\"point\" ];\n")
+function write_arc!(io::IO, src, dest, label, weight)
+    wstr = @sprintf "%.3g" weight
+    write(io, "$src -> $dest [ label=\"$label/$wstr\" ];\n")
+
+end
+
+function write_states!(io::IO, fsa::FSA)
+    write(io, "0 [ shape=\"point\" ];\n")
+    write(io, "$(nstates(fsa) + 1) [ shape=\"point\" ];\n")
 
     penwidth = "1"
     shape = "circle"
     for i in 1:nstates(fsa)
         name = "$i"
-        label = "$(fsa.λ[i])"
+        label = "$i"
 
         attrs = "shape=" * shape
         attrs *= " penwidth=" * penwidth
         attrs *= " label=\"" * label * "\""
-        write(file, "$name [ $attrs ];\n")
+        write(io, "$name [ $attrs ];\n")
     end
 
     for i in 1:nstates(fsa)
         if ! iszero(fsa.α[i])
-            weight = round(convert(Float64, val(fsa.α[i])), digits = 3)
-            write(file, "0 -> $i [ label=\"$(weight)\" ];\n")
+            write_arc!(io, 0, i, fsa.λ[i], val(fsa.α[i]))
         end
 
         if ! iszero(fsa.ω[i])
-            weight = round(convert(Float64, val(fsa.ω[i])), digits = 3)
-            write(file, "$i -> $(nstates(fsa) + 1) [ label=\"$(weight)\" ];\n")
+            write_arc!(io, i, nstates(fsa) + 1, fsa.λ[i], val(fsa.ω[i]))
         end
     end
 end
 
-function write_arcs!(file, T::AbstractMatrix; src_offset = 0, dest_offset = 0)
+function write_arcs!(io::IO, fsa::FSA)
+    T = fsa.T
     for i = 1:size(T, 1), j = 1:size(T, 2)
         iszero(T[i, j]) && continue
-        weight = round(convert(Float64, val(T[i, j])), digits = 3)
-        srcname = "$(i + src_offset)"
-        destname = "$(j + dest_offset)"
-        write(file, "$srcname -> $destname [ label=\"$(weight)\" ];\n")
+        write_arc!(io, i, j, fsa.λ[j], val(T[i, j]))
     end
 end
 
-function write_arcs!(file, fsa::FSA)
-    write_arcs!(file, fsa.T)
-end
-
-
-function Base.show(io::IO, ::MIME"dot", fsa::FSA)
-    dotfile = io
-    write(dotfile, "Digraph {\n")
-    write(dotfile, "rankdir=LR;")
-
-    write_states!(dotfile, fsa)
-    write_arcs!(dotfile, fsa)
-
-    write(dotfile, "}\n")
-    flush(dotfile)
-
-    svgpath, svgfile = mktemp()
-    dotstr = read(dotfile, String)
-    write(io, dotstr)
+function Base.show(io::IO, ::MIME"image/dot", fsa::FSA)
+    write(io, "Digraph {\n")
+    write(io, "rankdir=LR;")
+    write_states!(io, fsa)
+    write_arcs!(io, fsa)
+    write(io, "}\n")
 end
 
 function Base.show(io::IO, ::MIME"image/svg+xml", fsa::FSA)
     dotpath, dotfile = mktemp()
     try
-        write(dotfile, "Digraph {\n")
-        write(dotfile, "rankdir=LR;")
-
-        write_states!(dotfile, fsa)
-        write_arcs!(dotfile, fsa)
-
-        write(dotfile, "}\n")
+        show(dotfile, MIME("image/dot"), fsa)
         flush(dotfile)
 
         svgpath, svgfile = mktemp()
@@ -146,7 +129,6 @@ function Base.show(io::IO, ::MIME"image/svg+xml", fsa::FSA)
             close(svgfile)
             rm(svgpath)
         end
-
     finally
         close(dotfile)
         rm(dotpath)

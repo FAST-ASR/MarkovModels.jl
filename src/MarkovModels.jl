@@ -7,6 +7,7 @@ using Base.Broadcast: BroadcastStyle, Broadcasted, flatten
 using CUDA
 using CUDA.CUSPARSE
 using LinearAlgebra
+using Printf: @sprintf
 using SparseArrays
 using Semirings
 

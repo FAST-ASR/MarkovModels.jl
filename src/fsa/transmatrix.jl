@@ -8,7 +8,7 @@ Abstract type matrix representation of the arcs withing an FSA.
 # Interface
 - [`Base.similar`](@ref)
 """
-const TransitionMatrix{K} = Union{SparseMatrixCSC{K}}
+const TransitionMatrix{K} = AbstractMatrix{K}
 
 """
     arcs(T::TransitionMatrix) -> I, J, V
