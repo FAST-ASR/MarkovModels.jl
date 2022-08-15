@@ -3,7 +3,7 @@
 """
     TransitionMatrix
 
-Abstract type matrix representation of the arcs withing an FSA.
+Abstract type matrix representation of the arcs of a FSA.
 
 # Interface
 - [`Base.similar`](@ref)

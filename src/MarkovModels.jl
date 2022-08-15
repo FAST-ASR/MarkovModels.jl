@@ -7,6 +7,7 @@ using Base.Broadcast: BroadcastStyle, Broadcasted, flatten
 using CUDA
 using CUDA.CUSPARSE
 using LinearAlgebra
+using Markdown
 using Printf: @sprintf
 using SparseArrays
 using Semirings
@@ -17,8 +18,24 @@ export
     FactorizedFSA,
     SparseFSA,
     DenseForwardFSA,
+    DenseFSA,
+
+    # FSA properties
+    Properties,
+    accessible,
+    acyclic,
+    coaccessible,
+    deterministic,
+    lexsorted,
+    normalized,
+    topsorted,
+    weightpropagated,
+
+    # Iterators
+    AcyclicIterator,
 
     browse,
+    narcs,
     nstates,
 
     # FSA operations

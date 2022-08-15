@@ -3,7 +3,7 @@
 """
     StateVector
 
-Abstract type vector representing the the active states of while
+Abstract type vector representing the the active states while
 iterating over an FSA. The dimension of the vector is the number
 of states in the FSA and the active states have non-zero values at
 their corresponding dimension.
@@ -14,34 +14,27 @@ their corresponding dimension.
 - [`num_activestates`](@ref)
 - [`prune`](@ref)
 """
-const StateVector{K} = Union{Vector{K}, SparseVector{K}}
+const StateVector{K} = AbstractVector{K} where K
 
 
 """
-    activestates(fn::Function, s::StateVector) -> I, V
+    activestates(s::StateVector) -> I, V
 
 Return the  active states and their associated weights.
 """
-activestates
+function activestates(s::StateVector)
+    I = findall(! iszero, s)
+    I, s[I]
+end
 
 
 """
-    reorder(x::StateVector, mapping)
-
-Reorder the dimension of the state vector following `mapping[s] -> i`
-where `s` is the current state number and `i` is the new state number.
-If a dimension is omitted, it is removed from the state vector.
-"""
-reorder(::StateVector, ::AbstractDict)
-
-
-"""
-    num_activestates(fn::Function, s::StateVector)
+    num_activestates(s::StateVector)
 
 Return the number of active states, i.e. the number of non-zero
 dimesion.
 """
-num_activestates
+num_activestates(s::StateVector) = sum( findall(! iszero, s) )
 
 
 """
@@ -50,7 +43,15 @@ num_activestates
 Return a vector similar to `s` with `i`th state active if
 `fn(i, s[i]) == true`.
 """
-prune(fn::Function, x::StateVector) = Base.filter(fn, x)
+function prune(fn::Function, s::StateVector{K}) where K
+    retval = fill!(similar(s), zero(K))
+    for (i, w) in zip(activestates(s)...)
+        if fn(i, w)
+            retval[i] = w
+        end
+    end
+    retval
+end
 
 
 #======================================================================
