@@ -32,11 +32,8 @@ export
     weightpropagated,
 
     # Iterators
-    AcyclicIterator,
-
-    browse,
-    narcs,
-    nstates,
+    FSAIterator,
+    AcyclicFSAIterator,
 
     # FSA operations
     compose,

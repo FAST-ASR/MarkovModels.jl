@@ -5,6 +5,8 @@ include("statevector.jl")
 include("transmatrix.jl")
 include("basefsa.jl")
 
+include("iterators.jl")
+
 include("densefsa.jl")
 include("factorizedfsa.jl")
 include("forwardfsa.jl")
