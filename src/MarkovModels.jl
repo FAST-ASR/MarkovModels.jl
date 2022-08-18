@@ -66,7 +66,7 @@ export
 
 
 include("linalg/linalg.jl")
-include("fsa/fsa.jl")
+#include("fsa/fsa.jl")
 
 #include("fsa_ops.jl")
 #include("lmfsa.jl")

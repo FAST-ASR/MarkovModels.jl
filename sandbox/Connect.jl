@@ -22,7 +22,14 @@ begin
 	using Revise
 	using Semirings
 	using MarkovModels	
+	using SparseArrays
 end
+
+# ╔═╡ ffac01a1-1115-4e1b-93e5-db38f4456dc9
+x = sparsevec([3, 2, 1], Float32[1, 2, 3])
+
+# ╔═╡ 6f14fe36-a755-4f38-a1d2-960f947e5b40
+x.nzind
 
 # ╔═╡ 0b25b4b1-2197-49e0-9e52-387949d5a106
 K = ProbSemiring{Float32}
@@ -111,6 +118,8 @@ fsa3 = FSA(
 
 # ╔═╡ Cell order:
 # ╠═b79aee54-195d-11ed-389d-ff3b4ae31b25
+# ╠═ffac01a1-1115-4e1b-93e5-db38f4456dc9
+# ╠═6f14fe36-a755-4f38-a1d2-960f947e5b40
 # ╠═0b25b4b1-2197-49e0-9e52-387949d5a106
 # ╠═d1781c3c-af8d-4e2c-b830-d9a08abef91d
 # ╠═4d0a0657-c316-4566-b99a-cc75498138da
