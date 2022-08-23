@@ -2,7 +2,7 @@
 
 [MarkovModels](https://github.com/BUTSpeechFIT/MarkovModels.jl) is a
 [Julia](https://julialang.org/) package for probabilitistic inference
-in (Hidden) Markov Models.
+with (Hidden) Markov Models.
 
 See the project on [github](https://github.com/lucasondel/MarkovModels.jl).
 
