@@ -1,11 +1,8 @@
 # Releases
 
-## 0.10.0
+## 0.9.0
 ### Added
 * FSM constructor using a JSON-formatted string.
-
-## 0.9.0
-## Added
 * Removed the old code `src/semirings` with semiring algebra and replace it
   with new external `Semirings` package.
 
