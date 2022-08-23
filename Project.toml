@@ -13,6 +13,7 @@ Semirings = "900aad66-9ca5-44d4-b043-321c62cb7767"
 SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
 [compat]
+Adapt = "3.3"
 BlockDiagonals = "0.1"
 CUDA = "3.9"
 JSON = "0.21"
