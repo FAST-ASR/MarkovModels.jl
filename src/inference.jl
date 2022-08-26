@@ -58,6 +58,22 @@ function βrecursion(T̂::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
     B
 end
 
+# Do the backward recursion and multiply with the α immediately.
+# This avoids to allocate a second array for the β messages.
+function βrecursion_mulα!(α::AbstractMatrix{K}, T::AbstractMatrix{K},
+                          lhs::AbstractMatrix{K}) where K <: Semiring
+    S, N = size(T, 1), size(lhs, 2)
+    βₘ = fill!(similar(lhs[:, 1], S), one(K))
+    buffer = similar(lhs[:, 1], S)
+
+    @views for n in N-1:-1:1
+        elmul!(buffer, βₘ, lhs[:,n+1])
+        matmul!(βₘ, T, buffer)
+        elmul!(α[:,n], α[:,n], βₘ)
+    end
+    α
+end
+
 function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
     V̂ = vcat(V̂s...)
     V̂k = copyto!(similar(V̂, K), V̂)
@@ -65,8 +81,7 @@ function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
     Ĉᵀ = copy(Ĉ')
     ĈV̂ = (Ĉ * V̂k)
     state_A = αrecursion(fsm.α̂, fsm.T̂', ĈV̂)
-    state_B = βrecursion(fsm.T̂, ĈV̂)
-    state_AB = broadcast!(*, state_A, state_A, state_B)
+    state_AB = βrecursion_mulα!(state_A, fsm.T̂, ĈV̂)
     AB = mul!(V̂k, Ĉᵀ, state_AB)
     Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3))
     sums = sum(Ẑ, dims = 2)
