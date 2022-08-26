@@ -67,9 +67,9 @@ function βrecursion_mulα!(α::AbstractMatrix{K}, T::AbstractMatrix{K},
     buffer = similar(lhs[:, 1], S)
 
     @views for n in N-1:-1:1
-        elmul!(buffer, βₘ, lhs[:,n+1])
+        broadcast!(*, buffer, βₘ, lhs[:, n+1])
         matmul!(βₘ, T, buffer)
-        elmul!(α[:,n], α[:,n], βₘ)
+        broadcast!(*, α[:,n], α[:,n], βₘ)
     end
     α
 end
