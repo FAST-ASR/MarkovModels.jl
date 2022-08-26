@@ -68,7 +68,7 @@ function βrecursion_mulα!(α::AbstractMatrix{K}, T::AbstractMatrix{K},
 
     @views for n in N-1:-1:1
         broadcast!(*, buffer, βₘ, lhs[:, n+1])
-        matmul!(βₘ, T, buffer)
+        mul!(βₘ, T, buffer)
         broadcast!(*, α[:,n], α[:,n], βₘ)
     end
     α
