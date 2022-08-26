@@ -62,11 +62,12 @@ function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
     V̂ = vcat(V̂s...)
     V̂k = copyto!(similar(V̂, K), V̂)
     Ĉ = blockdiag(Ĉs...)
+    Ĉᵀ = copy(Ĉ')
     ĈV̂ = (Ĉ * V̂k)
     state_A = αrecursion(fsm.α̂, fsm.T̂', ĈV̂)
     state_B = βrecursion(fsm.T̂, ĈV̂)
     state_AB = broadcast!(*, state_A, state_A, state_B)
-    AB = Ĉ' * state_AB
+    AB = mul!(V̂k, Ĉᵀ, state_AB)
     Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3))
     sums = sum(Ẑ, dims = 2)
     Ẑ = broadcast!(/, Ẑ, Ẑ, sums)
