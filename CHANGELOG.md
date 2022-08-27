@@ -2,6 +2,14 @@
 
 ## 0.9.0
 ### Added
+* CompiledFSM object whichstore the fsm and it's reversal.
+
+## 0.9.1
+### Fixed
+* Do not allocate extra array while doing the backward step.
+
+## 0.9.0
+### Added
 * All the different storage of FSM are now replaced with a single type:
   FSM which is internally a matrix-based FSM. Construction and
   inference algorithms are applied directly on this format.
