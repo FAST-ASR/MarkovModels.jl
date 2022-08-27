@@ -37,6 +37,9 @@ export
     LanguageModelFSM,
 
     # Inference
+    CompiledFSM,
+    batch,
+    compile,
     expand,
     αrecursion,
     βrecursion,

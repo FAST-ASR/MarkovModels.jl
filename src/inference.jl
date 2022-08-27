@@ -1,5 +1,40 @@
 # SPDX-License-Identifier: MIT
 
+struct CompiledFSM{K}
+    α̂
+    T̂
+    T̂ᵀ
+    Ĉ
+    Ĉᵀ
+end
+
+compile(fsm::FSM, Ĉ::AbstractMatrix) =
+    CompiledFSM{eltype(fsm.α̂)}(fsm.α̂, fsm.T̂, copy(fsm.T̂'), Ĉ, copy(Ĉ'))
+
+function Adapt.adapt_structure(::Type{<:CuArray}, cfsm::CompiledFSM{K}) where K
+    T̂ = CuSparseMatrixCSC(cfsm.T̂)
+    T̂ᵀ = CuSparseMatrixCSC(cfsm.T̂ᵀ)
+    Ĉ = CuSparseMatrixCSC(cfsm.Ĉ)
+    Ĉᵀ = CuSparseMatrixCSC(cfsm.Ĉᵀ)
+    CompiledFSM{K}(
+        CuSparseVector(cfsm.α̂),
+        CuSparseMatrixCSR(T̂ᵀ.colPtr, T̂ᵀ.rowVal, T̂ᵀ.nzVal, T̂.dims),
+        CuSparseMatrixCSR(T̂.colPtr, T̂.rowVal, T̂.nzVal, T̂ᵀ.dims),
+        CuSparseMatrixCSR(Ĉᵀ.colPtr, Ĉᵀ.rowVal, Ĉᵀ.nzVal, Ĉ.dims),
+        CuSparseMatrixCSR(Ĉ.colPtr, Ĉ.rowVal, Ĉ.nzVal, Ĉᵀ.dims),
+    )
+end
+
+function batch(fsm1::CompiledFSM{K}, fsms::CompiledFSM{K}...) where K
+    CompiledFSM{K}(
+        vcat(fsm1.α̂, map(fsm -> fsm.α̂, fsms)...),
+        blockdiag(fsm1.T̂, map(fsm -> fsm.T̂, fsms)...),
+        blockdiag(fsm1.T̂ᵀ, map(fsm -> fsm.T̂ᵀ, fsms)...),
+        blockdiag(fsm1.Ĉ, map(fsm -> fsm.Ĉ, fsms)...),
+        blockdiag(fsm1.Ĉᵀ, map(fsm -> fsm.Ĉᵀ, fsms)...)
+    )
+end
+
 """
     expand(V::AbstractMatrix{K}, seqlength = size(lhs, 2)) where K
 
@@ -80,13 +115,32 @@ function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
     Ĉ = blockdiag(Ĉs...)
     Ĉᵀ = copy(Ĉ')
     ĈV̂ = (Ĉ * V̂k)
-    state_A = αrecursion(fsm.α̂, fsm.T̂', ĈV̂)
+    T̂ᵀ = copy(fsm.T̂')
+    state_A = αrecursion(fsm.α̂, T̂ᵀ, ĈV̂)
     state_AB = βrecursion_mulα!(state_A, fsm.T̂, ĈV̂)
     AB = mul!(V̂k, Ĉᵀ, state_AB)
     Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3))
     sums = sum(Ẑ, dims = 2)
     Ẑ = broadcast!(/, Ẑ, Ẑ, sums)
     ttl = dropdims(minimum(sums, dims = (2, 3)), dims = (2, 3))
+    (exp ∘ val).(Ẑ[:, 1:end-1, 1:end-1]), val.(ttl)
+end
+
+
+function pdfposteriors2(cfsm::CompiledFSM{K}, V̂s) where K
+    V̂ = vcat(V̂s...)
+    V̂k = copyto!(similar(V̂, K), V̂)
+    ĈV̂ = (cfsm.Ĉ * V̂k)
+
+    state_A = αrecursion(cfsm.α̂, cfsm.T̂ᵀ, ĈV̂)
+    state_AB = βrecursion_mulα!(state_A, cfsm.T̂, ĈV̂)
+    AB = mul!(V̂k, cfsm.Ĉᵀ, state_AB)
+
+    Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3))
+    sums = sum(Ẑ, dims = 2)
+    Ẑ = broadcast!(/, Ẑ, Ẑ, sums)
+    ttl = dropdims(minimum(sums, dims = (2, 3)), dims = (2, 3))
+
     (exp ∘ val).(Ẑ[:, 1:end-1, 1:end-1]), val.(ttl)
 end
 
