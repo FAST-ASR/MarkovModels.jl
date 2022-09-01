@@ -51,6 +51,7 @@ include("fsmops.jl")
 include("algorithms.jl")
 include("lmfsm.jl")
 include("linalg.jl")
+include("blockvector.jl")
 include("inference.jl")
 
 

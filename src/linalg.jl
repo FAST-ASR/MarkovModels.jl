@@ -160,14 +160,12 @@ end
 Sparse matrix (CSR) and dense vector multiplication.
 ======================================================================#
 
-function LinearAlgebra.mul!(c::CuVector{K}, A::CuSparseMatrixCSR{K},
-                            b::CuVector{K}, α::Number, β::Number) where K
+function LinearAlgebra.mul!(c::CuVector{K},
+                            A::CuSparseMatrixCSR{K},
+                            b::CuVector{K}) where K
     @boundscheck size(A, 2) == size(b, 1) || throw(DimensionMismatch())
     @boundscheck size(A, 1) == size(c, 1) || throw(DimensionMismatch())
 
-    if β != 1
-        β != 0 ? rmul!(c, β) : fill!(c, zero(eltype(c)))
-    end
     if length(A.nzVal) > 0
         ckernel = @cuda launch=false _cukernel_mul_smdv!(
             c,
@@ -193,6 +191,7 @@ function _cukernel_mul_smdv!(c, rowPtr, colVal, nzVal, b)
     stride = blockDim().x * gridDim().x
 
     for i = index:stride:length(c)
+        c[i] = zero(eltype(c))
         for j = rowPtr[i]:(rowPtr[i+1]-1)
             c[i] += nzVal[j] * b[colVal[j]]
         end
@@ -253,6 +252,11 @@ Sparse vector and dense veector broadcasting.
 ======================================================================#
 
 const SupportedOperator = Union{typeof(*), typeof(/)}
+
+elmul!(out, x::AbstractArray, y::AbstractArray) =  broadcast!(*, out, x, y)
+elmul!(out, x::AbstractVector, y::CuSparseVector) = _copyto!(*, out, y, x)
+eldiv!(out, x::AbstractArray, y::AbstractArray) =  broadcast!(/, out, x, y)
+eldiv!(out, x::CuSparseVector, y::AbstractVector) = _copyto!(/, out, y, x)
 
 function _copyto!(f::SupportedOperator, dest::CuArray{K}, x::CuSparseVector{K},
                   y::CuVector{K}) where K
