@@ -19,10 +19,13 @@ function init_messages(ffsm::FactorialFSM{K}, N::Integer) where K
     m3 = [Array{K}(undef, dims[j], N) for j in nspkrs]
 
     @views for j in 1:nspkrs
-        S = dims(j) # n_states in fsm for spkr j
+        fsm = ffsm.fsms[j]
+        S = nstates(fsm)
         m1j, m2j, m3j = m1[j], m2[j], m3[j] 
-        fill!(m2[:, 2:end], one(K) / S)
-        m2[1, :] = 
+        fill!(m2[:, 2:end], one(K))
+        fill!(m2[:, 1], fsm.α)
+        fill!(m3[:, 1:end-1], one(K))
+        fill!(m3[:, end], one(K))
     end
 
     (m1 = m1, m2 = m2, m3 = m3)
