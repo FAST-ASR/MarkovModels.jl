@@ -57,7 +57,7 @@ function lbp_step!(messages, ffsm::FactorialFSM{K}, llhs::AbstractArray{K, 3}) w
         # this spkr's messages
         m1j, m2j, m3j = m1[j], m2[j], m3[j]
         fsm = ffsm.fsms[j]
-        T̂, T̂ᵀ = fsm.T̂, fsm.T̂' # TODO maybe not optimal
+        T̂, T̂ᵀ = fsm.T̂, permutedims(fsm.T̂, [2,1]) # TODO maybe not optimal
 
         # other spkr's messages
         k = n_spkrs - j + 1
@@ -72,8 +72,9 @@ function lbp_step!(messages, ffsm::FactorialFSM{K}, llhs::AbstractArray{K, 3}) w
             sum!(m1j[:, n], buffer')
         end
 
-        buffer = similar(m1j[:, 1])
         m2j[:, 1] = fsm.α̂
+        buffer = similar(m1j[:, 1]) # NOT OPTIMAL, m2j should be used instead but we have issue with Julia 1.7 -> 1.8 fixed it, but introduce another bugs
+        # check https://github.com/JuliaSparse/SparseArrays.jl/issues/251
         @views for n in 2:N
             broadcast!(*, buffer, m1j[:, n - 1], m2j[:, n - 1])
             mul!(m2j[:, n], T̂ᵀ, buffer)

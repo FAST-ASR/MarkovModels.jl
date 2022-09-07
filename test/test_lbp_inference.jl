@@ -11,7 +11,7 @@ function naive_lbp_step(messages, ffsm::FactorialFSM{T}, llhs::AbstractArray{T, 
 
     for j in 1:n_spkrs
 
-        for n in 1:N
+        @views for n in 1:N
             buffer = llhs[:, :, n]
 
             for k in 1:n_spkrs
@@ -31,12 +31,12 @@ function naive_lbp_step(messages, ffsm::FactorialFSM{T}, llhs::AbstractArray{T, 
 
         fsm = ffsm.fsms[j]
         m2[j][:, 1] = fsm.α̂
-        for n in 2:N
+        @views for n in 2:N
             m2[j][:, n] = ((m2[j][:, n - 1] .* m1[j][:, n - 1])' * fsm.T̂)'
         end
 
-        fill!(m3[j][:, 1], one(T))
-        for n in N-1:-1:1
+        @views fill!(m3[j][:, N], one(T))
+        @views for n in N-1:-1:1
             m3[j][:, n] = fsm.T̂ * (m3[j][:, n + 1] .* m1[j][:, n + 1])
         end
     end
@@ -94,26 +94,6 @@ false_print(msg) = begin
     false
 end
 
-@testset "random FactorialFSM" begin
-    ffsm = make_ffsm(SF, T, S1, S2)
-    llhs = convert.(SF, log.(rand(T, S1, S2, N)))
-
-    m1 = [Array{SF}(undef, S, N) for S in [S1, S2]]
-    m2 = [ones(SF, S, N-1) for S in [S1, S2]]
-    m2 = [hcat(fsm.α̂, m) for (fsm, m) in zip(ffsm.fsms, m2)]
-    m3 = [ones(SF, S, N) for S in [S1, S2]]
-
-    ref_m1, ref_m2, ref_m3 = naive_lbp_step([m1,m2,m3], ffsm, llhs)
-    hyp_m1, hyp_m2, hyp_m3 = lbp_step!(deepcopy((m1=m1, m2=m2, m3=m3)), ffsm, llhs)
-
-    for j in 1:2
-        @test all(isapprox.(val.(ref_m1[j]), val.(hyp_m1[j]), nans=true))
-        @test all(isapprox.(val.(ref_m2[j]), val.(hyp_m2[j]), nans=true))
-        @test all(isapprox.(val.(ref_m3[j]), val.(hyp_m3[j]), nans=true))
-        #@test all(ref_m2[j] .≈ hyp_m2[j]) || false_print((println.(ref_m2[j] .≈ hyp_m2[j]), println.(ref_m2[j]), println(""), println.( hyp_m2[j])))
-    end
-end
-
 @testset "Linear Factorial FSM" begin
     # Linear FSM
     lffsm = make_lin_ffsm(SF, T, S1, S2)
@@ -126,6 +106,26 @@ end
 
     ref_m1, ref_m2, ref_m3 = naive_lbp_step([m1,m2,m3], lffsm, llhs)
     hyp_m1, hyp_m2, hyp_m3 = lbp_step!(deepcopy((m1=m1, m2=m2, m3=m3)), lffsm, llhs)
+
+    for j in 1:2
+        @test all(isapprox.(val.(ref_m1[j]), val.(hyp_m1[j]), nans=true))
+        @test all(isapprox.(val.(ref_m2[j]), val.(hyp_m2[j]), nans=true))
+        @test all(isapprox.(val.(ref_m3[j]), val.(hyp_m3[j]), nans=true))
+        #@test all(ref_m2[j] .≈ hyp_m2[j]) || false_print((println.(ref_m2[j] .≈ hyp_m2[j]), println.(ref_m2[j]), println(""), println.( hyp_m2[j])))
+    end
+end
+
+@testset "random FactorialFSM" begin
+    ffsm = make_ffsm(SF, T, S1, S2)
+    llhs = convert.(SF, log.(rand(T, S1, S2, N)))
+
+    m1 = [Array{SF}(undef, S, N) for S in [S1, S2]]
+    m2 = [ones(SF, S, N-1) for S in [S1, S2]]
+    m2 = [hcat(fsm.α̂, m) for (fsm, m) in zip(ffsm.fsms, m2)]
+    m3 = [ones(SF, S, N) for S in [S1, S2]]
+
+    ref_m1, ref_m2, ref_m3 = naive_lbp_step([m1,m2,m3], ffsm, llhs)
+    hyp_m1, hyp_m2, hyp_m3 = lbp_step!(deepcopy((m1=m1, m2=m2, m3=m3)), ffsm, llhs)
 
     for j in 1:2
         @test all(isapprox.(val.(ref_m1[j]), val.(hyp_m1[j]), nans=true))
