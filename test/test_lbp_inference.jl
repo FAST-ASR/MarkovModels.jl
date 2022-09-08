@@ -139,9 +139,9 @@ end
     hyp_m1, hyp_m2, hyp_m3 = lbp_step!(deepcopy((m1=m1, m2=m2, m3=m3)), ffsm, llhs)
 
     for j in 1:2
-        @test all(isapprox.(val.(ref_m1[j]), val.(hyp_m1[j]), nans=true))
-        @test all(isapprox.(val.(ref_m2[j]), val.(hyp_m2[j]), nans=true))
-        @test all(isapprox.(val.(ref_m3[j]), val.(hyp_m3[j]), nans=true))
+        @test all(isapprox.(val.(ref_m1[j]), val.(hyp_m1[j]), nans=false))
+        @test all(isapprox.(val.(ref_m2[j]), val.(hyp_m2[j]), nans=false))
+        @test all(isapprox.(val.(ref_m3[j]), val.(hyp_m3[j]), nans=false))
         #@test all(ref_m2[j] .≈ hyp_m2[j]) || false_print((println.(ref_m2[j] .≈ hyp_m2[j]), println.(ref_m2[j]), println(""), println.( hyp_m2[j])))
     end
 end

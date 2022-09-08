@@ -6,6 +6,7 @@ struct CompiledFSM{K<:Semiring}
     Ĉᵀ
 end
 compile(fsm::FSM, Ĉ::AbstractMatrix) = CompiledFSM{eltype(fsm.α̂)}(fsm.α̂, fsm.T̂, copy(fsm.T̂'), Ĉ, copy(Ĉ'))
+nstates(fsm::CompiledFSM) = length(fsm.α̂) - 1
 
 function Adapt.adapt_structure(::Type{<:CuArray}, cfsm::CompiledFSM{K}) where K
     T̂ = CuSparseMatrixCSC(cfsm.T̂)
@@ -85,7 +86,7 @@ function joint_smap(smap1::AbstractSparseMatrix{K}, smap2::AbstractSparseMatrix{
     sparse(I, J, V, S1*S2, P1*P2)
 end
 
-function init_messages(ffsm::FactorialFSM{K}, N::Integer) where K
+function init_messages(ffsm::CompiledFactorialFSM{K, J}, N::Integer) where {K,J}
     S = [nstates(fsm) + 1 for fsm in ffsm.fsms] # + virtual state
 
     m1 = [Array{K}(undef, s, N) for s in S]
@@ -104,7 +105,7 @@ function init_messages(ffsm::FactorialFSM{K}, N::Integer) where K
     (m1 = m1, m2 = m2, m3 = m3)
 end
 
-function compare_msgs(old_mgs, new_msg; eps=1e-4)
+function compare_msgs(old_mgs, new_msg; eps=1.2)
     n_spkrs = length(old_mgs[:m1])
     changes = []
     for n_msg in 1:3
@@ -130,16 +131,18 @@ of states in 2nd FSM in `ffsm`.
 
 args:
     ffsm - FactorialFSM od 2 FSMs with states `S1` and `S2`
-    llhs - loglikehoods with size `(S1*S2, N)`
+    V̂s - B-element vector of expanded loglikehoods with size `(S1*S2, N)` (see `expand`)
 """
-function pdfposteriors(ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractMatrix{K}; eps=1e-4, max_iter=10) where {K<:Semiring, J}
+function pdfposteriors(ffsm::CompiledFactorialFSM{K, J}, V̂s::Vector{<:AbstractMatrix{K}}; eps=1.2, min_iter=3, max_iter=10) where {K<:Semiring, J}
+    B = length(V̂s)
+    llhs = vcat(V̂s...)
     N = size(llhs, 2)
     n_spkrs = nfsms(ffsm)
     states_per_fsm = [nstates(ffsm[i]) + 1 for i in 1:n_spkrs] # + virtual state
     total_states = reduce(*, states_per_fsm)
     # we assume that llhs is already expanded (see `expand`)
     state_llhs = ffsm.Ĉ * llhs
-    @assert size(state_llhs, 1) == total_states
+    @assert size(state_llhs, 1) == total_states "size(state_llhs): $(size(state_llhs, 1)) != $total_states"
     state_llhs = reshape(state_llhs, vcat(states_per_fsm, [N])...) # S1 x S2 x ... x N
 
     messages = init_messages(ffsm, N)
@@ -153,7 +156,7 @@ function pdfposteriors(ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractMatrix{K}
         changes = compare_msgs(messages, new_messages; eps=eps)
         messages = new_messages
         # if all messages are same then break
-        if isempty(changes) || iter >= max_iter
+        if (isempty(changes) && iter >= min_iter) || iter >= max_iter
             break
         end
     end
@@ -163,18 +166,19 @@ function pdfposteriors(ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractMatrix{K}
 
     m1, m2, m3 = messages
     result = []
-    ttl = zero(K)
+    ttl = zeros(K, B)
     for (j, (m1j, m2j, m3j)) in enumerate(zip(m1, m2, m3))
         state_marginals = broadcast!(*, m1j, m1j, m2j, m3j)
-        pdf_marginals = ffsm[j].Ĉᵀ * state_marginals
-        sums = sum(pdf_marginals, dims=1) # 1 x N
+        pdf_marginals = ffsm[j].Ĉᵀ * state_marginals # B*P x N
+        pdf_marginals = permutedims(reshape(pdf_marginals, :, B, N), (2, 1, 3)) # B x P x N
+        sums = sum(pdf_marginals, dims=2) # B x 1 x N
         broadcast!(/, pdf_marginals, pdf_marginals, sums)
-        ttl += minimum(sums)
-        push!(result, pdf_marginals)
+        broadcast!(+, ttl, ttl, dropdims(minimum(sums, dims=(2,3)), dims=(2,3)))
+        push!(result, (exp ∘ val).(pdf_marginals[:, 1:end-1, 1:end-1]))
     end
 
     # TODO: return pdf marginals of the same size as llhs 
-    result, ttl
+    result, val.(ttl)
 end
 
 function lbp_step!(messages, ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractArray{K, D}) where {K, J, D}
@@ -198,7 +202,7 @@ function lbp_step!(messages, ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractArr
 
         @views for n in 1:N
             broadcast!(*, buffer_k, m2k[:, n], m3k[:, n])
-            #broadcast!(/, buffer_k, buffer_k, sum(buffer_k)) # Do NOT normalize
+            broadcast!(/, buffer_k, buffer_k, sum(buffer_k)) # Do NOT normalize
             # (w/o norm it will converge faster)
             mul!(m1j[:, n], llhs_perm[:, :, n], buffer_k)
             #broadcast!(*, buffer, llhs_perm[:, :, n], buffer_k)
