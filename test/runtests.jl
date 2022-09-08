@@ -10,7 +10,7 @@ using Semirings
 using SparseArrays
 using Test
 
-import MarkovModels: lbp_step!
+import MarkovModels: lbp_step!, joint_smap
 
 @testset verbose=true "FSMs" begin
     include("test_fsms.jl")

@@ -4,6 +4,9 @@ const S2 = 33 # number of states for spkr2
 const T = Float32
 const SF = LogSemiring{T} 
 
+#normalize2(x) = x ./ sum(x)
+normalize2(x) = x
+
 function naive_lbp_step(messages, ffsm::FactorialFSM{T}, llhs::AbstractArray{T, 3}) where T
     N = size(llhs, 3)
     n_spkrs = 2
@@ -18,10 +21,10 @@ function naive_lbp_step(messages, ffsm::FactorialFSM{T}, llhs::AbstractArray{T, 
                 k == j && continue
                 if k == 2
                     buffer = permutedims(buffer, [2, 1])
-                    buffer = buffer .* (m2[k][:, n] .* m3[k][:, n])
+                    buffer = buffer .* normalize2(m2[k][:, n] .* m3[k][:, n])
                     buffer = permutedims(buffer, [2, 1])
                 elseif k == 1
-                    buffer = buffer .* (m2[k][:, n] .* m3[k][:, n])
+                    buffer = buffer .* normalize2(m2[k][:, n] .* m3[k][:, n])
                 else
                     throw(ErrorException("Not available for more then 2 spkrs"))
                 end
@@ -46,7 +49,8 @@ end
 
 make_lin_ffsm(SF, T, num_states_per_fsm...) = begin
     fsms = FSM{SF}[]
-    smaps = AbstractMatrix{SF}[]
+    smaps = AbstractSparseMatrix{SF}[]
+    P = maximum(num_states_per_fsm)
     for S in num_states_per_fsm
         α = sparse(vcat(one(T), zeros(T, S-2)))
         T̂ = sparse(Bidiagonal([T(0.75) for _ in 1:S-1], [T(0.25) for _ in 1:S-2], :U))
@@ -61,14 +65,17 @@ make_lin_ffsm(SF, T, num_states_per_fsm...) = begin
                 labels
             ) |> renorm
         )
-        push!(smaps, ones(S,S))
+        push!(
+            smaps,
+            diagm(abs(P-S) => ones(SF, S))[1:S, :] |> sparse
+        )
     end
     FactorialFSM(fsms, smaps)
 end
 
 make_ffsm(SF, T, num_states_per_fsm...) = begin
     fsms = FSM{SF}[]
-    smaps = AbstractMatrix{SF}[]
+    smaps = AbstractSparseMatrix{SF}[]
     for S in num_states_per_fsm
         α = sprand(T, S-1, 0.25)
         T̂ = sprand(T, S-1, S-1, 0.95)
@@ -83,7 +90,7 @@ make_ffsm(SF, T, num_states_per_fsm...) = begin
                 labels
             ) |> renorm
         )
-        push!(smaps, ones(S,S))
+        push!(smaps, diagm(ones(SF, S)) |> sparse)
     end
     FactorialFSM(fsms, smaps)
 end

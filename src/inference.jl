@@ -58,17 +58,27 @@ function βrecursion(T̂::AbstractMatrix{K}, lhs::AbstractMatrix{K}) where K
     B
 end
 
+"""
+    pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
+
+Compute pdf posteriors.
+
+args:
+    fsm - batched FSM
+    V̂s - vector of pdf likelihoods of shape (n_pdfs x N)
+    Ĉs - vector of state-pdf mappings
+"""
 function pdfposteriors(fsm::FSM{K}, V̂s, Ĉs) where K
-    V̂ = vcat(V̂s...)
+    V̂ = vcat(V̂s...)  # B*n_pdfs x N
     V̂k = copyto!(similar(V̂, K), V̂)
-    Ĉ = blockdiag(Ĉs...)
-    ĈV̂ = (Ĉ * V̂k)
+    Ĉ = blockdiag(Ĉs...)  # B*n_states x B*n_pdfs
+    ĈV̂ = (Ĉ * V̂k)  # B*n_states x N
     state_A = αrecursion(fsm.α̂, fsm.T̂', ĈV̂)
     state_B = βrecursion(fsm.T̂, ĈV̂)
-    state_AB = broadcast!(*, state_A, state_A, state_B)
-    AB = Ĉ' * state_AB
-    Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3))
-    sums = sum(Ẑ, dims = 2)
+    state_AB = broadcast!(*, state_A, state_A, state_B)  # B*n_states x N
+    AB = Ĉ' * state_AB  # B*n_pdfs x N
+    Ẑ = permutedims(reshape(AB, :, length(V̂s), size(V̂, 2)), (2, 1, 3)) # B x n_pdfs x N
+    sums = sum(Ẑ, dims = 2)  # B x 1 x N
     Ẑ = broadcast!(/, Ẑ, Ẑ, sums)
     ttl = dropdims(minimum(sums, dims = (2, 3)), dims = (2, 3))
     (exp ∘ val).(Ẑ[:, 1:end-1, 1:end-1]), val.(ttl)
