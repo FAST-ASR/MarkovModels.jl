@@ -38,9 +38,15 @@ export
 
     # Inference
     expand,
+    compile,
     αrecursion,
     βrecursion,
-    pdfposteriors
+    pdfposteriors,
+    CompiledFSM,
+
+    # LBP
+    FactorialFSM,
+    CompiledFactorialFSM
 
 include("utils.jl")
 include("fsm.jl")
@@ -49,6 +55,7 @@ include("algorithms.jl")
 include("lmfsm.jl")
 include("linalg.jl")
 include("inference.jl")
+include("lbp_inference.jl")
 
 
 #export maxstateposteriors
