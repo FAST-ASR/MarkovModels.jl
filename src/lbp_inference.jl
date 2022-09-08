@@ -1,26 +1,82 @@
+struct CompiledFSM{K<:Semiring}
+    α̂
+    T̂
+    T̂ᵀ
+    Ĉ
+    Ĉᵀ
+end
+compile(fsm::FSM, Ĉ::AbstractMatrix) = CompiledFSM{eltype(fsm.α̂)}(fsm.α̂, fsm.T̂, copy(fsm.T̂'), Ĉ, copy(Ĉ'))
+
+function Adapt.adapt_structure(::Type{<:CuArray}, cfsm::CompiledFSM{K}) where K
+    T̂ = CuSparseMatrixCSC(cfsm.T̂)
+    T̂ᵀ = CuSparseMatrixCSC(cfsm.T̂ᵀ)
+    Ĉ = CuSparseMatrixCSC(cfsm.Ĉ)
+    Ĉᵀ = CuSparseMatrixCSC(cfsm.Ĉᵀ)
+    CompiledFSM{K}(
+        CuSparseVector(cfsm.α̂),
+        CuSparseMatrixCSR(T̂ᵀ.colPtr, T̂ᵀ.rowVal, T̂ᵀ.nzVal, T̂.dims),
+        CuSparseMatrixCSR(T̂.colPtr, T̂.rowVal, T̂.nzVal, T̂ᵀ.dims),
+        CuSparseMatrixCSR(Ĉᵀ.colPtr, Ĉᵀ.rowVal, Ĉᵀ.nzVal, Ĉ.dims),
+        CuSparseMatrixCSR(Ĉ.colPtr, Ĉ.rowVal, Ĉ.nzVal, Ĉᵀ.dims),
+    )
+end
+
 struct FactorialFSM{K<:Semiring}
     fsms::Vector{FSM{K}}
-    smap::Vector{AbstractSparseMatrix{K}}
 end
 
-function FactorialFSM(
-            fsm1::FSM{K}, smap1::AbstractSparseMatrix{K},
-            fsm2::FSM{K}, smap2::AbstractSparseMatrix{K}
-) where K
-    FactorialFSM([fsm1, fsm2], [smap1, smap2])
+struct CompiledFactorialFSM{K<:Semiring, J}
+    fsms::Vector{CompiledFSM{K}}
+    Ĉ::AbstractSparseMatrix{K}
+    Ĉᵀ::AbstractSparseMatrix{K}
 end
 
-nfsms(ffsm::FactorialFSM{K}) where K = length(ffsm.fsms)
-getindex(ffsm::FactorialFSM{K}, key::Integer) where K = ffsm.fsms[key]
+function compile(ffsm::FactorialFSM{K}, Ĉs::AbstractMatrix{K}...) where K
+    J = length(ffsm.fsms)
+    @assert length(Ĉs) == J "Number of state maps `Ĉs` has to be same as number of FSMs in FactorialFSM"
+    Ĉ = foldl(joint_smap, sparse.(Ĉs))
+    CompiledFactorialFSM{K, J}(
+        map(zip(ffsm.fsms, Ĉs)) do (fsm, smap) compile(fsm, smap) end,
+        #[compile(fsm, smap) for (fsm, smap) in zip(ffsm.fsms, Ĉs)],
+        Ĉ,
+        copy(Ĉ')
+    )
+end
+
+Base.getindex(cffsm::CompiledFactorialFSM{K}, key::Integer) where K = cffsm.fsms[key]
+nfsms(cffsm::CompiledFactorialFSM{K, J}) where {K, J} = J
+
+function Adapt.adapt_structure(T::Type{<:CuArray}, cffsm::CompiledFactorialFSM{K}) where K
+    fsms = adapt_structure.(T, cffsm.fsms)
+    Ĉ = CuSparseMatrixCSC(cffsm.Ĉ)
+    Ĉᵀ = CuSparseMatrixCSC(cffsm.Ĉᵀ)
+    CompiledFactorialFSM(
+        fsms,
+        CuSparseMatrixCSR(Ĉᵀ.colPtr, Ĉᵀ.rowVal, Ĉᵀ.nzVal, Ĉ.dims),
+        CuSparseMatrixCSR(Ĉ.colPtr, Ĉ.rowVal, Ĉ.nzVal, Ĉᵀ.dims),
+    )
+end
+
+function batch(cffsm1::CompiledFactorialFSM{K, J}, cffsms::CompiledFactorialFSM{K, J}...) where {K, J}
+    fsms = Vector{CompiledFSM{K}}[]
+    for j in 1:J
+        push!(fsms, batch(cffsm1.fsms[j], map(cffsm -> cffsm.fsms[j], cffsms)...))
+    end
+    CompiledFactorialFSM{K, J}(
+        fsms,
+        blockdiag(cffsm1.Ĉ, map(cffsm -> cffsm.Ĉ, cffsms)...),
+        blockdiag(cffsm1.Ĉᵀ, map(cffsm -> cffsm.Ĉᵀ, cffsms)...)
+    )
+end
 
 function joint_smap(smap1::AbstractSparseMatrix{K}, smap2::AbstractSparseMatrix{K}) where K
     S1, P1 = size(smap1)
     S2, P2 = size(smap2)
     @assert P1 == P2
 
-    I, J, V = [], [], []
-    for (i1, j1, v2) in zip(findnz(smap1))
-        for (i2, j2, v2) in zip(findnz(smap2))
+    I, J, V = Int[], Int[], K[]
+    for (i1, j1, v2) in zip(findnz(smap1)...)
+        for (i2, j2, v2) in zip(findnz(smap2)...)
             push!(I, (i2-1) * S1 + i1)
             push!(J, (j2-1) * P1 + j1)
             push!(V, one(K))
@@ -39,7 +95,7 @@ function init_messages(ffsm::FactorialFSM{K}, N::Integer) where K
     @views for j in 1:length(S)
         fsm = ffsm[j]
         S = nstates(fsm)
-        m1j, m2j, m3j = m1[j], m2[j], m3[j] 
+        m1j, m2j, m3j = m1[j], m2[j], m3[j]
         fill!(m2j[:, 2:end], one(K) / K(S))
         m2j[:, 1] = fsm.α̂
         fill!(m3j, one(K) / K(S))
@@ -76,13 +132,13 @@ args:
     ffsm - FactorialFSM od 2 FSMs with states `S1` and `S2`
     llhs - loglikehoods with size `(S1*S2, N)`
 """
-function pdfposteriors(ffsm::FactorialFSM{K}, llhs::AbstractMatrix{K}; eps=1e-4, max_iter=10) where {K<:Semiring}
+function pdfposteriors(ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractMatrix{K}; eps=1e-4, max_iter=10) where {K<:Semiring, J}
+    N = size(llhs, 2)
     n_spkrs = nfsms(ffsm)
     states_per_fsm = [nstates(ffsm[i]) + 1 for i in 1:n_spkrs] # + virtual state
-    N = size(llhs, 2)
     total_states = reduce(*, states_per_fsm)
     # we assume that llhs is already expanded (see `expand`)
-    state_llhs = joint_smap(ffsm.smap...) * llhs
+    state_llhs = ffsm.Ĉ * llhs
     @assert size(state_llhs, 1) == total_states
     state_llhs = reshape(state_llhs, vcat(states_per_fsm, [N])...) # S1 x S2 x ... x N
 
@@ -110,7 +166,7 @@ function pdfposteriors(ffsm::FactorialFSM{K}, llhs::AbstractMatrix{K}; eps=1e-4,
     ttl = zero(K)
     for (j, (m1j, m2j, m3j)) in enumerate(zip(m1, m2, m3))
         state_marginals = broadcast!(*, m1j, m1j, m2j, m3j)
-        pdf_marginals = ffsm.smap[j]' * state_marginals
+        pdf_marginals = ffsm[j].Ĉᵀ * state_marginals
         sums = sum(pdf_marginals, dims=1) # 1 x N
         broadcast!(/, pdf_marginals, pdf_marginals, sums)
         ttl += minimum(sums)
@@ -121,7 +177,7 @@ function pdfposteriors(ffsm::FactorialFSM{K}, llhs::AbstractMatrix{K}; eps=1e-4,
     result, ttl
 end
 
-function lbp_step!(messages, ffsm::FactorialFSM{K}, llhs::AbstractArray{K, 3}) where K
+function lbp_step!(messages, ffsm::CompiledFactorialFSM{K, J}, llhs::AbstractArray{K, D}) where {K, J, D}
     n_spkrs = ndims(llhs) - 1
     @assert n_spkrs == 2 "Currently we do not support more than 2 speakers!"
 
@@ -132,7 +188,7 @@ function lbp_step!(messages, ffsm::FactorialFSM{K}, llhs::AbstractArray{K, 3}) w
         # this spkr's messages
         m1j, m2j, m3j = m1[j], m2[j], m3[j]
         fsm = ffsm[j]
-        T̂, T̂ᵀ = fsm.T̂, permutedims(fsm.T̂, [2,1]) # TODO maybe not optimal
+        T̂, T̂ᵀ = fsm.T̂, fsm.T̂ᵀ
 
         # other spkr's messages
         k = n_spkrs - j + 1
@@ -142,7 +198,8 @@ function lbp_step!(messages, ffsm::FactorialFSM{K}, llhs::AbstractArray{K, 3}) w
 
         @views for n in 1:N
             broadcast!(*, buffer_k, m2k[:, n], m3k[:, n])
-            broadcast!(/, buffer_k, buffer_k, sum(buffer_k))
+            #broadcast!(/, buffer_k, buffer_k, sum(buffer_k)) # Do NOT normalize
+            # (w/o norm it will converge faster)
             mul!(m1j[:, n], llhs_perm[:, :, n], buffer_k)
             #broadcast!(*, buffer, llhs_perm[:, :, n], buffer_k)
             #sum!(m1j[:, n], buffer')

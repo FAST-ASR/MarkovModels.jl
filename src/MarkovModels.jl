@@ -38,13 +38,15 @@ export
 
     # Inference
     expand,
+    compile,
     αrecursion,
     βrecursion,
     pdfposteriors,
+    CompiledFSM,
 
     # LBP
     FactorialFSM,
-    lbp_posteriors
+    CompiledFactorialFSM
 
 include("utils.jl")
 include("fsm.jl")

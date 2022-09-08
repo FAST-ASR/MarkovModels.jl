@@ -7,7 +7,7 @@ const SF = LogSemiring{T}
 #normalize2(x) = x ./ sum(x)
 normalize2(x) = x
 
-function naive_lbp_step(messages, ffsm::FactorialFSM{T}, llhs::AbstractArray{T, 3}) where T
+function naive_lbp_step(messages, ffsm::CompiledFactorialFSM{T}, llhs::AbstractArray{T, 3}) where T
     N = size(llhs, 3)
     n_spkrs = 2
     m1, m2, m3 = deepcopy(messages)
@@ -32,7 +32,7 @@ function naive_lbp_step(messages, ffsm::FactorialFSM{T}, llhs::AbstractArray{T, 
             m1[j][:, n] = sum(buffer, dims=[k for k in 1:n_spkrs if k != j])
         end
 
-        fsm = ffsm.fsms[j]
+        fsm = ffsm[j]
         m2[j][:, 1] = fsm.α̂
         @views for n in 2:N
             m2[j][:, n] = ((m2[j][:, n - 1] .* m1[j][:, n - 1])' * fsm.T̂)'
@@ -70,12 +70,13 @@ make_lin_ffsm(SF, T, num_states_per_fsm...) = begin
             diagm(abs(P-S) => ones(SF, S))[1:S, :] |> sparse
         )
     end
-    FactorialFSM(fsms, smaps)
+    compile(FactorialFSM(fsms), smaps...)
 end
 
 make_ffsm(SF, T, num_states_per_fsm...) = begin
     fsms = FSM{SF}[]
     smaps = AbstractSparseMatrix{SF}[]
+    P = maximum(num_states_per_fsm)
     for S in num_states_per_fsm
         α = sprand(T, S-1, 0.25)
         T̂ = sprand(T, S-1, S-1, 0.95)
@@ -90,9 +91,12 @@ make_ffsm(SF, T, num_states_per_fsm...) = begin
                 labels
             ) |> renorm
         )
-        push!(smaps, diagm(ones(SF, S)) |> sparse)
+        push!(
+            smaps,
+            diagm(abs(P-S) => ones(SF, S))[1:S, :] |> sparse
+        )
     end
-    FactorialFSM(fsms, smaps)
+    compile(FactorialFSM(fsms), smaps...)
 end
 
 false_print(msg) = begin 
