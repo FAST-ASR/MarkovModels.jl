@@ -174,8 +174,10 @@ function LinearAlgebra.mul!(c::CuVector{K},
             A.nzVal,
             b)
         config = launch_configuration(ckernel.fun)
-        threads = min(length(c), config.threads)
-        blocks = cld(length(c), threads)
+	    ws = warpsize(device())
+	    n = ws * (length(A.rowPtr) - 1)
+        threads = min(n, config.threads)
+        blocks = cld(n, threads)
         ckernel(c, A.rowPtr, A.colVal, A.nzVal, b; threads, blocks)
     end
     c
@@ -211,36 +213,24 @@ end
 function _cukernel_mul_smdv!(c::CuVector, rowptr::CuVector, colval::CuVector,
                         nzval::CuVector, b::CuVector)
 
-    function cukernel!(c, rowptr, colval, nzval, b)
-		threadid = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-		warpid = (threadid - 1) ÷ warpsize() + 1
-        lane = ((threadid - 1) % warpsize()) + 1
+    threadid = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    warpid = (threadid - 1) ÷ warpsize() + 1
+    lane = ((threadid - 1) % warpsize()) + 1
 
-		r = warpid # assign one warp per row.
-		sum = zero(eltype(nzval))
-		if r < length(rowptr)
-            @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
-				sum += nzval[i] * b[colval[i]]
-			end
-		end
+    r = warpid # assign one warp per row.
+    sum = zero(eltype(nzval))
+    if r < length(rowptr)
+        @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
+            sum += nzval[i] * b[colval[i]]
+        end
+    end
 
-		sum = warp_reduce(sum)
-		if lane == 1 && r < length(rowptr)
-			c[r] = sum
-		end
+    sum = warp_reduce(sum)
+    if lane == 1 && r < length(rowptr)
+        c[r] = sum
+    end
 
-		return
-	end
-
-	ckernel = @cuda launch=false cukernel!(c, rowptr, colval, nzval, b, α)
-	config = launch_configuration(ckernel.fun)
-	ws = warpsize(device())
-	n = ws * (length(rowptr) - 1)
-	threads = min(n, config.threads)
-	blocks = cld(n, threads)
-	ckernel(c, rowptr, colval, nzval, b, α; threads, blocks)
-
-    c
+    return
 end
 
 #======================================================================
