@@ -217,17 +217,17 @@ function _cukernel_mul_smdv!(c, rowptr, colval, nzval, b)
     lane = ((threadid - 1) % warpsize()) + 1
 
     r = warpid # assign one warp per row.
-    sum = zero(eltype(nzval))
+    #sum = zero(eltype(nzval))
     if r < length(rowptr)
         @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
-            sum += nzval[i] * b[colval[i]]
+            CUDA.@atomic c[r] += nzval[i] * b[colval[i]]
         end
     end
 
-    sum = warp_reduce(sum)
-    if lane == 1 && r < length(rowptr)
-        c[r] = sum
-    end
+    #sum = warp_reduce(sum)
+    #if lane == 1 && r < length(rowptr)
+    #    c[r] = sum
+    #end
 
     return
 end
