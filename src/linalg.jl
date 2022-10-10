@@ -186,17 +186,61 @@ LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuAdjOrTranspose{K},
     mul!(c, copy(Aᵀ), b, α, β)
 
 
-function _cukernel_mul_smdv!(c, rowPtr, colVal, nzVal, b)
-    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    stride = blockDim().x * gridDim().x
+#function _cukernel_mul_smdv!(c, rowPtr, colVal, nzVal, b)
+#    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+#    stride = blockDim().x * gridDim().x
+#
+#    for i = index:stride:length(c)
+#        c[i] = zero(eltype(c))
+#        for j = rowPtr[i]:(rowPtr[i+1]-1)
+#            c[i] += nzVal[j] * b[colVal[j]]
+#        end
+#    end
+#    return
+#end
 
-    for i = index:stride:length(c)
-        c[i] = zero(eltype(c))
-        for j = rowPtr[i]:(rowPtr[i+1]-1)
-            c[i] += nzVal[j] * b[colVal[j]]
-        end
-    end
-    return
+function warp_reduce(val::T) where T
+	offset = warpsize() ÷ 2
+	while offset > 0
+		val += CUDA.shfl_down_sync(CUDA.FULL_MASK, val, offset)
+		offset ÷= 2
+	end
+	val
+end
+
+function _cukernel_mul_smdv!(c::CuVector, rowptr::CuVector, colval::CuVector,
+                        nzval::CuVector, b::CuVector)
+
+    function cukernel!(c, rowptr, colval, nzval, b)
+		threadid = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+		warpid = (threadid - 1) ÷ warpsize() + 1
+        lane = ((threadid - 1) % warpsize()) + 1
+
+		r = warpid # assign one warp per row.
+		sum = zero(eltype(nzval))
+		if r < length(rowptr)
+            @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
+				sum += nzval[i] * b[colval[i]]
+			end
+		end
+
+		sum = warp_reduce(sum)
+		if lane == 1 && r < length(rowptr)
+			c[r] = sum
+		end
+
+		return
+	end
+
+	ckernel = @cuda launch=false cukernel!(c, rowptr, colval, nzval, b, α)
+	config = launch_configuration(ckernel.fun)
+	ws = warpsize(device())
+	n = ws * (length(rowptr) - 1)
+	threads = min(n, config.threads)
+	blocks = cld(n, threads)
+	ckernel(c, rowptr, colval, nzval, b, α; threads, blocks)
+
+    c
 end
 
 #======================================================================
