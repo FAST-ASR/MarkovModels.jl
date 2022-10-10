@@ -210,8 +210,7 @@ function warp_reduce(val::T) where T
 	val
 end
 
-function _cukernel_mul_smdv!(c::CuVector, rowptr::CuVector, colval::CuVector,
-                        nzval::CuVector, b::CuVector)
+function _cukernel_mul_smdv!(c, rowptr, colval, nzval, b)
 
     threadid = (blockIdx().x - 1) * blockDim().x + threadIdx().x
     warpid = (threadid - 1) ÷ warpsize() + 1
