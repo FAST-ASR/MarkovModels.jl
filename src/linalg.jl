@@ -201,13 +201,13 @@ LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuAdjOrTranspose{K},
 #    return
 #end
 
-function warp_reduce(val::T) where T
+function warp_reduce(x::T) where T <: Semiring
 	offset = warpsize() ÷ 2
 	while offset > 0
-		val += CUDA.shfl_down_sync(CUDA.FULL_MASK, val, offset)
+        x += CUDA.shfl_down_sync(CUDA.FULL_MASK, val(x), offset)
 		offset ÷= 2
 	end
-	val
+    x
 end
 
 function _cukernel_mul_smdv!(c, rowptr, colval, nzval, b)
@@ -217,17 +217,17 @@ function _cukernel_mul_smdv!(c, rowptr, colval, nzval, b)
     lane = ((threadid - 1) % warpsize()) + 1
 
     r = warpid # assign one warp per row.
-    #sum = zero(eltype(nzval))
+    sum = zero(eltype(nzval))
     if r < length(rowptr)
         @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
-            CUDA.@atomic c[r] += nzval[i] * b[colval[i]]
+            x += nzval[i] * b[colval[i]]
         end
     end
 
-    #sum = warp_reduce(sum)
-    #if lane == 1 && r < length(rowptr)
-    #    c[r] = sum
-    #end
+    sum = warp_reduce(sum)
+    if lane == 1 && r < length(rowptr)
+        @inbounds c[r] = sum
+    end
 
     return
 end
