@@ -204,7 +204,7 @@ LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuAdjOrTranspose{K},
 function warp_reduce(x::T) where T <: Semiring
 	offset = warpsize() ÷ 2
 	while offset > 0
-        x += CUDA.shfl_down_sync(CUDA.FULL_MASK, val(x), offset)
+        x += T(CUDA.shfl_down_sync(CUDA.FULL_MASK, val(x), offset))
 		offset ÷= 2
 	end
     x
