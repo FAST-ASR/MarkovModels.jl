@@ -220,7 +220,7 @@ function _cukernel_mul_smdv!(c, rowptr, colval, nzval, b)
     sum = zero(eltype(nzval))
     if r < length(rowptr)
         @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
-            x += nzval[i] * b[colval[i]]
+            sum += nzval[i] * b[colval[i]]
         end
     end
 
