@@ -24,7 +24,7 @@ function FSM(α::AbstractSparseVector, T::AbstractSparseMatrix,
     p[end] = one(eltype(ω))
     T̂ = vcat(Tω, reshape(p, 1, :))
 
-    FSM(vcat(α, zero(eltype(α))), T̂, λ)
+    FSM(vcat(α, sparsevec([1], zero(eltype(α)))), T̂, λ)
 end
 
 function Base.getproperty(fsm::FSM, sym::Symbol)

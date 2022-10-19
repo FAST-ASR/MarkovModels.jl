@@ -9,7 +9,6 @@ using CUDA.CUSPARSE
 using JSON
 using LinearAlgebra
 using SparseArrays
-using BlockDiagonals
 using Semirings
 
 export
@@ -37,6 +36,9 @@ export
     LanguageModelFSM,
 
     # Inference
+    CompiledFSM,
+    batch,
+    compile,
     expand,
     αrecursion,
     βrecursion,

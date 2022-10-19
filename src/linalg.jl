@@ -160,14 +160,12 @@ end
 Sparse matrix (CSR) and dense vector multiplication.
 ======================================================================#
 
-function LinearAlgebra.mul!(c::CuVector{K}, A::CuSparseMatrixCSR{K},
-                            b::CuVector{K}, α::Number, β::Number) where K
+function LinearAlgebra.mul!(c::CuVector{K},
+                            A::CuSparseMatrixCSR{K},
+                            b::CuVector{K}) where K
     @boundscheck size(A, 2) == size(b, 1) || throw(DimensionMismatch())
     @boundscheck size(A, 1) == size(c, 1) || throw(DimensionMismatch())
 
-    if β != 1
-        β != 0 ? rmul!(c, β) : fill!(c, zero(eltype(c)))
-    end
     if length(A.nzVal) > 0
         ckernel = @cuda launch=false _cukernel_mul_smdv!(
             c,
@@ -176,8 +174,10 @@ function LinearAlgebra.mul!(c::CuVector{K}, A::CuSparseMatrixCSR{K},
             A.nzVal,
             b)
         config = launch_configuration(ckernel.fun)
-        threads = min(length(c), config.threads)
-        blocks = cld(length(c), threads)
+	    ws = warpsize(device())
+	    n = ws * (length(A.rowPtr) - 1)
+        threads = min(n, config.threads)
+        blocks = cld(n, threads)
         ckernel(c, A.rowPtr, A.colVal, A.nzVal, b; threads, blocks)
     end
     c
@@ -188,15 +188,47 @@ LinearAlgebra.mul!(c::CuVector{K}, Aᵀ::CuAdjOrTranspose{K},
     mul!(c, copy(Aᵀ), b, α, β)
 
 
-function _cukernel_mul_smdv!(c, rowPtr, colVal, nzVal, b)
-    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
-    stride = blockDim().x * gridDim().x
+#function _cukernel_mul_smdv!(c, rowPtr, colVal, nzVal, b)
+#    index = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+#    stride = blockDim().x * gridDim().x
+#
+#    for i = index:stride:length(c)
+#        c[i] = zero(eltype(c))
+#        for j = rowPtr[i]:(rowPtr[i+1]-1)
+#            c[i] += nzVal[j] * b[colVal[j]]
+#        end
+#    end
+#    return
+#end
 
-    for i = index:stride:length(c)
-        for j = rowPtr[i]:(rowPtr[i+1]-1)
-            c[i] += nzVal[j] * b[colVal[j]]
+function warp_reduce(x::T) where T <: Semiring
+	offset = warpsize() ÷ 2
+	while offset > 0
+        x += T(CUDA.shfl_down_sync(CUDA.FULL_MASK, val(x), offset))
+		offset ÷= 2
+	end
+    x
+end
+
+function _cukernel_mul_smdv!(c, rowptr, colval, nzval, b)
+
+    threadid = (blockIdx().x - 1) * blockDim().x + threadIdx().x
+    warpid = (threadid - 1) ÷ warpsize() + 1
+    lane = ((threadid - 1) % warpsize()) + 1
+
+    r = warpid # assign one warp per row.
+    sum = zero(eltype(nzval))
+    if r < length(rowptr)
+        @inbounds for i in (rowptr[r] + lane - 1):warpsize():(rowptr[r+1] - 1)
+            sum += nzval[i] * b[colval[i]]
         end
     end
+
+    sum = warp_reduce(sum)
+    if lane == 1 && r < length(rowptr)
+        @inbounds c[r] = sum
+    end
+
     return
 end
 
@@ -253,6 +285,11 @@ Sparse vector and dense veector broadcasting.
 ======================================================================#
 
 const SupportedOperator = Union{typeof(*), typeof(/)}
+
+elmul!(out, x::AbstractArray, y::AbstractArray) =  broadcast!(*, out, x, y)
+elmul!(out, x::AbstractVector, y::CuSparseVector) = _copyto!(*, out, y, x)
+eldiv!(out, x::AbstractArray, y::AbstractArray) =  broadcast!(/, out, x, y)
+eldiv!(out, x::CuSparseVector, y::AbstractVector) = _copyto!(/, out, y, x)
 
 function _copyto!(f::SupportedOperator, dest::CuArray{K}, x::CuSparseVector{K},
                   y::CuVector{K}) where K
