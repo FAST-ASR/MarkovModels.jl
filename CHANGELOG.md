@@ -1,12 +1,10 @@
 # Releases
 
-## 0.10.1
-### Added
-* Improved SpMV performance
-
 ## 0.10.0
 ### Added
-* CompiledFSM object whichstore the fsm and it's reversal.
+* CompiledFSM object which stores the fsm and it's reversal.
+### Enhancement
+* Improved SpMV performance
 
 ## 0.9.1
 ### Fixed
