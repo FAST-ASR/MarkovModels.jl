@@ -3,11 +3,9 @@
 *Julia package for inference with (Hidden) Markov Models on CPU or
 GPU.*
 
-<!---
 | **Documentation**  |
 |:------------------:|
 |[![](https://img.shields.io/badge/docs-stable-blue.svg)](https://FAST-ASR.github.io/MarkovModels.jl/stable) [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://FAST-ASR.github.io/MarkovModels.jl/dev)|
---->
 
 Here is a small [benchmark](https://github.com/lucasondel/MarkovModels.jl/tree/master/misc/benchmark) to see how our implementation performs.
 
@@ -20,17 +18,16 @@ From the Julia REPL, type ] to enter the Pkg REPL mode and run:
 pkg> add MarkovModels
 ```
 
-<!---
-Have a look at the [documentation](https://lucasondel.github.io/MarkovModels.jl/stable)
-or the [examples](https://github.com/lucasondel/MarkovModels.jl/tree/master/examples)
+Have a look at the [documentation](https://FAST-ASR.github.io/MarkovModels.jl/stable)
+or the [examples](https://github.com/FAST-ASR/MarkovModels.jl/tree/master/examples)
 to get started.
---->
 
 ## Reference
 
 A more formal description of the implementation can be found
 [here](https://hal.archives-ouvertes.fr/hal-03434552/document).
 If you use this package, we kindly ask you to cite our work:
+
 ```
 @unpublished{ondel:hal-03434552,
   TITLE = {{GPU-Accelerated Forward-Backward Algorithm with Application to Lattic-Free MMI}},
